@@ -105,6 +105,19 @@ def _fetch_hf(entry: ModelEntry, dest_dir: Path) -> Path:
                 subfolder=entry.subfolder,
                 local_dir=str(dest_dir),
             )
+            # OpenVINO IR is two files: pull the sibling .bin alongside the .xml
+            # so the weights are present (a single-file fetch would miss them).
+            if entry.filename.endswith(".xml"):
+                bin_name = entry.filename[: -len(".xml")] + ".bin"
+                try:
+                    hf_hub_download(
+                        repo_id=entry.repo,
+                        filename=bin_name,
+                        subfolder=entry.subfolder,
+                        local_dir=str(dest_dir),
+                    )
+                except Exception:
+                    pass  # weight-embedded IR or no companion .bin: tolerate
             return Path(path)
         snap = snapshot_download(repo_id=entry.repo, local_dir=str(dest_dir))
         return Path(snap)
