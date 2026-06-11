@@ -1,0 +1,57 @@
+# ovkit model registry
+# ---------------------------------------------------------------------------
+# Adding a model = one entry here. No hardcoding model names in code.
+#
+# Required fields:
+#   src       : hf | url | genai | anomalib
+#   task      : detect | classify | segment | pose | face | ...
+#   license   : SPDX id. MUST be permissive (Apache-2.0, MIT, BSD, ...).
+#               Non-permissive (AGPL, non-commercial) models MUST NOT be added.
+#
+# Source-specific fields:
+#   hf  : repo (required), filename (optional, single file) or subfolder
+#   url : url (required, points at .onnx or .xml)
+#
+# Optional fields:
+#   precision   : fp32 | fp16 | int8   (target IR precision after conversion)
+#   sha256      : integrity check for the *downloaded* artifact (hex digest)
+#   imgsz       : default inference square size
+#   preprocess  : mean/std/scale/layout hints for PrePostProcessor
+#   postprocess : output decoding format + class metadata
+# ---------------------------------------------------------------------------
+
+# --- detect ---------------------------------------------------------------
+# RT-DETR (Baidu/PaddleDetection), Apache-2.0. Exported to ONNX, converted to IR
+# at first use. DETR-style decode (no NMS).
+rtdetr_r50:
+  src: hf
+  repo: onnx-community/rtdetr_r50vd
+  filename: onnx/model.onnx
+  task: detect
+  precision: fp16
+  license: apache-2.0
+  imgsz: 640
+  preprocess:
+    layout: NCHW
+    scale: 255.0          # uint8 -> [0,1]
+    mean: [0.0, 0.0, 0.0]
+    std: [1.0, 1.0, 1.0]
+  postprocess:
+    format: detr          # outputs: logits [N,Q,C], boxes [N,Q,4] (cxcywh, norm)
+    classes: coco80
+
+# RT-DETRv2 r18 — smaller/faster, same decode. Apache-2.0.
+rtdetrv2_r18:
+  src: hf
+  repo: onnx-community/rtdetr_v2_r18vd
+  filename: onnx/model.onnx
+  task: detect
+  precision: fp16
+  license: apache-2.0
+  imgsz: 640
+  preprocess:
+    layout: NCHW
+    scale: 255.0
+  postprocess:
+    format: detr
+    classes: coco80
