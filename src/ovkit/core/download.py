@@ -158,11 +158,44 @@ def _fetch_url(entry: ModelEntry, dest_dir: Path) -> Path:
     return dest
 
 
+def _fetch_by_src(entry: ModelEntry, dest_dir: Path) -> Path:
+    """Dispatch to the right fetcher for ``entry.src`` (no fallback handling)."""
+    if entry.src == "hf":
+        return _fetch_hf(entry, dest_dir)
+    if entry.src == "url":
+        return _fetch_url(entry, dest_dir)
+    raise DownloadError(
+        f"Source type '{entry.src}' for '{entry.name}' is not handled by the "
+        f"downloader (genai/anomalib delegate to their own loaders)."
+    )
+
+
+def _fallback_entry(entry: ModelEntry) -> ModelEntry:
+    """Build a ModelEntry from ``entry.fallback``, inheriting shared metadata."""
+    fb = dict(entry.fallback or {})
+    return ModelEntry(
+        name=entry.name,
+        src=fb.get("src", "url"),
+        repo=fb.get("repo"),
+        filename=fb.get("filename"),
+        subfolder=fb.get("subfolder"),
+        url=fb.get("url"),
+        sha256=fb.get("sha256"),
+        license=entry.license,
+        task=entry.task,
+        precision=entry.precision,
+    )
+
+
 def fetch(entry: ModelEntry) -> Path:
     """Ensure the source artifact for ``entry`` is present locally and return it.
 
-    Respects offline mode: if the artifact is already cached it is returned
-    without touching the network; otherwise :class:`OfflineError` is raised.
+    Resolution order:
+
+    1. Offline (``OVKIT_OFFLINE=1``): return a cached copy or raise.
+    2. The entry's primary source.
+    3. ``entry.fallback`` (e.g. the upstream original) if the primary fails —
+       so a mirror outage degrades to the original host instead of breaking.
     """
     dest_dir = downloads_dir(entry.name)
 
@@ -176,15 +209,18 @@ def fetch(entry: ModelEntry) -> Path:
             f"({dest_dir}). Disable offline mode to download it."
         )
 
-    if entry.src == "hf":
-        path = _fetch_hf(entry, dest_dir)
-    elif entry.src == "url":
-        path = _fetch_url(entry, dest_dir)
-    else:
-        raise DownloadError(
-            f"Source type '{entry.src}' for '{entry.name}' is not handled by the "
-            f"downloader (genai/anomalib delegate to their own loaders)."
-        )
+    try:
+        path = _fetch_by_src(entry, dest_dir)
+    except DownloadError as primary_exc:
+        if not entry.fallback:
+            raise
+        try:
+            path = _fetch_by_src(_fallback_entry(entry), dest_dir)
+        except DownloadError as fb_exc:
+            raise DownloadError(
+                f"'{entry.name}': primary source failed ({primary_exc}); "
+                f"fallback also failed ({fb_exc})."
+            ) from fb_exc
 
     _verify(path, entry.sha256)
     return path

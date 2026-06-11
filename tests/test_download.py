@@ -54,3 +54,24 @@ def test_offline_uses_cached_source(tmp_path, monkeypatch):
     monkeypatch.setenv("OVKIT_OFFLINE", "1")
     found = download.fetch(entry)
     assert Path(found).name == "m.onnx"
+
+
+def test_fallback_used_when_primary_fails(tmp_path, monkeypatch):
+    monkeypatch.setenv("OVKIT_HOME", str(tmp_path))
+    good = tmp_path / "good.onnx"
+    good.write_bytes(b"weights")
+    entry = ModelEntry(
+        name="fb",
+        src="url",
+        url="file:///definitely/missing/primary.onnx",
+        fallback={"src": "url", "url": good.as_uri()},
+    )
+    path = download.fetch(entry)
+    assert Path(path).read_bytes() == b"weights"
+
+
+def test_no_fallback_reraises(tmp_path, monkeypatch):
+    monkeypatch.setenv("OVKIT_HOME", str(tmp_path))
+    entry = ModelEntry(name="nofb", src="url", url="file:///definitely/missing/x.onnx")
+    with pytest.raises(DownloadError):
+        download.fetch(entry)

@@ -43,6 +43,8 @@ class ModelEntry:
     url: str | None = None
     sha256: str | None = None
     imgsz: int | None = None
+    license_url: str | None = None
+    fallback: dict[str, Any] | None = None
     preprocess: dict[str, Any] = field(default_factory=dict)
     postprocess: dict[str, Any] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
@@ -60,6 +62,8 @@ class ModelEntry:
             "url",
             "sha256",
             "imgsz",
+            "license_url",
+            "fallback",
             "preprocess",
             "postprocess",
         }

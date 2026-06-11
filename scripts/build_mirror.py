@@ -161,6 +161,7 @@ def omz_intel_entries() -> list[ModelEntry]:
                 task=task,
                 precision="fp16",
                 license="apache-2.0",
+                license_url=spec.get("license_url"),
             )
         )
     print(f"  found {len(entries)} Apache-2.0 OMZ models ({skipped} non-permissive skipped)")
@@ -206,6 +207,7 @@ def _model_card(entry: ModelEntry, source_name: str) -> str:
 
 
 def _manifest_snippet(entry: ModelEntry, repo: str) -> str:
+    """Emit a manifest entry: mirror as primary, the upstream source as fallback."""
     xml, _, _ = _mirror_paths(entry)
     lines = [
         f"{entry.name}:",
@@ -218,7 +220,57 @@ def _manifest_snippet(entry: ModelEntry, repo: str) -> str:
     ]
     if entry.imgsz:
         lines.append(f"  imgsz: {entry.imgsz}")
+    if entry.license_url:
+        lines.append(f"  license_url: {entry.license_url}")
+    # Fallback = the original upstream source, so a mirror outage still resolves.
+    lines.append("  fallback:")
+    lines.append(f"    src: {entry.src}")
+    if entry.repo:
+        lines.append(f"    repo: {entry.repo}")
+    if entry.filename:
+        lines.append(f"    filename: {entry.filename}")
+    if entry.url:
+        lines.append(f"    url: {entry.url}")
     return "\n".join(lines)
+
+
+def _upload_license(api, entry: ModelEntry, repo: str, base: str) -> None:
+    """Best-effort: place the upstream LICENSE/attribution beside the model.
+
+    Apache-2.0/permissive redistribution requires preserving the license and
+    attribution, so we fetch the original license text where we can.
+    """
+    text: str | None = None
+    if entry.license_url:
+        try:
+            text = _http_text(entry.license_url)
+        except Exception:
+            text = None
+    if text is None and entry.src == "hf" and entry.repo:
+        try:
+            from huggingface_hub import hf_hub_download
+
+            for cand in ("LICENSE", "LICENSE.txt", "NOTICE"):
+                try:
+                    lp = hf_hub_download(repo_id=entry.repo, filename=cand)
+                    text = Path(lp).read_text(encoding="utf-8", errors="replace")
+                    break
+                except Exception:
+                    continue
+        except Exception:
+            text = None
+    if text is None:
+        # No license file found upstream: record the declared license + source.
+        text = (
+            f"{entry.name}\nLicense: {entry.license}\n"
+            f"Source: {entry.repo or entry.url}\nLicense URL: {entry.license_url or 'n/a'}\n"
+        )
+    api.upload_file(
+        path_or_fileobj=text.encode("utf-8"),
+        path_in_repo=f"{base}/LICENSE",
+        repo_id=repo,
+        repo_type="model",
+    )
 
 
 def build_one(api, entry: ModelEntry, repo: str, precision: str, dry_run: bool) -> str:
@@ -251,8 +303,39 @@ def build_one(api, entry: ModelEntry, repo: str, precision: str, dry_run: bool) 
     api.upload_file(
         path_or_fileobj=card, path_in_repo=f"{base}/README.md", repo_id=repo, repo_type="model"
     )
+    _upload_license(api, entry, repo, base)
     print(f"  uploaded -> {repo}/{base}/")
     return _manifest_snippet(entry, repo)
+
+
+def _upload_repo_readme(api, repo: str) -> None:
+    """Write a top-level README describing the mirror and its license policy."""
+    body = textwrap.dedent("""\
+        ---
+        license: apache-2.0
+        ---
+
+        # ovkit model mirror
+
+        OpenVINO IR models served to [ovkit](https://github.com/leeyunjai82/ovkit).
+        Each model lives under `<task>/<name>/` with `model.xml` + `model.bin`,
+        the original source artifact, a `README.md` model card, and the upstream
+        `LICENSE`.
+
+        ## License
+
+        This repository **redistributes** third-party models. Every model is
+        permissively licensed (Apache-2.0 / MIT / BSD); the original license and
+        attribution are preserved in each model's `LICENSE` file. No AGPL
+        (YOLO/Ultralytics) or non-commercial (InsightFace pretrained) weights are
+        hosted here. If you believe a model is mis-licensed, please open an issue.
+        """)
+    api.upload_file(
+        path_or_fileobj=body.encode("utf-8"),
+        path_in_repo="README.md",
+        repo_id=repo,
+        repo_type="model",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -303,6 +386,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         api = HfApi(token=os.environ.get("HF_TOKEN"))
         api.create_repo(args.repo, repo_type="model", private=args.private, exist_ok=True)
+        _upload_repo_readme(api, args.repo)
 
     snippets, failed = [], []
     for entry in entries:
