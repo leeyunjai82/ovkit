@@ -174,17 +174,20 @@ Concretely, the following is implemented and runnable right now:
 
 - ✅ **Detection** — DETR-family (RT-DETR / RT-DETRv2 / D-FINE): preprocess →
   infer → DETR decode (no NMS) → `Results` with `boxes` → `plot()` / `save()`.
+- ✅ **Classification** — single-output `[N, C]` models: preprocess → infer →
+  softmax → `Results` with `probs` (`top1` / `top5`). Per-model input
+  size/normalization via the manifest `imgsz` / `preprocess` fields.
 
-**Not yet (interface stubs, raise `NotImplementedError`):** classify, segment,
-pose, face. `genai` is a thin wrapper (works once `ovkit[genai]` + a model are
-present); `solutions` (anomaly / OCR / tracking / reid) are scaffolding.
+**Not yet (interface stubs, raise `NotImplementedError`):** segment, pose, face.
+`genai` is a thin wrapper (works once `ovkit[genai]` + a model are present);
+`solutions` (anomaly / OCR / tracking / reid) are scaffolding.
 
 ### Feature → model map
 
 | Task / feature | Status | Models |
 | -------------- | ------ | ------ |
 | **detect** | ✅ runs | `rtdetr_r50`, `rtdetrv2_r18` (shipped manifest); mirror adds `rtdetr_r101`, `rtdetrv2_r34/r50/r101`, `dfine_s/m`, + OMZ detectors |
-| **classify** | 🚧 stub | mirror: OMZ classification models (`--omz-intel`) |
+| **classify** | ✅ runs | mirror: OMZ classification models (`--omz-intel`) |
 | **segment** | 🚧 stub | mirror: OMZ semantic/instance segmentation |
 | **pose** | 🚧 stub | mirror: OMZ `human-pose-estimation-*` |
 | **face** | 🚧 stub | mirror: OMZ Apache set — `face-detection-retail-0005`, `landmarks-regression-retail-0009`, `face-reidentification-retail-0095`, `head-pose-estimation-adas-0001`, `emotions-recognition-retail-0003`, `age-gender-recognition-retail-0013`, `anti-spoof-mn3` |

@@ -1,7 +1,7 @@
 """Task adapters: map a generic backend + image to task-specific Results.
 
-The :func:`get_adapter` factory selects the adapter for a detected task. Only
-``detect`` is fully implemented in v0; the rest are interface stubs.
+The :func:`get_adapter` factory selects the adapter for a detected task.
+``detect`` and ``classify`` are implemented; ``segment`` / ``pose`` are stubs.
 """
 
 from __future__ import annotations
