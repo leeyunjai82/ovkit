@@ -97,23 +97,29 @@ from code. **Adding a model is a one-line edit** — no Python changes:
 
 ```yaml
 rtdetr_r50:
-  src: hf
-  repo: onnx-community/rtdetr_r50vd
-  filename: onnx/model.onnx
+  src: hf                              # primary source (your mirror in practice)
+  repo: leeyunjai/ovkit-models
+  filename: detect/rtdetr_r50/model.xml
   task: detect
   precision: fp16
-  license: apache-2.0          # required; must be permissive
+  license: apache-2.0                  # required; must be permissive
+  license_url: https://...             # optional; preserved on re-host
+  fallback:                            # optional; used if the primary fails
+    src: hf
+    repo: onnx-community/rtdetr_r50vd
+    filename: onnx/model.onnx
 ```
 
 Resolution order for `Model("name")`:
 
 1. A local `.xml`/`.onnx` path is used directly.
 2. A cached IR under `$OVKIT_HOME` (or `~/.cache/ovkit/`) is loaded.
-3. Otherwise the manifest source is downloaded, converted to IR, cached, loaded.
+3. Otherwise the **primary** source is downloaded, converted to IR, cached,
+   loaded — and if it fails, the **`fallback`** source is tried.
 
 Robustness: atomic writes (temp + rename), optional `sha256` integrity checks,
-convert-once caching keyed by `(name, precision)`, and an offline mode
-(`OVKIT_OFFLINE=1`) that serves only from cache.
+convert-once caching keyed by `(name, precision)`, upstream fallback, and an
+offline mode (`OVKIT_OFFLINE=1`) that serves only from cache.
 
 ### Environment variables
 
@@ -137,17 +143,62 @@ ovkit is **Apache-2.0** and stays license-clean:
 - Every manifest entry must declare a permissive `license`; non-permissive
   entries are refused at load time.
 
-## Status (v0)
+## What works today (v0)
 
-Implemented end-to-end:
+Concretely, the following is implemented and runnable right now:
 
-- Core runtime: backend, model, results, registry, download, convert, tasks.
-- Image ops (resize/letterbox/crop/zoom/color).
-- **Detection** with a DETR-family model: download → convert → infer → Results
-  → plot.
+**Core runtime (all tasks benefit):**
 
-Interface stubs (`NotImplementedError` + TODO): classify, segment, pose, face,
-genai, and solutions (anomaly/OCR/tracking/reid).
+- ✅ **Auto-resolve & run** — `Model("name")` / `Model("x.xml")` / `Model("x.onnx")`:
+  if the model isn't cached it is **downloaded, converted to IR, and cached**
+  automatically, then run. No manual download step.
+- ✅ **Sources** — HF (`hf_hub_download`) and direct `url`; IR `.xml` pulls its
+  `.bin` companion.
+- ✅ **Upstream fallback** — an entry can list a `fallback`; if the primary
+  source (e.g. the mirror) is down, ovkit retries the original host.
+- ✅ **Robust cache** — atomic writes, `sha256` integrity checks, convert-once
+  caching keyed by `(name, precision)`, offline mode (`OVKIT_OFFLINE=1`).
+- ✅ **Devices** — `AUTO`/`CPU`/`GPU`/`NPU`, settable per call.
+- ✅ **Inference** — synchronous for single images; `stream=True` uses an
+  `AsyncInferQueue` for video/folders.
+- ✅ **Task auto-detection** — manifest → IR `rt_info` → output signature.
+- ✅ **Sources for predict** — image path, `ndarray`, folder, video file,
+  camera index (`int`).
+- ✅ **INT8 quantization** — `model.quantize(calib_data)` (NNCF, `ovkit[quant]`).
+- ✅ **CLI** — `ovkit list | info | download | devices`.
+- ✅ **Mirror tooling** — `scripts/build_mirror.py` mirrors models (incl. the
+  whole Apache Open Model Zoo via `--omz-intel`) to your HF repo, bundling each
+  model's upstream `LICENSE` for clean redistribution.
+
+**Tasks that run end-to-end:**
+
+- ✅ **Detection** — DETR-family (RT-DETR / RT-DETRv2 / D-FINE): preprocess →
+  infer → DETR decode (no NMS) → `Results` with `boxes` → `plot()` / `save()`.
+- ✅ **Classification** — single-output `[N, C]` models: preprocess → infer →
+  softmax → `Results` with `probs` (`top1` / `top5`). Per-model input
+  size/normalization via the manifest `imgsz` / `preprocess` fields.
+
+**Not yet (interface stubs, raise `NotImplementedError`):** segment, pose, face.
+`genai` is a thin wrapper (works once `ovkit[genai]` + a model are present);
+`solutions` (anomaly / OCR / tracking / reid) are scaffolding.
+
+### Feature → model map
+
+| Task / feature | Status | Models |
+| -------------- | ------ | ------ |
+| **detect** | ✅ runs | `rtdetr_r50`, `rtdetrv2_r18` (shipped manifest); mirror adds `rtdetr_r101`, `rtdetrv2_r34/r50/r101`, `dfine_s/m`, + OMZ detectors |
+| **classify** | ✅ runs | mirror: OMZ classification models (`--omz-intel`) |
+| **segment** | 🚧 stub | mirror: OMZ semantic/instance segmentation |
+| **pose** | 🚧 stub | mirror: OMZ `human-pose-estimation-*` |
+| **face** | 🚧 stub | mirror: OMZ Apache set — `face-detection-retail-0005`, `landmarks-regression-retail-0009`, `face-reidentification-retail-0095`, `head-pose-estimation-adas-0001`, `emotions-recognition-retail-0003`, `age-gender-recognition-retail-0013`, `anti-spoof-mn3` |
+| **genai** (LLM / T2I / Whisper / VLM / TTS) | ⚙️ wrapper | openvino-genai models (user-provided path); `ovkit[genai]` |
+| **anomaly** | 🚧 stub | anomalib: PatchCore / EfficientAD / PaDiM; `ovkit[anomaly]` |
+| **ocr / tracking / reid** | 🚧 stub | composed over detect + recognize (planned) |
+
+Legend: ✅ runs · ⚙️ thin wrapper (needs optional dep) · 🚧 stub.
+
+Only ✅ tasks perform inference today. 🚧 models still **mirror and download**
+fine; they light up as each task adapter lands.
 
 ## Documentation
 

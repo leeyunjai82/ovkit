@@ -1,0 +1,66 @@
+# OMZ (Open Model Zoo) Apache-2.0 face models — SOURCE list for the mirror build.
+# ---------------------------------------------------------------------------
+# These are intentionally NOT in the runtime manifest (src/ovkit/manifests/).
+# ovkit serves face models from the mirror (leeyunjai/ovkit-models) once
+# build_mirror.py has uploaded them; this file only tells the build script where
+# to fetch the originals from.
+#
+# Source = OpenVINO Open Model Zoo public storage. (omz_downloader is deprecated
+# per spec §6.4, so we fetch the IR directly over https.) All of these Intel
+# pre-trained OMZ models are Apache-2.0.
+#
+# ⚠ The storage path (OMZ release + the numeric `models_bin/<n>/` subdir) can
+# differ per model/release. build_mirror.py reports any model whose download
+# fails, so correct the URL there if one 404s, then re-run.
+# ---------------------------------------------------------------------------
+
+_OMZ: &omz https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1
+
+face_detection_retail_0005:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/face-detection-retail-0005/FP16/face-detection-retail-0005.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+
+landmarks_regression_retail_0009:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/landmarks-regression-retail-0009/FP16/landmarks-regression-retail-0009.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+
+face_reidentification_retail_0095:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/face-reidentification-retail-0095/FP16/face-reidentification-retail-0095.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+
+head_pose_estimation_adas_0001:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/head-pose-estimation-adas-0001/FP16/head-pose-estimation-adas-0001.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+
+emotions_recognition_retail_0003:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/emotions-recognition-retail-0003/FP16/emotions-recognition-retail-0003.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+
+age_gender_recognition_retail_0013:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/age-gender-recognition-retail-0013/FP16/age-gender-recognition-retail-0013.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+
+anti_spoof_mn3:
+  src: url
+  url: https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.3/models_bin/1/anti-spoof-mn3/FP16/anti-spoof-mn3.xml
+  task: face
+  precision: fp16
+  license: apache-2.0

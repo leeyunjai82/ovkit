@@ -72,3 +72,29 @@ def synthetic_image(imgsz: int) -> np.ndarray:
     """A small random BGR uint8 image."""
     rng = np.random.default_rng(0)
     return rng.integers(0, 255, size=(imgsz * 2, imgsz * 3, 3), dtype=np.uint8)
+
+
+@pytest.fixture(scope="session")
+def synthetic_classify_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic single-output ``[1, C]`` classifier IR.
+
+    Class 3 has the highest logit; outputs are tied to the input by a zero term
+    so OpenVINO keeps the parameter live.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    c = 10
+    logits = np.full((1, c), -5.0, dtype=np.float32)
+    logits[0, 3] = 4.0  # argmax -> class 3
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(logits), zero)
+    out.set_friendly_name("probs")
+
+    model = ovino.Model([out], [x], "synthetic_classify")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_classify.xml"
+    ovino.save_model(model, str(path))
+    return path
