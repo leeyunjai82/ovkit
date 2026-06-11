@@ -53,7 +53,6 @@ import yaml
 # Reuse ovkit's own resolve/download/convert so the mirror matches what ovkit
 # will later fetch from it.
 from ovkit.core import registry as reg
-from ovkit.core.constants import is_permissive
 from ovkit.core.convert import to_ir
 from ovkit.core.download import fetch
 from ovkit.core.registry import ModelEntry, list_models, resolve
@@ -103,6 +102,11 @@ def _load_extra_manifests(extra_paths: list[str], use_dir: bool) -> None:
 def _http_json(url: str) -> object:
     headers = {"User-Agent": "ovkit-mirror", "Accept": "application/vnd.github+json"}
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token and not token.isascii():
+        # A non-ASCII value (e.g. a placeholder) breaks HTTP header encoding;
+        # ignore it and fall back to unauthenticated (still fine for one call).
+        print("  warning: GITHUB_TOKEN has non-ASCII characters; ignoring it.")
+        token = None
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)  # noqa: S310
@@ -131,11 +135,18 @@ def _omz_source_url(spec: dict) -> str | None:
 
 
 def omz_intel_entries() -> list[ModelEntry]:
-    """Enumerate every Apache-2.0 OMZ ``intel`` model as a ModelEntry (url src)."""
+    """Enumerate every OMZ ``intel`` model as a ModelEntry (url src).
+
+    The entire ``models/intel`` tree is Apache-2.0 (these are OpenVINO's own
+    pretrained models). The per-model ``license`` field in ``model.yml`` holds a
+    URL to the repo LICENSE, not an SPDX id, so we do not SPDX-match it — we
+    only read ``models/intel`` and treat all of it as Apache-2.0. (``models/
+    public`` carries varied third-party licenses and is intentionally skipped.)
+    """
     print("Enumerating Open Model Zoo intel models from GitHub...")
     listing = _http_json(_OMZ_API)
     entries: list[ModelEntry] = []
-    skipped = 0
+    no_ir = 0
     for item in listing if isinstance(listing, list) else []:
         if item.get("type") != "dir":
             continue
@@ -144,14 +155,9 @@ def omz_intel_entries() -> list[ModelEntry]:
             spec = yaml.safe_load(_http_text(_OMZ_RAW.format(name=name))) or {}
         except Exception:
             continue
-        # The entire OMZ `models/intel` tree is Apache-2.0. Accept by default;
-        # only skip a model that explicitly declares a non-permissive license.
-        declared = spec.get("license")
-        if declared and not is_permissive(declared):
-            skipped += 1
-            continue
         url = _omz_source_url(spec)
         if not url:
+            no_ir += 1  # model has no FP16 IR (e.g. composite/FP32-only)
             continue
         task = _TASK_MAP.get(str(spec.get("task_type", "")), str(spec.get("task_type") or "model"))
         entries.append(
@@ -162,10 +168,10 @@ def omz_intel_entries() -> list[ModelEntry]:
                 task=task,
                 precision="fp16",
                 license="apache-2.0",
-                license_url=spec.get("license_url"),
+                license_url=spec.get("license"),
             )
         )
-    print(f"  found {len(entries)} Apache-2.0 OMZ models ({skipped} non-permissive skipped)")
+    print(f"  found {len(entries)} Apache-2.0 OMZ models ({no_ir} without an FP16 IR)")
     return entries
 
 
