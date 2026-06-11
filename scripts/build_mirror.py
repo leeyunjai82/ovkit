@@ -1,51 +1,176 @@
 #!/usr/bin/env python3
 """Build the ovkit model mirror on Hugging Face.
 
-For every model in the ovkit manifest this script:
+For every selected model this script:
 
 1. downloads the source artifact (ONNX / IR) from its registered source,
 2. converts it to OpenVINO IR (cached under ``$OVKIT_HOME``), and
 3. uploads the IR (``model.xml`` + ``model.bin``) and the original source to a
    target Hugging Face repo, with a per-model model card.
 
-It also prints, for each model, the manifest entry that points ovkit at the
-mirror — paste those into ``src/ovkit/manifests/models.yaml`` to switch ovkit
-over to your mirror.
+Where the models come from
+--------------------------
+* ovkit's runtime manifest (``src/ovkit/manifests/*.yaml``).
+* curated source lists under ``scripts/mirror_extra/*.yaml`` (DETR detectors,
+  OMZ Apache face models) — loaded automatically unless ``--no-extra``.
+* ``--omz-intel``: the **entire** Open Model Zoo ``intel`` set, enumerated live
+  from GitHub. Only Apache-2.0 models are kept, so the mirror stays clean. This
+  is how you mirror "all the OpenVINO models", not a hand-written list.
 
-Run it where Hugging Face is reachable (e.g. your laptop), authenticated with a
+It prints, per model, the manifest entry that points ovkit at the mirror — paste
+those into ``src/ovkit/manifests/models.yaml`` to switch ovkit over to it.
+
+Run it where Hugging Face / openvinotoolkit.org / GitHub are reachable, with a
 **write** token::
 
-    export HF_TOKEN=hf_xxx                 # or: huggingface-cli login
-    pip install ovkit                      # provides openvino + huggingface_hub
-    python scripts/build_mirror.py --repo leeyunjai/ovkit-models
+    export HF_TOKEN=hf_xxx                  # or: huggingface-cli login
+    pip install ovkit
+    python scripts/build_mirror.py --repo leeyunjai/ovkit-models --omz-intel
 
-Useful flags::
+Flags::
 
-    --models rtdetr_r50 rtdetrv2_r18       # subset (default: all in manifest)
-    --precision fp16                       # IR precision (default: fp16)
-    --private                              # create the repo private
-    --dry-run                              # download + convert only, no upload
-
-Only permissive-licensed models are accepted (the manifest enforces this), so
-the mirror stays Apache-2.0/MIT/BSD clean.
+    --models NAME ...     subset by name (default: every selected model)
+    --omz-intel           also mirror all Apache-2.0 OMZ intel models
+    --manifest PATH ...   extra source manifests to include
+    --no-extra            do not auto-load scripts/mirror_extra/
+    --precision fp16      IR precision (default: fp16)
+    --private             create the repo private
+    --dry-run             download + convert only, no upload
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import textwrap
+import urllib.request
+from pathlib import Path
+
+import yaml
 
 # Reuse ovkit's own resolve/download/convert so the mirror matches what ovkit
 # will later fetch from it.
+from ovkit.core import registry as reg
+from ovkit.core.constants import is_permissive
 from ovkit.core.convert import to_ir
 from ovkit.core.download import fetch
 from ovkit.core.registry import ModelEntry, list_models, resolve
 
+_EXTRA_DIR = Path(__file__).resolve().parent / "mirror_extra"
+
+# OMZ "intel" pre-trained models live in this repo; each has a model.yml with
+# its source URLs, task_type and license.
+_OMZ_API = (
+    "https://api.github.com/repos/openvinotoolkit/open_model_zoo/contents/models/intel?ref=master"
+)
+_OMZ_RAW = (
+    "https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/models/intel/"
+    "{name}/model.yml"
+)
+
+# OMZ task_type -> ovkit task (folder name in the mirror).
+_TASK_MAP = {
+    "detection": "detect",
+    "classification": "classify",
+    "semantic_segmentation": "segment",
+    "instance_segmentation": "segment",
+    "human_pose_estimation": "pose",
+    "face_recognition": "face",
+    "facial_landmarks_regression": "face",
+    "head_pose_estimation": "face",
+    "object_attributes": "classify",
+}
+
+
+# --- source selection ------------------------------------------------------
+
+
+def _load_extra_manifests(extra_paths: list[str], use_dir: bool) -> None:
+    """Make curated/extra source manifests visible to the ovkit registry."""
+    paths: list[str] = []
+    if use_dir and _EXTRA_DIR.is_dir():
+        paths.append(str(_EXTRA_DIR))
+    paths.extend(extra_paths)
+    if not paths:
+        return
+    existing = os.environ.get("OVKIT_MANIFESTS", "")
+    os.environ["OVKIT_MANIFESTS"] = os.pathsep.join([*paths, existing]).strip(os.pathsep)
+    reg.reload()
+
+
+def _http_json(url: str) -> object:
+    headers = {"User-Agent": "ovkit-mirror", "Accept": "application/vnd.github+json"}
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, headers=headers)  # noqa: S310
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
+        return json.load(resp)
+
+
+def _http_text(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": "ovkit-mirror"})  # noqa: S310
+    with urllib.request.urlopen(req) as resp:  # noqa: S310
+        return resp.read().decode("utf-8")
+
+
+def _omz_source_url(spec: dict) -> str | None:
+    """Pick the FP16 ``.xml`` source URL from an OMZ model.yml ``files`` list."""
+    for f in spec.get("files", []):
+        name = str(f.get("name", ""))
+        if not (name.endswith(".xml") and "FP16" in name):
+            continue
+        src = f.get("source")
+        if isinstance(src, str):
+            return src
+        if isinstance(src, dict):
+            return src.get("url") or src.get("$ref")
+    return None
+
+
+def omz_intel_entries() -> list[ModelEntry]:
+    """Enumerate every Apache-2.0 OMZ ``intel`` model as a ModelEntry (url src)."""
+    print("Enumerating Open Model Zoo intel models from GitHub...")
+    listing = _http_json(_OMZ_API)
+    entries: list[ModelEntry] = []
+    skipped = 0
+    for item in listing if isinstance(listing, list) else []:
+        if item.get("type") != "dir":
+            continue
+        name = item["name"]
+        try:
+            spec = yaml.safe_load(_http_text(_OMZ_RAW.format(name=name))) or {}
+        except Exception:
+            continue
+        license_url = str(spec.get("license_url", "")).lower()
+        # intel models are Apache-2.0; verify via license_url and keep clean.
+        if "apache" not in license_url and not is_permissive(spec.get("license")):
+            skipped += 1
+            continue
+        url = _omz_source_url(spec)
+        if not url:
+            continue
+        task = _TASK_MAP.get(str(spec.get("task_type", "")), str(spec.get("task_type") or "model"))
+        entries.append(
+            ModelEntry(
+                name=name.replace("-", "_"),
+                src="url",
+                url=url,
+                task=task,
+                precision="fp16",
+                license="apache-2.0",
+            )
+        )
+    print(f"  found {len(entries)} Apache-2.0 OMZ models ({skipped} non-permissive skipped)")
+    return entries
+
+
+# --- upload ----------------------------------------------------------------
+
 
 def _mirror_paths(entry: ModelEntry) -> tuple[str, str, str]:
-    """Return repo-relative ``(xml, bin, source)`` paths for a model."""
     base = f"{entry.task or 'model'}/{entry.name}"
     return f"{base}/model.xml", f"{base}/model.bin", base
 
@@ -71,12 +196,7 @@ def _model_card(entry: ModelEntry, source_name: str) -> str:
         | precision  | `{entry.precision}` |
         | source     | `{entry.src}` (`{entry.repo or entry.url}`) |
 
-        Files:
-
-        - `model.xml` / `model.bin` — OpenVINO IR (use this with ovkit)
-        - `{source_name}` — original source artifact
-
-        Load with ovkit:
+        Files: `model.xml` / `model.bin` (OpenVINO IR), plus the original source.
 
         ```python
         from ovkit import Model
@@ -127,7 +247,6 @@ def build_one(api, entry: ModelEntry, repo: str, precision: str, dry_run: bool) 
         repo_id=repo,
         repo_type="model",
     )
-    # Per-model card (uploaded as a README inside the model's folder).
     card = _model_card(entry, source.name).encode("utf-8")
     api.upload_file(
         path_or_fileobj=card, path_in_repo=f"{base}/README.md", repo_id=repo, repo_type="model"
@@ -139,23 +258,41 @@ def build_one(api, entry: ModelEntry, repo: str, precision: str, dry_run: bool) 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the ovkit HF model mirror.")
     parser.add_argument("--repo", default="leeyunjai/ovkit-models", help="target HF repo id")
-    parser.add_argument("--models", nargs="*", help="model names (default: all registered)")
+    parser.add_argument("--models", nargs="*", help="subset by name (default: all selected)")
+    parser.add_argument("--omz-intel", action="store_true", help="mirror all Apache OMZ models")
+    parser.add_argument("--manifest", nargs="*", default=[], help="extra source manifest paths")
+    parser.add_argument("--no-extra", action="store_true", help="skip scripts/mirror_extra/")
     parser.add_argument("--precision", default="fp16", help="IR precision (default: fp16)")
     parser.add_argument("--private", action="store_true", help="create the repo as private")
     parser.add_argument("--dry-run", action="store_true", help="download + convert, no upload")
     args = parser.parse_args(argv)
 
+    _load_extra_manifests(args.manifest, use_dir=not args.no_extra)
+
+    # Gather the candidate entries (manifest + extras), de-duplicated by name.
+    selected: dict[str, ModelEntry] = {}
     names = args.models or list_models()
-    entries: list[ModelEntry] = []
     for name in names:
         entry = resolve(name)  # also enforces the permissive-license policy
         if entry is None:
-            print(f"warning: '{name}' is not a registered model; skipping.", file=sys.stderr)
+            print(f"warning: '{name}' is not registered; skipping.", file=sys.stderr)
             continue
-        entries.append(entry)
+        selected[entry.name] = entry
+
+    if args.omz_intel:
+        try:
+            for entry in omz_intel_entries():
+                if args.models and entry.name not in args.models:
+                    continue
+                selected.setdefault(entry.name, entry)
+        except Exception as exc:
+            print(f"warning: OMZ enumeration failed: {exc}", file=sys.stderr)
+
+    entries = list(selected.values())
     if not entries:
         print("No models to mirror.", file=sys.stderr)
         return 1
+    print(f"Selected {len(entries)} model(s) to mirror -> {args.repo}")
 
     api = None
     if not args.dry_run:
@@ -164,22 +301,24 @@ def main(argv: list[str] | None = None) -> int:
         except ImportError:
             print("huggingface_hub is required (pip install ovkit).", file=sys.stderr)
             return 1
-        token = os.environ.get("HF_TOKEN")
-        api = HfApi(token=token)
+        api = HfApi(token=os.environ.get("HF_TOKEN"))
         api.create_repo(args.repo, repo_type="model", private=args.private, exist_ok=True)
-        print(f"target repo: {args.repo} (private={args.private})")
 
-    snippets = []
+    snippets, failed = [], []
     for entry in entries:
         try:
             snippets.append(build_one(api, entry, args.repo, args.precision, args.dry_run))
         except Exception as exc:  # keep going across the remaining models
+            failed.append(entry.name)
             print(f"  ERROR mirroring '{entry.name}': {exc}", file=sys.stderr)
 
     if snippets:
         print("\n" + "=" * 70)
         print("Manifest entries pointing at the mirror (paste into models.yaml):\n")
         print("\n\n".join(snippets))
+    print(f"\nDone: {len(snippets)} mirrored, {len(failed)} failed.")
+    if failed:
+        print("Failed: " + ", ".join(failed), file=sys.stderr)
     return 0
 
 
