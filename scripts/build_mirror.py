@@ -102,6 +102,11 @@ def _load_extra_manifests(extra_paths: list[str], use_dir: bool) -> None:
 def _http_json(url: str) -> object:
     headers = {"User-Agent": "ovkit-mirror", "Accept": "application/vnd.github+json"}
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if token and not token.isascii():
+        # A non-ASCII value (e.g. a placeholder) breaks HTTP header encoding;
+        # ignore it and fall back to unauthenticated (still fine for one call).
+        print("  warning: GITHUB_TOKEN has non-ASCII characters; ignoring it.")
+        token = None
     if token:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, headers=headers)  # noqa: S310
