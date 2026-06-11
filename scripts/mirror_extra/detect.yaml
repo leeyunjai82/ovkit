@@ -1,61 +1,18 @@
 # Apache-2.0 detection models (DETR family) — SOURCE list for the mirror build.
 # ---------------------------------------------------------------------------
-# Curated, permissive (Apache-2.0) detectors with easy ONNX exports. These feed
-# build_mirror.py; after mirroring, point the runtime manifest at the mirror.
-# No YOLO/Ultralytics (AGPL) — DETR family only (spec §7).
+# Curated, permissive (Apache-2.0) detectors with verified ONNX exports. These
+# feed build_mirror.py; after mirroring, point the runtime manifest at the
+# mirror. No YOLO/Ultralytics (AGPL) — DETR family only (spec §7).
 #
-# ⚠ Repo ids / filenames follow the onnx-community export convention but should
-# be confirmed with network access; build_mirror.py reports any that fail.
+# NOTE: RT-DETRv2 / D-FINE entries were removed pending verified onnx-community
+# repo ids (the guessed names 404'd). Broad detection coverage comes from the
+# OMZ detectors mirrored via `--omz-intel`. Re-add here once repo ids are
+# confirmed.
 # ---------------------------------------------------------------------------
 
 rtdetr_r101:
   src: hf
   repo: onnx-community/rtdetr_r101vd
-  filename: onnx/model.onnx
-  task: detect
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-
-rtdetrv2_r34:
-  src: hf
-  repo: onnx-community/rtdetr_v2_r34vd
-  filename: onnx/model.onnx
-  task: detect
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-
-rtdetrv2_r50:
-  src: hf
-  repo: onnx-community/rtdetr_v2_r50vd
-  filename: onnx/model.onnx
-  task: detect
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-
-rtdetrv2_r101:
-  src: hf
-  repo: onnx-community/rtdetr_v2_r101vd
-  filename: onnx/model.onnx
-  task: detect
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-
-dfine_small_coco:
-  src: hf
-  repo: onnx-community/dfine_s_coco
-  filename: onnx/model.onnx
-  task: detect
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-
-dfine_medium_coco:
-  src: hf
-  repo: onnx-community/dfine_m_coco
   filename: onnx/model.onnx
   task: detect
   precision: fp16
