@@ -144,9 +144,10 @@ def omz_intel_entries() -> list[ModelEntry]:
             spec = yaml.safe_load(_http_text(_OMZ_RAW.format(name=name))) or {}
         except Exception:
             continue
-        license_url = str(spec.get("license_url", "")).lower()
-        # intel models are Apache-2.0; verify via license_url and keep clean.
-        if "apache" not in license_url and not is_permissive(spec.get("license")):
+        # The entire OMZ `models/intel` tree is Apache-2.0. Accept by default;
+        # only skip a model that explicitly declares a non-permissive license.
+        declared = spec.get("license")
+        if declared and not is_permissive(declared):
             skipped += 1
             continue
         url = _omz_source_url(spec)
