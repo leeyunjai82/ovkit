@@ -21,12 +21,13 @@
 # ---------------------------------------------------------------------------
 
 # --- detect ---------------------------------------------------------------
-# RT-DETR (Baidu/PaddleDetection), Apache-2.0. Exported to ONNX, converted to IR
-# at first use. DETR-style decode (no NMS).
+# RT-DETR (Baidu/PaddleDetection), Apache-2.0. Served from the ovkit mirror as
+# OpenVINO IR; falls back to the upstream ONNX if the mirror is unreachable.
+# DETR-style decode (no NMS).
 rtdetr_r50:
   src: hf
-  repo: onnx-community/rtdetr_r50vd
-  filename: onnx/model.onnx
+  repo: leeyunjai/ovkit-models
+  filename: detect/rtdetr_r50/model.xml
   task: detect
   precision: fp16
   license: apache-2.0
@@ -39,12 +40,16 @@ rtdetr_r50:
   postprocess:
     format: detr          # outputs: logits [N,Q,C], boxes [N,Q,4] (cxcywh, norm)
     classes: coco80
+  fallback:
+    src: hf
+    repo: onnx-community/rtdetr_r50vd
+    filename: onnx/model.onnx
 
-# RT-DETRv2 r18 — smaller/faster, same decode. Apache-2.0.
-rtdetrv2_r18:
+# rtdetr_r101 — same DETR decode, larger backbone. Served from the mirror.
+rtdetr_r101:
   src: hf
-  repo: onnx-community/rtdetr_v2_r18vd
-  filename: onnx/model.onnx
+  repo: leeyunjai/ovkit-models
+  filename: detect/rtdetr_r101/model.xml
   task: detect
   precision: fp16
   license: apache-2.0
@@ -55,3 +60,8 @@ rtdetrv2_r18:
   postprocess:
     format: detr
     classes: coco80
+  fallback:
+    src: hf
+    repo: onnx-community/rtdetr_r101vd
+    filename: onnx/model.onnx
+
