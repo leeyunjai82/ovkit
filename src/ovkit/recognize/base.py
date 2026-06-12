@@ -54,7 +54,21 @@ class BaseAdapter:
 
         Works for 4-D ``[N,C,H,W]`` and higher-rank inputs (e.g. video clips
         ``[N,C,T,H,W]``); only the trailing two dims are taken as ``H, W``.
+        Raises a clear error for multi-input models, which a single image
+        cannot drive automatically.
         """
+        if len(backend.inputs) > 1:
+            names = []
+            for inp in backend.inputs:
+                try:
+                    names.append(inp.get_any_name())
+                except RuntimeError:
+                    names.append("?")
+            raise ValueError(
+                f"This model takes {len(backend.inputs)} inputs ({', '.join(names)}) and "
+                f"can't be driven by a single image. It needs a composed pipeline "
+                f"(e.g. face crops + head pose); use model.infer() with all inputs."
+            )
         shape = backend.input_shape  # full shape, -1 for dynamic dims
         if len(shape) >= 2 and shape[-1] and shape[-1] > 0 and shape[-2] and shape[-2] > 0:
             return int(shape[-2]), int(shape[-1])

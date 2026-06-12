@@ -84,17 +84,18 @@ def get_cap() -> cv2.VideoCapture | None:
 
 def _error_frame(msg: str) -> bytes:
     """Render an error message as a JPEG frame so failures are visible."""
-    img = np.zeros((360, 640, 3), dtype=np.uint8)
     words, lines, cur = msg.split(), [], ""
     for word in words:
-        if len(cur) + len(word) > 48:
+        if len(cur) + len(word) > 58:
             lines.append(cur)
             cur = word
         else:
             cur = (cur + " " + word).strip()
     lines.append(cur)
-    for i, line in enumerate(lines[:8]):
-        cv2.putText(img, line, (10, 40 + i * 34), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+    height = max(360, 30 + len(lines) * 26)
+    img = np.zeros((height, 720, 3), dtype=np.uint8)
+    for i, line in enumerate(lines[:24]):
+        cv2.putText(img, line, (10, 30 + i * 26), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 1)
     ok, buf = cv2.imencode(".jpg", img)
     return buf.tobytes() if ok else b""
 
@@ -236,9 +237,19 @@ async def run_text(model: str = Form(...), text: str = Form(...)):
         from ovkit.genai import pipeline
 
         entry = resolve(model)
-        if not (entry and entry.src == "genai"):
+        if entry is None:
             return JSONResponse(
-                {"summary": "This model needs tokenized input — use model.infer() (see README)."}
+                {
+                    "summary": f"'{model}' is not registered (manifest missing? run git pull "
+                    f"and restart the server)."
+                }
+            )
+        if entry.src != "genai":
+            return JSONResponse(
+                {
+                    "summary": f"'{model}' (src={entry.src}, task={entry.task}) needs tokenized "
+                    f"input — use model.infer() with your own tensors."
+                }
             )
         ptype = entry.extra.get("pipeline")
         pipe = _genai.get(model) or _genai.setdefault(model, pipeline(model))
