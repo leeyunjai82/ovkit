@@ -177,6 +177,13 @@ class Model:
             return self.infer(raw, device=dev)
 
         backend = self._backend_for(dev)
+        if len(backend.inputs) > 1:
+            desc = ", ".join(f"{n}{list(s)}" for n, s, _ in self.inputs)
+            raise OVKitError(
+                f"This model takes {len(backend.inputs)} inputs ({desc}); a single image "
+                f"can't drive it (e.g. gaze estimation needs eye crops + head pose). "
+                f"Build the tensors and call model.infer({{...}})."
+            )
         adapter = self._ensure_adapter(backend)
         if imgsz is not None:
             adapter.imgsz = imgsz
