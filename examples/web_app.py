@@ -40,6 +40,8 @@ def get_model(name: str) -> Model:
 
 def summarize(r) -> str:
     lines = [f"task: {r.task}"]
+    if getattr(r, "text", None):
+        lines.append(f'text: "{r.text}"')
     if r.boxes is not None:
         lines.append(f"{len(r.boxes)} detections")
         for x1, y1, x2, y2, c, cl in r.boxes.data[:25]:

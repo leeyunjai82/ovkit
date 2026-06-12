@@ -1,11 +1,14 @@
-"""Pose-estimation adapter (OMZ human-pose models) — heatmap peak decoding.
+"""Pose-estimation adapter (OMZ human-pose models) — multi-peak heatmap decoding.
 
 OMZ pose models emit keypoint heatmaps ``[1, K, H, W]`` (bottom-up models also
 emit part-affinity fields as a second, wider tensor — we take the heatmap, the
-one with fewer channels). Each keypoint is the per-channel peak.
+one with fewer channels). For each keypoint channel we extract **all local
+maxima** above a threshold, then group peaks into person instances by their
+rank (strongest peaks per channel = instance 0, next = instance 1, ...).
 
-v0 decodes one set of keypoints (the dominant peak per channel); full
-multi-person grouping (PAF / associative-embedding) is a future refinement.
+This handles multiple people without full PAF association; limb-accurate
+grouping (true PAF/AE decoding) can replace the rank-based grouping later
+without changing the public API.
 """
 
 from __future__ import annotations
@@ -20,18 +23,18 @@ from .base import BaseAdapter
 
 
 class PoseAdapter(BaseAdapter):
-    """Adapter for keypoint/pose estimation (single-instance heatmap peaks)."""
+    """Adapter for keypoint/pose estimation (multi-instance heatmap peaks)."""
 
     task = "pose"
 
-    def run(self, backend: Backend, image: np.ndarray, **_: Any) -> Results:
+    def run(self, backend: Backend, image: np.ndarray, *, conf: float = 0.1, **_: Any) -> Results:
         size = self.model_input_hw(backend)
         rgb = bool(self.pre.get("rgb", False))
         feed = self.preprocess(image, size, rgb=rgb, scale=self.pre.get("scale", 1.0))
         outputs = backend.infer(feed)
 
         heat = self._heatmap(outputs)
-        kpts = self._peaks(heat, image.shape[:2])
+        kpts = self._peaks(heat, image.shape[:2], thr=float(self.post.get("thr", conf)))
         return Results(image, task=self.task, names=self.names, keypoints=Keypoints(kpts))
 
     @staticmethod
@@ -48,13 +51,35 @@ class PoseAdapter(BaseAdapter):
         return min(maps, key=lambda a: a.shape[0])
 
     @staticmethod
-    def _peaks(heat: np.ndarray, orig_hw: tuple[int, int]) -> np.ndarray:
-        """Return ``(1, K, 3)`` ``[x, y, conf]`` from per-channel argmax peaks."""
+    def _local_maxima(ch: np.ndarray, thr: float, limit: int = 10) -> list[tuple[int, int, float]]:
+        """Return up to ``limit`` strict local maxima (x, y, score) above ``thr``."""
+        h, w = ch.shape
+        pad = np.full((h + 2, w + 2), -np.inf, dtype=np.float32)
+        pad[1:-1, 1:-1] = ch
+        center = pad[1:-1, 1:-1]
+        is_peak = (
+            (center >= pad[:-2, 1:-1])
+            & (center >= pad[2:, 1:-1])
+            & (center >= pad[1:-1, :-2])
+            & (center >= pad[1:-1, 2:])
+            & (center > thr)
+        )
+        ys, xs = np.nonzero(is_peak)
+        scores = center[ys, xs]
+        order = np.argsort(scores)[::-1][:limit]
+        return [(int(xs[i]), int(ys[i]), float(scores[i])) for i in order]
+
+    def _peaks(self, heat: np.ndarray, orig_hw: tuple[int, int], thr: float) -> np.ndarray:
+        """Return ``(N, K, 3)`` ``[x, y, conf]`` grouping peaks by rank."""
         k, hh, ww = heat.shape
         h, w = orig_hw
-        out = np.zeros((1, k, 3), dtype=np.float32)
-        for i in range(k):
-            flat = int(np.argmax(heat[i]))
-            y, x = divmod(flat, ww)
-            out[0, i] = [x / ww * w, y / hh * h, float(heat[i].flat[flat])]
+        per_channel = [self._local_maxima(heat[i], thr) for i in range(k)]
+        n = max((len(p) for p in per_channel), default=0)
+        if n == 0:
+            return np.zeros((0, k, 3), dtype=np.float32)
+
+        out = np.zeros((n, k, 3), dtype=np.float32)
+        for ki, peaks in enumerate(per_channel):
+            for rank, (x, y, s) in enumerate(peaks):
+                out[rank, ki] = [x / ww * w, y / hh * h, s]
         return out

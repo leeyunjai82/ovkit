@@ -37,6 +37,8 @@ def main() -> None:
 
     r = res[0]
     print(f"task = {model.task}")
+    if getattr(r, "text", None):
+        print(f'text = "{r.text}"')
     if r.boxes is not None:
         print(f"{len(r.boxes)} detections")
         for x1, y1, x2, y2, c, cl in r.boxes.data[:50]:

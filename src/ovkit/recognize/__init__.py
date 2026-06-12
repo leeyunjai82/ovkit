@@ -14,6 +14,7 @@ from .base import BaseAdapter
 from .classify import ClassifyAdapter
 from .detect import DetectAdapter
 from .generic import GenericAdapter
+from .ocr import OCRAdapter
 from .pose import PoseAdapter
 from .segment import SegmentAdapter
 
@@ -22,6 +23,8 @@ _ADAPTERS: dict[str, type[BaseAdapter]] = {
     "classify": ClassifyAdapter,
     "segment": SegmentAdapter,
     "pose": PoseAdapter,
+    "optical_character_recognition": OCRAdapter,
+    "ocr": OCRAdapter,
 }
 
 #: Tasks with a typed decoder (the rest use the generic raw-output adapter).
@@ -46,6 +49,7 @@ __all__ = [
     "ClassifyAdapter",
     "DetectAdapter",
     "GenericAdapter",
+    "OCRAdapter",
     "PoseAdapter",
     "SegmentAdapter",
     "VISION_TASKS",

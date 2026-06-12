@@ -209,6 +209,64 @@ def synthetic_seg_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Pa
 
 
 @pytest.fixture(scope="session")
+def synthetic_instance_seg_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create an instance-segmentation IR: boxes ``[N,5]`` + labels + masks ``[N,h,w]``.
+
+    Two instances above conf 0.25, with all-ones 4x4 mask prototypes.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    boxes = np.array([[8, 8, 32, 32, 0.9], [32, 32, 56, 56, 0.7]], dtype=np.float32)
+    labels = np.array([0, 1], dtype=np.float32)
+    masks = np.ones((2, 4, 4), dtype=np.float32)
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    b = op.add(op.constant(boxes), zero)
+    b.set_friendly_name("boxes")
+    lab = op.add(op.constant(labels), zero)
+    lab.set_friendly_name("labels")
+    m = op.add(op.constant(masks), zero)
+    m.set_friendly_name("masks")
+
+    model = ovino.Model([b, lab, m], [x], "synthetic_instance_seg")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_instance_seg.xml"
+    ovino.save_model(model, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
+def synthetic_ocr_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a CTC text-recognition IR emitting ``[T, 1, C]`` logits.
+
+    With the default 37-symbol table ('0-9a-z' + '#' blank), the argmax
+    sequence decodes to "ab1" (blanks/repeats collapsed).
+    """
+    import openvino as ovino
+
+    op = _opset()
+    t, c = 6, 37
+    blank = c - 1
+    logits = np.full((t, 1, c), -10.0, dtype=np.float32)
+    seq = [10, 10, blank, 11, blank, 1]  # 'a','a',#,'b',#,'1' -> "ab1"
+    for ti, sym in enumerate(seq):
+        logits[ti, 0, sym] = 10.0
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(logits), zero)
+    out.set_friendly_name("logits")
+
+    model = ovino.Model([out], [x], "synthetic_ocr")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_ocr.xml"
+    ovino.save_model(model, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
 def synthetic_pose_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
     """Create a deterministic ``[1, K, H, W]`` keypoint-heatmap IR.
 
