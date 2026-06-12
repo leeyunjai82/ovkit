@@ -79,6 +79,11 @@ class Model:
         # 2) A registered manifest name.
         entry = resolve(str(model))
         if entry is not None:
+            if entry.src == "genai":
+                raise OVKitError(
+                    f"'{model}' is a genai model — use ovkit.genai.pipeline('{model}') "
+                    f"instead of Model() (LLM/STT/TTS/text2image/VLM)."
+                )
             self._entry = entry
             self.imgsz = entry.imgsz or 640
             self._pre = entry.preprocess

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .pipelines import (
     llm_pipeline,
+    pipeline,
     text2image_pipeline,
     text2speech_pipeline,
     vlm_pipeline,
@@ -15,6 +16,7 @@ from .pipelines import (
 )
 
 __all__ = [
+    "pipeline",
     "llm_pipeline",
     "text2image_pipeline",
     "whisper_pipeline",

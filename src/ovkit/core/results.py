@@ -164,8 +164,10 @@ class Results:
         self.keypoints = keypoints
         self.probs = probs
         #: Raw ``{output_name: ndarray}`` for tasks without a typed decoder
-        #: (e.g. super-resolution, OCR, embeddings). ``None`` for vision tasks.
+        #: (e.g. super-resolution, embeddings). ``None`` for vision tasks.
         self.tensors = tensors
+        #: Decoded text for OCR/text-recognition tasks (otherwise ``None``).
+        self.text: str | None = None
         self.path = path
 
     def __len__(self) -> int:
@@ -194,14 +196,21 @@ class Results:
 
         if self.masks is not None and len(self.masks):
             data = self.masks.data
-            cmap = data[0] if data.ndim == 3 else data  # (H, W) class map
-            if cmap.shape[:2] == img.shape[:2]:
-                overlay = img.copy()
-                for cls_id in np.unique(cmap):
-                    if int(cls_id) == 0:  # background
-                        continue
-                    overlay[cmap == cls_id] = _color(int(cls_id))
-                img = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)
+            if data.ndim == 3 and data.shape[0] > 1:  # (N, H, W) instance masks
+                if data.shape[1:] == img.shape[:2]:
+                    overlay = img.copy()
+                    for i in range(data.shape[0]):
+                        overlay[data[i] > 0] = _color(i)
+                    img = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)
+            else:  # (1, H, W) / (H, W) semantic class map
+                cmap = data[0] if data.ndim == 3 else data
+                if cmap.shape[:2] == img.shape[:2]:
+                    overlay = img.copy()
+                    for cls_id in np.unique(cmap):
+                        if int(cls_id) == 0:  # background
+                            continue
+                        overlay[cmap == cls_id] = _color(int(cls_id))
+                    img = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)
 
         if self.boxes is not None:
             for x1, y1, x2, y2, conf, cls in self.boxes.data:
