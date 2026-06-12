@@ -28,6 +28,19 @@ one and frees its memory.
 python examples/webcam_demo.py  # http://127.0.0.1:8000
 ```
 
+## `denoise_audio.py` — audio (noise suppression)
+
+The mirror's `noise_suppression_*` models are **stateful streaming** models
+(audio frame + recurrent states in/out, frame by frame). This example runs that
+loop: wav in → denoised wav out.
+
+```bash
+python examples/denoise_audio.py noise_suppression_poconetlike_0001 in.wav out.wav
+```
+
+Mono 16 kHz wav. (Best-effort generic state loop — if a model pairs states
+differently, share the run output and it can be adjusted.)
+
 ## `predict.py` — one-shot CLI
 
 ```bash
