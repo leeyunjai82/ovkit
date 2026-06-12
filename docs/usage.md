@@ -114,7 +114,7 @@ convert-once caching keyed by `(name, precision)`, and offline mode.
 
 ovkit is Apache-2.0 and stays license-clean:
 
-- **No YOLO/Ultralytics** (AGPL-3.0) in dependencies or default models.
+- **No AGPL-3.0 model stacks** in dependencies or default models.
 - Detection defaults are DETR-family (RT-DETR, RT-DETRv2, D-FINE, RF-DETR) —
   all Apache-2.0.
 - Face models come from Apache-2.0 OMZ weights on the ovkit HF mirror

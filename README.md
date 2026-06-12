@@ -1,6 +1,6 @@
 # ovkit
 
-**Use OpenVINO as easily as Ultralytics.** One import, one `Model` class, a
+**A simple Python inference API for OpenVINO.** One import, one `Model` class, a
 callable object, and clean `Results` — with OpenVINO's strengths layered on top:
 `AUTO`/`NPU` devices, async throughput, and INT8 quantization.
 
@@ -16,7 +16,7 @@ for r in results:
 ```
 
 > **License-clean by design.** ovkit ships and depends only on permissive
-> (Apache-2.0/MIT/BSD) models and libraries. AGPL stacks (YOLO/Ultralytics) and
+> (Apache-2.0/MIT/BSD) models and libraries. AGPL-licensed model stacks and
 > non-commercial weights (InsightFace pretrained) are intentionally **never**
 > bundled or downloaded. See [License policy](#license-policy).
 
@@ -133,7 +133,7 @@ offline mode (`OVKIT_OFFLINE=1`) that serves only from cache.
 
 ovkit is **Apache-2.0** and stays license-clean:
 
-- **No YOLO/Ultralytics** in dependencies or default models (AGPL-3.0).
+- **No AGPL-3.0 model stacks** in dependencies or default models.
 - Detection defaults are DETR-family (RT-DETR, RT-DETRv2, D-FINE, RF-DETR) —
   all Apache-2.0.
 - Face models will come from Apache-2.0 OMZ weights served from the ovkit HF
