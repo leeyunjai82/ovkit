@@ -98,3 +98,30 @@ def synthetic_classify_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) 
     path = tmp_path_factory.mktemp("ir") / "synthetic_classify.xml"
     ovino.save_model(model, str(path))
     return path
+
+
+@pytest.fixture(scope="session")
+def synthetic_ssd_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic SSD/DetectionOutput IR: ``[1, 1, N, 7]``.
+
+    Rows are ``[image_id, label, conf, x_min, y_min, x_max, y_max]`` (normalized).
+    Two detections clear conf=0.25 (labels 1 and 2); one is below threshold.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    det = np.zeros((1, 1, 3, 7), dtype=np.float32)
+    det[0, 0, 0] = [0, 1, 0.90, 0.10, 0.10, 0.50, 0.50]
+    det[0, 0, 1] = [0, 2, 0.80, 0.50, 0.50, 0.90, 0.90]
+    det[0, 0, 2] = [0, 1, 0.10, 0.00, 0.00, 0.20, 0.20]  # below threshold
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(det), zero)
+    out.set_friendly_name("detection_out")
+
+    model = ovino.Model([out], [x], "synthetic_ssd")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_ssd.xml"
+    ovino.save_model(model, str(path))
+    return path

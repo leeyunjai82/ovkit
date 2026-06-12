@@ -40,6 +40,11 @@ def test_signature_detr_detect():
     assert detect_task(be) == "detect"
 
 
+def test_signature_ssd_detect():
+    be = _FakeBackend([("detection_out", (1, 1, 200, 7))])
+    assert detect_task(be) == "detect"
+
+
 def test_signature_classify():
     be = _FakeBackend([("probs", (1, 1000))])
     assert detect_task(be) == "classify"

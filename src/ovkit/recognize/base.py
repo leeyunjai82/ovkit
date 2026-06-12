@@ -47,13 +47,40 @@ class BaseAdapter:
 
     def preprocess_square(self, image: np.ndarray, rgb: bool = True) -> np.ndarray:
         """Resize to ``imgsz`` square, normalize, and return an NCHW float tensor."""
+        return self.preprocess(image, (self.imgsz, self.imgsz), rgb=rgb)
+
+    def model_input_hw(self, backend: Backend) -> tuple[int, int]:
+        """Return the model's static input ``(h, w)``, or the ``imgsz`` square.
+
+        OMZ models have fixed input sizes, so resizing to a hardcoded 640 would
+        fail to compile/feed; honor the model's own shape when it is static.
+        """
+        shape = backend.input_shape  # (N, C, H, W), -1 for dynamic dims
+        if len(shape) == 4 and shape[2] and shape[2] > 0 and shape[3] and shape[3] > 0:
+            return int(shape[2]), int(shape[3])
+        return self.imgsz, self.imgsz
+
+    def preprocess(
+        self,
+        image: np.ndarray,
+        size: tuple[int, int],
+        rgb: bool = True,
+        scale: float | None = None,
+    ) -> np.ndarray:
+        """Resize to ``(h, w)``, normalize, and return an NCHW float tensor.
+
+        ``scale`` overrides the manifest/default divisor (e.g. ``1.0`` to keep
+        raw ``[0, 255]`` input, ``255.0`` to map to ``[0, 1]``).
+        """
         from ..image import ops
 
-        img = ops.resize(image, self.imgsz)
+        h, w = size
+        img = ops.resize(image, (w, h))
         if rgb:
             img = ops.bgr_to_rgb(img)
         arr = img.astype(np.float32)
-        scale, mean, std = self._scale_mean_std()
+        default_scale, mean, std = self._scale_mean_std()
+        scale = default_scale if scale is None else float(scale)
         if scale != 1.0:
             arr = arr / scale
         if np.any(mean != 0.0) or np.any(std != 1.0):
