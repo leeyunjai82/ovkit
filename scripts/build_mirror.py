@@ -424,7 +424,14 @@ def main(argv: list[str] | None = None) -> int:
         print("\n" + "=" * 70)
         print("Manifest entries pointing at the mirror (paste into models.yaml):\n")
         print("\n\n".join(snippets))
-    print(f"\nDone: {len(snippets)} mirrored, {len(failed)} failed.")
+    if args.dry_run:
+        print(
+            f"\nDRY-RUN: {len(snippets)} checked (downloaded + converted, "
+            f"NOT uploaded), {len(failed)} failed."
+        )
+        print("Re-run WITHOUT --dry-run (and with a valid HF_TOKEN) to upload.")
+    else:
+        print(f"\nDone: {len(snippets)} uploaded to {args.repo}, {len(failed)} failed.")
     if failed:
         print("Failed: " + ", ".join(failed), file=sys.stderr)
     return 0
