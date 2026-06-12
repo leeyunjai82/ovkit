@@ -37,3 +37,19 @@ def test_ssd_conf_threshold(synthetic_ssd_ir, synthetic_image):
     # Only the 0.90 detection (label 1) survives.
     assert len(r.boxes) == 1
     assert int(r.boxes.cls[0]) == 1
+
+
+def test_boxes_labels_end_to_end(synthetic_boxes_labels_ir, synthetic_image, imgsz):
+    model = Model(str(synthetic_boxes_labels_ir), device="CPU")
+    r = model(synthetic_image, conf=0.25)[0]
+
+    assert model.task == "detect"
+    assert len(r.boxes) == 2
+    assert {int(c) for c in r.boxes.cls} == {1, 2}
+    assert (r.boxes.conf >= 0.25).all()
+
+    # Input-pixel coords mapped to the original image: first box [8,8,40,40]
+    # at model input `imgsz` -> scaled to image size.
+    h, w = synthetic_image.shape[:2]
+    x1 = r.boxes.xyxy[0, 0]
+    assert abs(x1 - 8 / imgsz * w) < 1.0

@@ -46,6 +46,10 @@ def _from_signature(backend: Backend) -> str | None:
     if len(shapes) == 1 and len(shapes[0]) >= 2 and shapes[0][-1] == 7:
         return "detect"
 
+    # boxes [N, 5] + labels [N] (OMZ -0200/ATSS-style detectors).
+    if len(shapes) == 2 and any(len(s) >= 2 and s[-1] == 5 for s in shapes):
+        return "detect"
+
     # Single 2-D output [N, C] -> classification probabilities.
     if len(shapes) == 1 and len(shapes[0]) == 2:
         return "classify"

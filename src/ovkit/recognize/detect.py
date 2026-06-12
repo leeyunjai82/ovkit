@@ -56,21 +56,26 @@ class DetectAdapter(BaseAdapter):
         **_: Any,
     ) -> Results:
         fmt = self._format(backend)
-        size = self.model_input_hw(backend)
+        ih, iw = self.model_input_hw(backend)
         h, w = image.shape[:2]
 
-        if fmt == "ssd":
-            rgb = bool(self.pre.get("rgb", False))  # OMZ SSD: raw BGR
-            feed = self.preprocess(image, size, rgb=rgb, scale=self.pre.get("scale", 1.0))
-            outputs = backend.infer(feed)
-            boxes = self._decode_ssd(outputs, (h, w), conf=conf, max_det=max_det)
-            names = self.names or class_names(self._classes_key)
-        else:
+        if fmt == "detr":
             rgb = bool(self.pre.get("rgb", True))  # DETR: RGB [0,1]
-            feed = self.preprocess(image, size, rgb=rgb, scale=self.pre.get("scale", 255.0))
+            feed = self.preprocess(image, (ih, iw), rgb=rgb, scale=self.pre.get("scale", 255.0))
             outputs = backend.infer(feed)
             boxes = self._decode_detr(outputs, (h, w), conf=conf, max_det=max_det)
             names = self.names or class_names(self._classes_key or "coco80")
+        else:  # ssd / boxes_labels: OMZ raw BGR
+            rgb = bool(self.pre.get("rgb", False))
+            feed = self.preprocess(image, (ih, iw), rgb=rgb, scale=self.pre.get("scale", 1.0))
+            outputs = backend.infer(feed)
+            if fmt == "ssd":
+                boxes = self._decode_ssd(outputs, (h, w), conf=conf, max_det=max_det)
+            else:
+                boxes = self._decode_boxes_labels(
+                    outputs, (h, w), (ih, iw), conf=conf, max_det=max_det
+                )
+            names = self.names or class_names(self._classes_key)
 
         return Results(image, task=self.task, names=names, boxes=Boxes(boxes))
 
@@ -82,7 +87,58 @@ class DetectAdapter(BaseAdapter):
         # SSD DetectionOutput: a single [.., N, 7] tensor.
         if len(shapes) == 1 and len(shapes[0]) >= 2 and shapes[0][-1] == 7:
             return "ssd"
+        # boxes [N, 5] (+ optional labels [N]): any output ending in 5.
+        if any(len(s) >= 2 and s[-1] == 5 for s in shapes):
+            return "boxes_labels"
         return "detr"
+
+    # -- boxes+labels decode (OMZ -0200/ATSS-style detectors) ---------------
+
+    @staticmethod
+    def _decode_boxes_labels(
+        outputs: dict[str, np.ndarray],
+        orig_hw: tuple[int, int],
+        in_hw: tuple[int, int],
+        *,
+        conf: float,
+        max_det: int,
+    ) -> np.ndarray:
+        boxes_arr = labels_arr = None
+        for v in outputs.values():
+            a = np.asarray(v)
+            if a.ndim >= 2 and a.shape[-1] == 5:
+                boxes_arr = a.reshape(-1, 5)
+            elif a.ndim == 1:
+                labels_arr = a.reshape(-1)
+            elif a.ndim == 2 and a.shape[-1] == 1:
+                labels_arr = a.reshape(-1)
+        if boxes_arr is None:
+            return np.zeros((0, 6), dtype=np.float32)
+
+        keep = boxes_arr[:, 4] >= conf
+        boxes_arr = boxes_arr[keep]
+        if boxes_arr.shape[0] == 0:
+            return np.zeros((0, 6), dtype=np.float32)
+        if labels_arr is not None and labels_arr.shape[0] == keep.shape[0]:
+            labels = labels_arr[keep].astype(np.float32)
+        else:
+            labels = np.zeros(boxes_arr.shape[0], dtype=np.float32)
+
+        scores = boxes_arr[:, 4]
+        xyxy = boxes_arr[:, :4].astype(np.float32)
+        h, w = orig_hw
+        ih, iw = in_hw
+        if xyxy.max(initial=0.0) <= 2.0:  # normalized
+            xyxy = xyxy * np.array([w, h, w, h], dtype=np.float32)
+        else:  # input-pixel coords
+            xyxy = xyxy / np.array([iw, ih, iw, ih], dtype=np.float32)
+            xyxy = xyxy * np.array([w, h, w, h], dtype=np.float32)
+        xyxy[:, 0::2] = xyxy[:, 0::2].clip(0, w)
+        xyxy[:, 1::2] = xyxy[:, 1::2].clip(0, h)
+
+        data = np.concatenate([xyxy, scores[:, None], labels[:, None]], axis=1)
+        order = np.argsort(scores)[::-1][:max_det]
+        return data[order].astype(np.float32)
 
     # -- SSD decode ---------------------------------------------------------
 

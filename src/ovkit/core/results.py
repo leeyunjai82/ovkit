@@ -186,6 +186,17 @@ class Results:
 
         img = self.orig_img.copy()
 
+        if self.masks is not None and len(self.masks):
+            data = self.masks.data
+            cmap = data[0] if data.ndim == 3 else data  # (H, W) class map
+            if cmap.shape[:2] == img.shape[:2]:
+                overlay = img.copy()
+                for cls_id in np.unique(cmap):
+                    if int(cls_id) == 0:  # background
+                        continue
+                    overlay[cmap == cls_id] = _color(int(cls_id))
+                img = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)
+
         if self.boxes is not None:
             for x1, y1, x2, y2, conf, cls in self.boxes.data:
                 c = _color(int(cls))

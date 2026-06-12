@@ -1,0 +1,10 @@
+# ovkit core runtime dependencies (mirrors pyproject.toml [project].dependencies).
+# For development install the package itself:  pip install -e .
+# Optional extras live in pyproject:  pip install -e ".[quant]"  (genai/anomaly/all)
+
+openvino>=2024.0
+numpy>=1.21
+opencv-python-headless>=4.5
+pillow>=9.0
+pyyaml>=6.0
+huggingface_hub>=0.20

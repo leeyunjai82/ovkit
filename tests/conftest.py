@@ -128,6 +128,36 @@ def synthetic_ssd_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Pa
 
 
 @pytest.fixture(scope="session")
+def synthetic_boxes_labels_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic two-output detector IR: boxes ``[N,5]`` + labels ``[N]``.
+
+    Boxes are input-pixel coords (model input is ``imgsz`` square). Two clear the
+    conf threshold (labels 1 and 2); one is below it.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    boxes = np.array(
+        [[8, 8, 40, 40, 0.90], [40, 40, 60, 60, 0.80], [0, 0, 4, 4, 0.10]],
+        dtype=np.float32,
+    )
+    labels = np.array([1, 2, 1], dtype=np.float32)
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    boxes_out = op.add(op.constant(boxes), zero)
+    boxes_out.set_friendly_name("boxes")
+    labels_out = op.add(op.constant(labels), zero)
+    labels_out.set_friendly_name("labels")
+
+    model = ovino.Model([boxes_out, labels_out], [x], "synthetic_boxes_labels")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_boxes_labels.xml"
+    ovino.save_model(model, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
 def synthetic_seg_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
     """Create a deterministic ``[1, C, H, W]`` segmentation IR (argmax -> class 2)."""
     import openvino as ovino
