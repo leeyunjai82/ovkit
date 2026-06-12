@@ -50,14 +50,14 @@ class BaseAdapter:
         return self.preprocess(image, (self.imgsz, self.imgsz), rgb=rgb)
 
     def model_input_hw(self, backend: Backend) -> tuple[int, int]:
-        """Return the model's static input ``(h, w)``, or the ``imgsz`` square.
+        """Return the model's static spatial ``(h, w)`` (last two dims), or ``imgsz``.
 
-        OMZ models have fixed input sizes, so resizing to a hardcoded 640 would
-        fail to compile/feed; honor the model's own shape when it is static.
+        Works for 4-D ``[N,C,H,W]`` and higher-rank inputs (e.g. video clips
+        ``[N,C,T,H,W]``); only the trailing two dims are taken as ``H, W``.
         """
-        shape = backend.input_shape  # (N, C, H, W), -1 for dynamic dims
-        if len(shape) == 4 and shape[2] and shape[2] > 0 and shape[3] and shape[3] > 0:
-            return int(shape[2]), int(shape[3])
+        shape = backend.input_shape  # full shape, -1 for dynamic dims
+        if len(shape) >= 2 and shape[-1] and shape[-1] > 0 and shape[-2] and shape[-2] > 0:
+            return int(shape[-2]), int(shape[-1])
         return self.imgsz, self.imgsz
 
     def preprocess(

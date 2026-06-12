@@ -8,21 +8,25 @@ pip install -r examples/requirements.txt # fastapi / uvicorn / python-multipart
 python scripts/build_mirror.py --omz-intel --emit-manifest src/ovkit/manifests/omz.yaml
 ```
 
-## `web_app.py` — model tester (image upload) ⭐
+## `web_app.py` — model tester (all-in-one) ⭐
 
-Pick a model, **upload an image**, press Run. Shows the annotated result and a
-text summary (detections / top-5 / mask classes / keypoints / raw tensor
-shapes). No webcam needed — best for testing specific images.
+Pick a model; the **right input appears automatically**:
+
+- **vision** (detect / classify / segment / pose / ocr / ...) → **webcam** (Load
+  for a live stream) **or image upload** (Run). Shows the annotated result and a
+  summary (detections / top-5 / mask shape / keypoints / OCR text / raw tensors).
+- **STT (Whisper) / noise-suppression** → **audio `.wav`** upload.
+- **LLM / TTS** → **text** box.
 
 ```bash
 python examples/web_app.py      # http://127.0.0.1:8000
 ```
 
-## `webcam_demo.py` — live webcam
+(genai models — LLM/STT/TTS — also need `pip install "ovkit[genai]"`.)
 
-Pick a model, press Load: the laptop webcam (read server-side via OpenCV) runs
-through ovkit live and streams to the browser. Switching models stops the old
-one and frees its memory.
+## `webcam_demo.py` — minimal live webcam
+
+A stripped-down live-only version (vision models).
 
 ```bash
 python examples/webcam_demo.py  # http://127.0.0.1:8000
