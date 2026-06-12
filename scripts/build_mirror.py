@@ -45,6 +45,7 @@ import json
 import os
 import sys
 import textwrap
+import time
 import urllib.request
 from pathlib import Path
 
@@ -241,83 +242,106 @@ def _manifest_snippet(entry: ModelEntry, repo: str) -> str:
     return "\n".join(lines)
 
 
-def _upload_license(api, entry: ModelEntry, repo: str, base: str) -> None:
-    """Best-effort: place the upstream LICENSE/attribution beside the model.
+def _license_text(entry: ModelEntry) -> str:
+    """Return the upstream LICENSE/attribution text to ship beside the model.
 
-    Apache-2.0/permissive redistribution requires preserving the license and
-    attribution, so we fetch the original license text where we can.
+    Permissive redistribution requires preserving the license and attribution,
+    so we fetch the original license text where we can, with a recorded
+    attribution fallback.
     """
-    text: str | None = None
     if entry.license_url:
         try:
-            text = _http_text(entry.license_url)
+            return _http_text(entry.license_url)
         except Exception:
-            text = None
-    if text is None and entry.src == "hf" and entry.repo:
+            pass
+    if entry.src == "hf" and entry.repo:
         try:
             from huggingface_hub import hf_hub_download
 
             for cand in ("LICENSE", "LICENSE.txt", "NOTICE"):
                 try:
                     lp = hf_hub_download(repo_id=entry.repo, filename=cand)
-                    text = Path(lp).read_text(encoding="utf-8", errors="replace")
-                    break
+                    return Path(lp).read_text(encoding="utf-8", errors="replace")
                 except Exception:
                     continue
         except Exception:
-            text = None
-    if text is None:
-        # No license file found upstream: record the declared license + source.
-        text = (
-            f"{entry.name}\nLicense: {entry.license}\n"
-            f"Source: {entry.repo or entry.url}\nLicense URL: {entry.license_url or 'n/a'}\n"
-        )
-    api.upload_file(
-        path_or_fileobj=text.encode("utf-8"),
-        path_in_repo=f"{base}/LICENSE",
-        repo_id=repo,
-        repo_type="model",
+            pass
+    return (
+        f"{entry.name}\nLicense: {entry.license}\n"
+        f"Source: {entry.repo or entry.url}\nLicense URL: {entry.license_url or 'n/a'}\n"
     )
 
 
-def build_one(api, entry: ModelEntry, repo: str, precision: str, dry_run: bool) -> str:
+def _operations_for(entry: ModelEntry, repo: str, precision: str) -> tuple[list, str]:
+    """Download + convert one model and return its commit operations + snippet.
+
+    Returns ``(operations, manifest_snippet)`` where ``operations`` is a list of
+    ``CommitOperationAdd`` referencing cached files (no copies). All operations
+    are committed together in batches so we make a handful of API calls instead
+    of one per file (which trips HF's rate limit).
+    """
+    from huggingface_hub import CommitOperationAdd
+
     print(f"\n=== {entry.name} ({entry.task}, {entry.license}) ===")
     source = fetch(entry)
-    print(f"  source : {source}")
     ir_xml = to_ir(source, entry.name, precision)
     ir_bin = ir_xml.with_suffix(".bin")
-    print(f"  IR     : {ir_xml}")
+    print(f"  source : {source}\n  IR     : {ir_xml}")
 
     xml_path, bin_path, base = _mirror_paths(entry)
-    if dry_run:
-        print("  (dry-run: skipping upload)")
-        return _manifest_snippet(entry, repo)
-
-    api.upload_file(
-        path_or_fileobj=str(ir_xml), path_in_repo=xml_path, repo_id=repo, repo_type="model"
-    )
+    ops = [CommitOperationAdd(path_in_repo=xml_path, path_or_fileobj=str(ir_xml))]
     if ir_bin.is_file():
-        api.upload_file(
-            path_or_fileobj=str(ir_bin), path_in_repo=bin_path, repo_id=repo, repo_type="model"
+        ops.append(CommitOperationAdd(path_in_repo=bin_path, path_or_fileobj=str(ir_bin)))
+    ops.append(
+        CommitOperationAdd(path_in_repo=f"{base}/{source.name}", path_or_fileobj=str(source))
+    )
+    ops.append(
+        CommitOperationAdd(
+            path_in_repo=f"{base}/README.md",
+            path_or_fileobj=_model_card(entry, source.name).encode("utf-8"),
         )
-    api.upload_file(
-        path_or_fileobj=str(source),
-        path_in_repo=f"{base}/{source.name}",
-        repo_id=repo,
-        repo_type="model",
     )
-    card = _model_card(entry, source.name).encode("utf-8")
-    api.upload_file(
-        path_or_fileobj=card, path_in_repo=f"{base}/README.md", repo_id=repo, repo_type="model"
+    ops.append(
+        CommitOperationAdd(
+            path_in_repo=f"{base}/LICENSE",
+            path_or_fileobj=_license_text(entry).encode("utf-8"),
+        )
     )
-    _upload_license(api, entry, repo, base)
-    print(f"  uploaded -> {repo}/{base}/")
-    return _manifest_snippet(entry, repo)
+    print(f"  staged {len(ops)} files -> {base}/")
+    return ops, _manifest_snippet(entry, repo)
 
 
-def _upload_repo_readme(api, repo: str) -> None:
-    """Write a top-level README describing the mirror and its license policy."""
-    body = textwrap.dedent("""\
+def _commit_in_batches(api, repo: str, operations: list, batch: int = 50) -> None:
+    """Commit operations in batches, backing off on HF rate limits (HTTP 429)."""
+    total = len(operations)
+    for start in range(0, total, batch):
+        chunk = operations[start : start + batch]
+        n = start // batch + 1
+        for attempt in range(6):
+            try:
+                api.create_commit(
+                    repo_id=repo,
+                    repo_type="model",
+                    operations=chunk,
+                    commit_message=f"ovkit mirror upload (batch {n})",
+                )
+                print(f"  committed batch {n}: {len(chunk)} files ({start + len(chunk)}/{total})")
+                break
+            except Exception as exc:  # backoff only on rate limiting
+                msg = str(exc).lower()
+                if "429" in msg or "rate limit" in msg or "too many requests" in msg:
+                    wait = min(60, 5 * 2**attempt)
+                    print(f"  rate limited; waiting {wait}s then retrying batch {n}...")
+                    time.sleep(wait)
+                    continue
+                raise
+        else:
+            raise RuntimeError(f"batch {n} still rate-limited after retries; try again later.")
+
+
+def _repo_readme_text() -> str:
+    """Top-level README describing the mirror and its license policy."""
+    return textwrap.dedent("""\
         ---
         license: apache-2.0
         ---
@@ -337,12 +361,6 @@ def _upload_repo_readme(api, repo: str) -> None:
         or non-commercial (InsightFace pretrained) weights are hosted here.
         If you believe a model is mis-licensed, please open an issue.
         """)
-    api.upload_file(
-        path_or_fileobj=body.encode("utf-8"),
-        path_in_repo="README.md",
-        repo_id=repo,
-        repo_type="model",
-    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -410,15 +428,26 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         api = HfApi(token=os.environ.get("HF_TOKEN"))
         api.create_repo(args.repo, repo_type="model", private=args.private, exist_ok=True)
-        _upload_repo_readme(api, args.repo)
 
+    # Download + convert each model and collect its commit operations.
+    from huggingface_hub import CommitOperationAdd
+
+    all_ops: list = [
+        CommitOperationAdd(path_in_repo="README.md", path_or_fileobj=_repo_readme_text().encode())
+    ]
     snippets, failed = [], []
     for entry in entries:
         try:
-            snippets.append(build_one(api, entry, args.repo, args.precision, args.dry_run))
+            ops, snippet = _operations_for(entry, args.repo, args.precision)
+            all_ops.extend(ops)
+            snippets.append(snippet)
         except Exception as exc:  # keep going across the remaining models
             failed.append(entry.name)
-            print(f"  ERROR mirroring '{entry.name}': {exc}", file=sys.stderr)
+            print(f"  ERROR staging '{entry.name}': {exc}", file=sys.stderr)
+
+    if not args.dry_run:
+        print(f"\nUploading {len(all_ops)} files in batches (rate-limit safe)...")
+        _commit_in_batches(api, args.repo, all_ops)
 
     if snippets:
         print("\n" + "=" * 70)
@@ -431,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         print("Re-run WITHOUT --dry-run (and with a valid HF_TOKEN) to upload.")
     else:
-        print(f"\nDone: {len(snippets)} uploaded to {args.repo}, {len(failed)} failed.")
+        print(f"\nDone: {len(snippets)} models uploaded to {args.repo}, {len(failed)} failed.")
     if failed:
         print("Failed: " + ", ".join(failed), file=sys.stderr)
     return 0
