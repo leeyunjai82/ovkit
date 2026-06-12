@@ -41,9 +41,21 @@ def _from_signature(backend: Backend) -> str | None:
             if has_box:
                 return "detect"
 
+    # SSD / DetectionOutput: a single tensor ending in 7
+    # ([image_id, label, conf, x_min, y_min, x_max, y_max]).
+    if len(shapes) == 1 and len(shapes[0]) >= 2 and shapes[0][-1] == 7:
+        return "detect"
+
     # Single 2-D output [N, C] -> classification probabilities.
     if len(shapes) == 1 and len(shapes[0]) == 2:
         return "classify"
+
+    # Single 4-D output: [N, C, 1, 1] -> classify; [N, C, H, W] -> segmentation.
+    if len(shapes) == 1 and len(shapes[0]) == 4:
+        s = shapes[0]
+        if s[-1] == 1 and s[-2] == 1:
+            return "classify"
+        return "segment"
 
     # Single 3-D output [N, C, anchors] or [N, anchors, C] -> dense detector.
     if len(shapes) == 1 and len(shapes[0]) == 3:

@@ -98,3 +98,76 @@ def synthetic_classify_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) 
     path = tmp_path_factory.mktemp("ir") / "synthetic_classify.xml"
     ovino.save_model(model, str(path))
     return path
+
+
+@pytest.fixture(scope="session")
+def synthetic_ssd_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic SSD/DetectionOutput IR: ``[1, 1, N, 7]``.
+
+    Rows are ``[image_id, label, conf, x_min, y_min, x_max, y_max]`` (normalized).
+    Two detections clear conf=0.25 (labels 1 and 2); one is below threshold.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    det = np.zeros((1, 1, 3, 7), dtype=np.float32)
+    det[0, 0, 0] = [0, 1, 0.90, 0.10, 0.10, 0.50, 0.50]
+    det[0, 0, 1] = [0, 2, 0.80, 0.50, 0.50, 0.90, 0.90]
+    det[0, 0, 2] = [0, 1, 0.10, 0.00, 0.00, 0.20, 0.20]  # below threshold
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(det), zero)
+    out.set_friendly_name("detection_out")
+
+    model = ovino.Model([out], [x], "synthetic_ssd")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_ssd.xml"
+    ovino.save_model(model, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
+def synthetic_seg_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic ``[1, C, H, W]`` segmentation IR (argmax -> class 2)."""
+    import openvino as ovino
+
+    op = _opset()
+    seg = np.zeros((1, 3, 4, 4), dtype=np.float32)
+    seg[0, 2, :, :] = 5.0  # channel 2 dominates -> argmax == 2 everywhere
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(seg), zero)
+    out.set_friendly_name("segmentation")
+
+    model = ovino.Model([out], [x], "synthetic_seg")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_seg.xml"
+    ovino.save_model(model, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
+def synthetic_pose_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic ``[1, K, H, W]`` keypoint-heatmap IR.
+
+    Two keypoints peak at grid cells (row, col) = (1, 1) and (2, 3) in a 4x4 map.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    heat = np.zeros((1, 2, 4, 4), dtype=np.float32)
+    heat[0, 0, 1, 1] = 1.0
+    heat[0, 1, 2, 3] = 1.0
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(heat), zero)
+    out.set_friendly_name("heatmaps")
+
+    model = ovino.Model([out], [x], "synthetic_pose")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_pose.xml"
+    ovino.save_model(model, str(path))
+    return path

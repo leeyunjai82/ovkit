@@ -172,24 +172,31 @@ Concretely, the following is implemented and runnable right now:
 
 **Tasks that run end-to-end:**
 
-- ✅ **Detection** — DETR-family (RT-DETR / RT-DETRv2 / D-FINE): preprocess →
-  infer → DETR decode (no NMS) → `Results` with `boxes` → `plot()` / `save()`.
-- ✅ **Classification** — single-output `[N, C]` models: preprocess → infer →
-  softmax → `Results` with `probs` (`top1` / `top5`). Per-model input
-  size/normalization via the manifest `imgsz` / `preprocess` fields.
+- ✅ **Detection** — DETR-family (RT-DETR / D-FINE) **and** SSD/DetectionOutput
+  (most OMZ face/person/vehicle detectors): preprocess → infer → decode →
+  `Results` with `boxes` → `plot()` / `save()`.
+- ✅ **Classification** — single-output `[N, C]` models: softmax → `probs`
+  (`top1` / `top5`).
+- ✅ **Segmentation** — `[1, C, H, W]` / `[1, 1, H, W]` models: argmax class map
+  resized to the image → `Results.masks`.
+- ✅ **Pose** — keypoint-heatmap models: per-channel peak → `Results.keypoints`
+  (single-instance; multi-person grouping is a future refinement).
 
-**Not yet (interface stubs, raise `NotImplementedError`):** segment, pose, face.
-`genai` is a thin wrapper (works once `ovkit[genai]` + a model are present);
-`solutions` (anomaly / OCR / tracking / reid) are scaffolding.
+Preprocessing follows each model's own input size with sensible per-family
+defaults, overridable via the manifest `imgsz` / `preprocess` fields.
+
+**Not yet (interface stubs):** `face` analyzer. `genai` is a thin wrapper (works
+once `ovkit[genai]` + a model are present); `solutions` (anomaly / OCR /
+tracking / reid) are scaffolding.
 
 ### Feature → model map
 
 | Task / feature | Status | Models |
 | -------------- | ------ | ------ |
-| **detect** | ✅ runs | `rtdetr_r50`, `rtdetrv2_r18` (shipped manifest); mirror adds `rtdetr_r101`, `rtdetrv2_r34/r50/r101`, `dfine_s/m`, + OMZ detectors |
+| **detect** | ✅ runs | `rtdetr_r50/r101` (DETR) + OMZ SSD detectors (face/person/vehicle) |
 | **classify** | ✅ runs | mirror: OMZ classification models (`--omz-intel`) |
-| **segment** | 🚧 stub | mirror: OMZ semantic/instance segmentation |
-| **pose** | 🚧 stub | mirror: OMZ `human-pose-estimation-*` |
+| **segment** | ✅ runs | mirror: OMZ semantic segmentation (`road/semantic/icnet/unet`) |
+| **pose** | ✅ runs | mirror: OMZ `human-pose-estimation-*` (single-instance) |
 | **face** | 🚧 stub | mirror: OMZ Apache set — `face-detection-retail-0005`, `landmarks-regression-retail-0009`, `face-reidentification-retail-0095`, `head-pose-estimation-adas-0001`, `emotions-recognition-retail-0003`, `age-gender-recognition-retail-0013`, `anti-spoof-mn3` |
 | **genai** (LLM / T2I / Whisper / VLM / TTS) | ⚙️ wrapper | openvino-genai models (user-provided path); `ovkit[genai]` |
 | **anomaly** | 🚧 stub | anomalib: PatchCore / EfficientAD / PaDiM; `ovkit[anomaly]` |

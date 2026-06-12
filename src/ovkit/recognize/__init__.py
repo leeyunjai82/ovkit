@@ -1,7 +1,7 @@
 """Task adapters: map a generic backend + image to task-specific Results.
 
 The :func:`get_adapter` factory selects the adapter for a detected task.
-``detect`` and ``classify`` are implemented; ``segment`` / ``pose`` are stubs.
+``detect`` (DETR + SSD), ``classify``, ``segment``, and ``pose`` are implemented.
 """
 
 from __future__ import annotations
