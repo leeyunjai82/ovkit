@@ -42,3 +42,19 @@ def test_low_level_infer(synthetic_classify_ir, imgsz):
 
     out = model.infer(np.zeros((1, 3, imgsz, imgsz), dtype=np.float32))
     assert isinstance(out, dict) and len(out) == 1
+
+
+def test_auto_raw_ndarray(synthetic_classify_ir, imgsz):
+    # A non-image ndarray is auto-routed to raw inference (returns a dict).
+    model = Model(str(synthetic_classify_ir), device="CPU")
+    out = model(np.zeros((1, 3, imgsz, imgsz), dtype=np.float32))
+    assert isinstance(out, dict) and len(out) == 1
+
+
+def test_auto_raw_npy(synthetic_classify_ir, imgsz, tmp_path):
+    arr = np.zeros((1, 3, imgsz, imgsz), dtype=np.float32)
+    p = tmp_path / "x.npy"
+    np.save(p, arr)
+    model = Model(str(synthetic_classify_ir), device="CPU")
+    out = model(str(p))
+    assert isinstance(out, dict) and len(out) == 1

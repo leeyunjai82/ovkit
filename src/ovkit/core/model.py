@@ -30,6 +30,7 @@ from .tasks import detect_task
 
 _IMAGE_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 _VIDEO_EXT = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v"}
+_AUDIO_EXT = {".wav", ".flac", ".ogg", ".mp3", ".m4a"}
 
 
 class Model:
@@ -156,12 +157,20 @@ class Model:
     ) -> list[Results] | Iterator[Results]:
         """Run prediction on ``source``.
 
-        ``source`` may be an image path, a ``numpy`` array, a directory of
-        images, a video file, or a camera index (``int``). With ``stream=True``
-        a generator is returned (use it for video/large folders); otherwise a
-        list of :class:`Results` is returned.
+        The input type is auto-detected: an **image** (path / ``ndarray`` /
+        folder / video / camera ``int``) runs the vision pipeline and returns
+        :class:`Results`; a **non-image** input (a ``.npy`` tensor, a ``.wav``
+        audio file, or a raw non-image ``ndarray``) is fed to the model directly
+        and the raw ``{name: ndarray}`` outputs are returned. ``stream=True``
+        returns a generator for image sources.
         """
         dev = device or self.device
+
+        # Non-image input -> run the model directly, return raw outputs.
+        raw = self._maybe_raw_input(source)
+        if raw is not None:
+            return self.infer(raw, device=dev)
+
         backend = self._backend_for(dev)
         adapter = self._ensure_adapter(backend)
         if imgsz is not None:
@@ -169,6 +178,44 @@ class Model:
 
         gen = self._predict_stream(adapter, backend, source, conf=conf, **kwargs)
         return gen if stream else list(gen)
+
+    def _maybe_raw_input(self, source: Any) -> Any | None:
+        """Return a tensor for non-image input (``.npy``/``.wav``/raw array), else None."""
+        if isinstance(source, np.ndarray):
+            # HWC image (1/3/4 channels) -> vision pipeline; anything else is raw.
+            if source.ndim == 3 and source.shape[2] in (1, 3, 4):
+                return None
+            return source.astype(np.float32)
+        if isinstance(source, (str, Path)):
+            ext = Path(source).suffix.lower()
+            if ext in {".npy"}:
+                return np.load(source).astype(np.float32)
+            if ext in _AUDIO_EXT:
+                return self._load_audio(source)
+        return None
+
+    def _load_audio(self, path: str | Path) -> np.ndarray:
+        """Load a ``.wav`` into a float32 tensor shaped to the model's input."""
+        import wave
+
+        ext = Path(path).suffix.lower()
+        if ext != ".wav":
+            raise OVKitError(
+                f"Auto-loading '{ext}' audio needs an extra decoder. Convert to .wav, "
+                f"or build the input tensor yourself and call model.infer(...)."
+            )
+        with wave.open(str(path), "rb") as wf:
+            n = wf.getnframes()
+            raw = wf.readframes(n)
+        audio = (np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0)[None]
+        # Fit to the model's first static input length when known.
+        shape = self.inputs[0][1] if self.inputs else ()
+        target = next((d for d in reversed(shape) if d and d > 1), 0)
+        if target:
+            audio = audio[:, :target]
+            if audio.shape[1] < target:
+                audio = np.pad(audio, ((0, 0), (0, target - audio.shape[1])))
+        return audio
 
     def __call__(self, source: Any, **kwargs: Any) -> list[Results] | Iterator[Results]:
         """Alias for :meth:`predict` (the model object is callable)."""

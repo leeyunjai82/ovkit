@@ -55,6 +55,24 @@ for r in model.predict(0, stream=True):      # webcam, lazy generator
     annotated = r.plot()                     # -> ndarray
 ```
 
+### Inputs (auto-detected)
+
+`model(x)` routes on the input type — no config needed:
+
+- **image** (path / `ndarray` / folder / video / camera `int`) → vision pipeline
+  → `Results`. Vision tasks fill `boxes`/`masks`/`keypoints`/`probs`; any other
+  image task (super-res, OCR, embeddings, ...) returns raw `Results.tensors`.
+- **non-image** (`.npy` tensor, `.wav` audio, or a raw non-image `ndarray`) →
+  fed to the model directly → raw `{name: ndarray}`.
+
+For full control over any model (NLP / audio / time-series with your own
+tensors), use the low-level API directly:
+
+```python
+print(model.inputs)            # [(name, shape, dtype), ...]
+out = model.infer(tensors)     # {output_name: ndarray}, no preprocessing
+```
+
 ### Results
 
 | Attribute        | Task      | Contents                              |
@@ -63,6 +81,7 @@ for r in model.predict(0, stream=True):      # webcam, lazy generator
 | `r.masks`        | segment   | `(N, H, W)` masks                     |
 | `r.keypoints`    | pose      | `(N, K, 3)` `[x, y, conf]`            |
 | `r.probs`        | classify  | `top1`, `top5`, raw probabilities     |
+| `r.tensors`      | generic   | raw `{name: ndarray}` outputs         |
 | `r.plot()`       | all       | annotated `ndarray`                   |
 | `r.save(path)`   | all       | render + write to disk                |
 
