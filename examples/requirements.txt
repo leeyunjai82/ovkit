@@ -1,5 +1,6 @@
-# Dependencies for the examples (webcam_demo.py).
+# Dependencies for the web examples (web_app.py, webcam_demo.py).
 # Install ovkit itself first:  pip install -e .   (from the repo root)
 
 fastapi>=0.110
 uvicorn>=0.27
+python-multipart>=0.0.9
