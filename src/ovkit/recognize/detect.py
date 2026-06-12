@@ -35,6 +35,46 @@ def _cxcywh_to_xyxy(boxes: np.ndarray) -> np.ndarray:
     return np.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=1)
 
 
+def _softmax_axis(x: np.ndarray, axis: int) -> np.ndarray:
+    x = x - np.max(x, axis=axis, keepdims=True)
+    e = np.exp(x)
+    return e / np.sum(e, axis=axis, keepdims=True)
+
+
+# Standard YOLOv2 (VOC) anchors in grid-cell units; override via manifest.
+_YOLOV2_ANCHORS = [
+    (1.3221, 1.73145),
+    (3.19275, 4.00944),
+    (5.05587, 8.09892),
+    (9.47112, 4.84053),
+    (11.2364, 10.0071),
+]
+
+
+def _nms(xyxy: np.ndarray, scores: np.ndarray, iou_thr: float = 0.45, max_det: int = 300) -> list:
+    """Greedy non-max suppression; returns kept indices (highest score first)."""
+    if len(scores) == 0:
+        return []
+    x1, y1, x2, y2 = xyxy[:, 0], xyxy[:, 1], xyxy[:, 2], xyxy[:, 3]
+    areas = (x2 - x1).clip(0) * (y2 - y1).clip(0)
+    order = scores.argsort()[::-1]
+    keep: list[int] = []
+    while order.size > 0 and len(keep) < max_det:
+        i = int(order[0])
+        keep.append(i)
+        rest = order[1:]
+        if rest.size == 0:
+            break
+        xx1 = np.maximum(x1[i], x1[rest])
+        yy1 = np.maximum(y1[i], y1[rest])
+        xx2 = np.minimum(x2[i], x2[rest])
+        yy2 = np.minimum(y2[i], y2[rest])
+        inter = (xx2 - xx1).clip(0) * (yy2 - yy1).clip(0)
+        iou = inter / (areas[i] + areas[rest] - inter + 1e-9)
+        order = rest[iou < iou_thr]
+    return keep
+
+
 class DetectAdapter(BaseAdapter):
     """Adapter for object detection (DETR and SSD output families)."""
 
@@ -71,6 +111,8 @@ class DetectAdapter(BaseAdapter):
             outputs = backend.infer(feed)
             if fmt == "ssd":
                 boxes = self._decode_ssd(outputs, (h, w), conf=conf, max_det=max_det)
+            elif fmt == "yolo_v2":
+                boxes = self._decode_yolo(outputs, (h, w), conf=conf, max_det=max_det)
             else:
                 boxes = self._decode_boxes_labels(
                     outputs, (h, w), (ih, iw), conf=conf, max_det=max_det
@@ -90,6 +132,10 @@ class DetectAdapter(BaseAdapter):
         # boxes [N, 5] (+ optional labels [N]): any output ending in 5.
         if any(len(s) >= 2 and s[-1] == 5 for s in shapes):
             return "boxes_labels"
+        # A single 4-D [1, A*(5+C), H, W] tensor on a detect model -> YOLO region
+        # (segmentation maps route to SegmentAdapter, so this is unambiguous here).
+        if len(shapes) == 1 and len(shapes[0]) == 4:
+            return "yolo_v2"
         return "detr"
 
     # -- boxes+labels decode (OMZ -0200/ATSS-style detectors) ---------------
@@ -139,6 +185,58 @@ class DetectAdapter(BaseAdapter):
         data = np.concatenate([xyxy, scores[:, None], labels[:, None]], axis=1)
         order = np.argsort(scores)[::-1][:max_det]
         return data[order].astype(np.float32)
+
+    # -- YOLOv2 region decode ----------------------------------------------
+
+    def _decode_yolo(
+        self, outputs: dict[str, np.ndarray], orig_hw: tuple[int, int], *, conf: float, max_det: int
+    ) -> np.ndarray:
+        out = np.asarray(next(iter(outputs.values())), dtype=np.float32)
+        a = out[0] if out.ndim == 4 else out  # [Ch, H, W]
+        if a.ndim != 3:
+            return np.zeros((0, 6), dtype=np.float32)
+        ch, gh, gw = a.shape
+        anchors = self.post.get("anchors") or _YOLOV2_ANCHORS
+        na = len(anchors)
+        if na == 0 or ch % na != 0:
+            return np.zeros((0, 6), dtype=np.float32)
+        depth = ch // na
+        ncls = depth - 5
+        if ncls < 1:
+            return np.zeros((0, 6), dtype=np.float32)
+
+        a = a.reshape(na, depth, gh, gw)
+        tx, ty, tw, th, to = a[:, 0], a[:, 1], a[:, 2], a[:, 3], a[:, 4]
+        cls = a[:, 5:]  # [na, ncls, gh, gw]
+
+        gx = np.arange(gw, dtype=np.float32)[None, None, :]
+        gy = np.arange(gh, dtype=np.float32)[None, :, None]
+        cx = (_sigmoid(tx) + gx) / gw
+        cy = (_sigmoid(ty) + gy) / gh
+        aw = np.array([p[0] for p in anchors], dtype=np.float32)[:, None, None]
+        ah = np.array([p[1] for p in anchors], dtype=np.float32)[:, None, None]
+        bw = aw * np.exp(tw) / gw
+        bh = ah * np.exp(th) / gh
+
+        cls_sm = _softmax_axis(cls, axis=1)
+        score = _sigmoid(to) * cls_sm.max(axis=1)  # [na, gh, gw]
+        cls_id = cls_sm.argmax(axis=1)
+
+        mask = score >= conf
+        if not np.any(mask):
+            return np.zeros((0, 6), dtype=np.float32)
+        cx, cy, bw, bh = cx[mask], cy[mask], bw[mask], bh[mask]
+        sc, ids = score[mask], cls_id[mask].astype(np.float32)
+
+        h, w = orig_hw
+        xyxy = np.stack(
+            [(cx - bw / 2) * w, (cy - bh / 2) * h, (cx + bw / 2) * w, (cy + bh / 2) * h], axis=1
+        )
+        xyxy[:, 0::2] = xyxy[:, 0::2].clip(0, w)
+        xyxy[:, 1::2] = xyxy[:, 1::2].clip(0, h)
+        keep = _nms(xyxy, sc, max_det=max_det)
+        data = np.concatenate([xyxy, sc[:, None], ids[:, None]], axis=1)
+        return data[keep].astype(np.float32)
 
     # -- SSD decode ---------------------------------------------------------
 

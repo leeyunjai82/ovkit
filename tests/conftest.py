@@ -158,6 +158,36 @@ def synthetic_boxes_labels_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: i
 
 
 @pytest.fixture(scope="session")
+def synthetic_yolo_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
+    """Create a deterministic YOLOv2 region IR: ``[1, A*(5+C), H, W]``.
+
+    5 anchors, 1 class, 2x2 grid -> 30 channels. Only anchor 0 at cell (0,0) is
+    confident (objectness + class logit high); everything else is suppressed.
+    """
+    import openvino as ovino
+
+    op = _opset()
+    grid = np.full((1, 30, 2, 2), -10.0, dtype=np.float32)
+    grid[0, 0, 0, 0] = 0.0  # tx
+    grid[0, 1, 0, 0] = 0.0  # ty
+    grid[0, 2, 0, 0] = 0.0  # tw
+    grid[0, 3, 0, 0] = 0.0  # th
+    grid[0, 4, 0, 0] = 10.0  # objectness
+    grid[0, 5, 0, 0] = 10.0  # class 0 logit
+
+    x = op.parameter([1, 3, imgsz, imgsz], ovino.Type.f32, name="data")
+    axes = op.constant(np.array([0, 1, 2, 3], dtype=np.int64))
+    zero = op.multiply(op.reduce_sum(x, axes, keep_dims=False), op.constant(np.float32(0.0)))
+    out = op.add(op.constant(grid), zero)
+    out.set_friendly_name("region")
+
+    model = ovino.Model([out], [x], "synthetic_yolo")
+    path = tmp_path_factory.mktemp("ir") / "synthetic_yolo.xml"
+    ovino.save_model(model, str(path))
+    return path
+
+
+@pytest.fixture(scope="session")
 def synthetic_seg_ir(tmp_path_factory: pytest.TempPathFactory, imgsz: int) -> Path:
     """Create a deterministic ``[1, C, H, W]`` segmentation IR (argmax -> class 2)."""
     import openvino as ovino

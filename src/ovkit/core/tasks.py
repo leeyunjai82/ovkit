@@ -85,9 +85,7 @@ def detect_task(
         An explicit ``task=`` from the caller, which short-circuits everything.
     """
     if override:
-        if override not in KNOWN_TASKS:
-            raise TaskDetectionError(f"Unknown task '{override}'. Expected one of {KNOWN_TASKS}.")
-        return override
+        return override  # any task is allowed; non-vision falls back to generic
 
     if manifest_task:
         return manifest_task
