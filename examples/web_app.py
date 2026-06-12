@@ -252,14 +252,20 @@ async def run_text(model: str = Form(...), text: str = Form(...)):
                 }
             )
         ptype = entry.extra.get("pipeline")
+        print(f"[run_text] {model}: loading genai pipeline ({ptype})...", flush=True)
         pipe = _genai.get(model) or _genai.setdefault(model, pipeline(model))
         if ptype == "text2speech":
             res = pipe.generate(text)
             audio = np.asarray(getattr(res, "speeches", [res])[0]).reshape(-1)
             return JSONResponse({"summary": "synthesized speech", "audio": wav_b64(audio, 16000)})
-        return JSONResponse({"summary": str(pipe.generate(text, max_new_tokens=200))})
+        out = str(pipe.generate(text, max_new_tokens=200))
+        print(f"[run_text] {model} -> {out[:200]}", flush=True)
+        return JSONResponse({"summary": out})
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        import traceback
+
+        traceback.print_exc()
+        return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=500)
 
 
 def _denoise(model: str, audio: np.ndarray) -> np.ndarray:

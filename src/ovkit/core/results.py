@@ -251,6 +251,40 @@ class Results:
                 cv2.LINE_AA,
             )
 
+        # Generic (raw-tensor) results: overlay output info so something shows.
+        if self.text:
+            cv2.putText(
+                img,
+                f'"{self.text}"',
+                (10, 36),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                (0, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+        elif self.tensors is not None and not any(
+            (self.boxes, self.masks, self.keypoints, self.probs)
+        ):
+            y = 30
+            for name, arr in list(self.tensors.items())[:5]:
+                a = np.asarray(arr)
+                txt = f"{name}: {tuple(a.shape)}"
+                if a.size and a.ndim <= 2:
+                    flat = a.ravel()
+                    txt += f"  argmax={int(flat.argmax())} ({float(flat.max()):.2f})"
+                cv2.putText(
+                    img,
+                    txt[:60],
+                    (10, y),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
+                y += 28
+
         return img
 
     def save(self, path: str | Path) -> Path:
