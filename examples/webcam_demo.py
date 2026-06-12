@@ -134,18 +134,21 @@ def index() -> str:
     <select id="model">{options or '<option>(no models registered)</option>'}</select>
   </label>
   <label>conf: <input id="conf" type="number" value="0.25" min="0" max="1" step="0.05"></label>
+  <button id="load">Load</button>
+  <div id="status" style="margin-top:8px;color:#9b9">pick a model and press Load</div>
   <div><img id="view" src="" alt="stream"></div>
 <script>
   const view = document.getElementById('view');
   const model = document.getElementById('model');
   const conf = document.getElementById('conf');
-  function refresh() {{
+  const status = document.getElementById('status');
+  function load() {{
     if (!model.value) return;
+    status.textContent = 'loading ' + model.value + ' ...';
     view.src = `/stream?model=${{encodeURIComponent(model.value)}}&conf=${{conf.value}}&t=${{Date.now()}}`;
   }}
-  model.addEventListener('change', refresh);
-  conf.addEventListener('change', refresh);
-  refresh();
+  // Apply only when Load is pressed (selecting a model does not start it).
+  document.getElementById('load').addEventListener('click', load);
 </script>
 </body></html>"""
 

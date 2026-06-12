@@ -102,8 +102,6 @@ class Model:
         if self._adapter is None:
             manifest_task = self._entry.task if self._entry else None
             self.task = detect_task(backend, manifest_task, self._task_override)
-            if self.task == "face":
-                raise OVKitError("Face models are handled by ovkit.face (not implemented in v0).")
             self._adapter = get_adapter(
                 self.task,
                 imgsz=self.imgsz,
@@ -112,6 +110,37 @@ class Model:
                 names=self._names or None,
             )
         return self._adapter
+
+    # -- low-level (any model, your own input tensors) ----------------------
+
+    @property
+    def inputs(self) -> list[tuple[str, tuple[int, ...], str]]:
+        """Return ``(name, shape, dtype)`` for each model input.
+
+        Useful for non-image models (NLP / audio / time series): build matching
+        tensors and pass them to :meth:`infer`.
+        """
+        backend = self._backend_for(self.device)
+        info: list[tuple[str, tuple[int, ...], str]] = []
+        for inp in backend.compiled.inputs:
+            try:
+                name = inp.get_any_name()
+            except RuntimeError:
+                name = ""
+            ps = inp.get_partial_shape()
+            shape = tuple(int(d.get_length()) if d.is_static else -1 for d in ps)
+            info.append((name, shape, str(inp.get_element_type())))
+        return info
+
+    def infer(self, inputs: Any, *, device: str | None = None) -> dict[str, np.ndarray]:
+        """Run the model on raw input tensor(s), returning ``{name: ndarray}``.
+
+        The escape hatch for any model — including non-image ones (NLP / audio /
+        time series) — where you provide the input tensors yourself (see
+        :attr:`inputs` for the expected shapes). No image preprocessing is done.
+        """
+        backend = self._backend_for(device or self.device)
+        return backend.infer(inputs)
 
     # -- prediction ---------------------------------------------------------
 

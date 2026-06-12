@@ -153,6 +153,7 @@ class Results:
         masks: Masks | None = None,
         keypoints: Keypoints | None = None,
         probs: Probs | None = None,
+        tensors: dict[str, np.ndarray] | None = None,
         path: str | None = None,
     ) -> None:
         self.orig_img = orig_img
@@ -162,13 +163,18 @@ class Results:
         self.masks = masks
         self.keypoints = keypoints
         self.probs = probs
+        #: Raw ``{output_name: ndarray}`` for tasks without a typed decoder
+        #: (e.g. super-resolution, OCR, embeddings). ``None`` for vision tasks.
+        self.tensors = tensors
         self.path = path
 
     def __len__(self) -> int:
         for obj in (self.boxes, self.masks, self.keypoints):
             if obj is not None:
                 return len(obj)
-        return 1 if self.probs is not None else 0
+        if self.probs is not None:
+            return 1
+        return len(self.tensors) if self.tensors is not None else 0
 
     def __repr__(self) -> str:
         h, w = self.orig_img.shape[:2]
