@@ -2,7 +2,7 @@
 # ---------------------------------------------------------------------------
 # Curated, permissive (Apache-2.0) detectors with verified ONNX exports. These
 # feed build_mirror.py; after mirroring, point the runtime manifest at the
-# mirror. No YOLO/Ultralytics (AGPL) — DETR family only (spec §7).
+# mirror. No AGPL model stacks — DETR family only (spec §7).
 #
 # NOTE: RT-DETRv2 / D-FINE entries were removed pending verified onnx-community
 # repo ids (the guessed names 404'd). Broad detection coverage comes from the

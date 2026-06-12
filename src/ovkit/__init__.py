@@ -1,4 +1,4 @@
-"""ovkit — use OpenVINO as easily as Ultralytics.
+"""ovkit — a simple Python inference API for OpenVINO.
 
 One import, one :class:`Model` class, a callable object, and clean
 :class:`Results` — plus OpenVINO's strengths (AUTO/NPU devices, async, INT8).

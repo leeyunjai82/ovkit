@@ -333,9 +333,9 @@ def _upload_repo_readme(api, repo: str) -> None:
 
         This repository **redistributes** third-party models. Every model is
         permissively licensed (Apache-2.0 / MIT / BSD); the original license and
-        attribution are preserved in each model's `LICENSE` file. No AGPL
-        (YOLO/Ultralytics) or non-commercial (InsightFace pretrained) weights are
-        hosted here. If you believe a model is mis-licensed, please open an issue.
+        attribution are preserved in each model's `LICENSE` file. No AGPL-licensed
+        or non-commercial (InsightFace pretrained) weights are hosted here.
+        If you believe a model is mis-licensed, please open an issue.
         """)
     api.upload_file(
         path_or_fileobj=body.encode("utf-8"),

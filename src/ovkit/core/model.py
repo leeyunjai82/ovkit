@@ -2,7 +2,7 @@
 
 ``Model`` ties the whole pipeline together — resolve a name/path, download +
 convert to IR, compile per device, auto-detect the task, attach the right
-adapter, and run prediction — behind an Ultralytics-style callable object::
+adapter, and run prediction — behind a simple callable object::
 
     from ovkit import Model
     model = Model("rtdetr_r50")
@@ -142,7 +142,7 @@ class Model:
         return gen if stream else list(gen)
 
     def __call__(self, source: Any, **kwargs: Any) -> list[Results] | Iterator[Results]:
-        """Alias for :meth:`predict` (Ultralytics-style callable)."""
+        """Alias for :meth:`predict` (the model object is callable)."""
         return self.predict(source, **kwargs)
 
     def _predict_stream(

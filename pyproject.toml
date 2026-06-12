@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ovkit"
 version = "0.1.0"
-description = "Use OpenVINO as easily as Ultralytics: one import, one Model class, clean Results — with AUTO/NPU, async, and INT8."
+description = "A simple Python inference API for OpenVINO: one import, one Model class, clean Results — with AUTO/NPU, async, and INT8."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }

@@ -1,6 +1,6 @@
 # ovkit
 
-**Use OpenVINO as easily as Ultralytics.** One import, one `Model` class, a
+**A simple Python inference API for OpenVINO.** One import, one `Model` class, a
 callable object, and clean `Results` — with OpenVINO's strengths layered on top:
 `AUTO`/`NPU` devices, async throughput, and INT8 quantization.
 
@@ -16,7 +16,7 @@ for r in results:
 ```
 
 ovkit is **Apache-2.0** and stays license-clean: it never bundles or downloads
-AGPL stacks (YOLO/Ultralytics) or non-commercial weights (InsightFace
+AGPL-licensed model stacks or non-commercial weights (InsightFace
 pretrained). See the [license policy](usage.md#license-policy).
 
 ```{toctree}
