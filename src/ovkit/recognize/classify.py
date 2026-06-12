@@ -5,7 +5,8 @@ Runs preprocessing → inference → (optional) softmax → :class:`Results` wit
 ``[N, C, 1, 1]``) tensor; we squeeze it to ``C`` and expose ``top1``/``top5``.
 
 Per-model preprocessing (input size, channel order, mean/std) comes from the
-manifest ``imgsz`` / ``preprocess`` fields; defaults suit ``[0, 1]`` RGB input.
+model's own input shape and the manifest ``preprocess`` field; OMZ classifiers
+default to raw BGR ``[0, 255]`` (override via ``preprocess`` for timm-style RGB).
 """
 
 from __future__ import annotations
@@ -32,8 +33,9 @@ class ClassifyAdapter(BaseAdapter):
     task = "classify"
 
     def run(self, backend: Backend, image: np.ndarray, **_: Any) -> Results:
-        rgb = bool(self.pre.get("rgb", True))
-        feed = self.preprocess_square(image, rgb=rgb)
+        size = self.model_input_hw(backend)
+        rgb = bool(self.pre.get("rgb", False))  # OMZ classifiers: raw BGR
+        feed = self.preprocess(image, size, rgb=rgb, scale=self.pre.get("scale", 1.0))
         outputs = backend.infer(feed)
 
         arr = np.asarray(next(iter(outputs.values())))
