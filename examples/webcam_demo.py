@@ -35,6 +35,9 @@ _models: dict[str, Model] = {}
 _models_lock = threading.Lock()
 _cap: cv2.VideoCapture | None = None
 _cap_lock = threading.Lock()
+# Only one stream is active at a time; bumping the id stops the previous one.
+_active = {"id": 0}
+_active_lock = threading.Lock()
 
 
 def runnable_models() -> list[tuple[str, str]]:
@@ -53,6 +56,7 @@ def runnable_models() -> list[tuple[str, str]]:
 def get_model(name: str) -> Model:
     with _models_lock:
         if name not in _models:
+            _models.clear()  # keep only the active model resident (free the old)
             _models[name] = Model(name, device="AUTO")
         return _models[name]
 
@@ -64,10 +68,10 @@ def get_cap() -> cv2.VideoCapture:
     return _cap
 
 
-def frames(model_name: str, conf: float):
+def frames(model_name: str, conf: float, stream_id: int):
     model = get_model(model_name)
     cap = get_cap()
-    while True:
+    while _active["id"] == stream_id:  # a newer stream supersedes this one
         with _cap_lock:
             ok, frame = cap.read()
         if not ok:
@@ -95,15 +99,27 @@ def frames(model_name: str, conf: float):
 
 @app.get("/stream")
 def stream(model: str, conf: float = 0.25) -> StreamingResponse:
+    with _active_lock:
+        _active["id"] += 1
+        stream_id = _active["id"]
     return StreamingResponse(
-        frames(model, conf), media_type="multipart/x-mixed-replace; boundary=frame"
+        frames(model, conf, stream_id), media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
 
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     models = runnable_models()
-    options = "\n".join(f'<option value="{n}">{n} ({t})</option>' for n, t in models)
+    by_task: dict[str, list[str]] = {}
+    for name, task in models:
+        by_task.setdefault(task, []).append(name)
+    options = ""
+    for task in ("detect", "classify", "segment", "pose"):
+        names = by_task.get(task)
+        if not names:
+            continue
+        opts = "".join(f'<option value="{n}">{n}</option>' for n in names)
+        options += f'<optgroup label="{task} ({len(names)})">{opts}</optgroup>'
     return f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>ovkit webcam demo</title>
 <style>
