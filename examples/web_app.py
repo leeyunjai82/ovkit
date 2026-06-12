@@ -67,11 +67,36 @@ def get_model(name: str) -> Model:
         return _models[name]
 
 
-def get_cap() -> cv2.VideoCapture:
+def get_cap() -> cv2.VideoCapture | None:
+    """Open the webcam, trying DirectShow first (Windows MSMF often fails)."""
     global _cap
-    if _cap is None or not _cap.isOpened():
-        _cap = cv2.VideoCapture(0)
-    return _cap
+    if _cap is not None and _cap.isOpened():
+        return _cap
+    candidates = [(0, cv2.CAP_DSHOW), (0, None), (1, cv2.CAP_DSHOW), (1, None)]
+    for idx, backend in candidates:
+        cap = cv2.VideoCapture(idx) if backend is None else cv2.VideoCapture(idx, backend)
+        if cap.isOpened() and cap.read()[0]:
+            _cap = cap
+            return _cap
+        cap.release()
+    return None
+
+
+def _error_frame(msg: str) -> bytes:
+    """Render an error message as a JPEG frame so failures are visible."""
+    img = np.zeros((360, 640, 3), dtype=np.uint8)
+    words, lines, cur = msg.split(), [], ""
+    for word in words:
+        if len(cur) + len(word) > 48:
+            lines.append(cur)
+            cur = word
+        else:
+            cur = (cur + " " + word).strip()
+    lines.append(cur)
+    for i, line in enumerate(lines[:8]):
+        cv2.putText(img, line, (10, 40 + i * 34), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+    ok, buf = cv2.imencode(".jpg", img)
+    return buf.tobytes() if ok else b""
 
 
 def read_wav(data: bytes) -> tuple[np.ndarray, int]:
@@ -121,8 +146,23 @@ def summarize(r) -> str:
 
 
 def frames(name: str, conf: float, sid: int):
-    model = get_model(name)
+    boundary = b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
+    try:
+        model = get_model(name)
+    except Exception as exc:  # make the failure visible instead of a dead stream
+        yield boundary + _error_frame(f"model load failed: {exc}") + b"\r\n"
+        return
     cap = get_cap()
+    if cap is None:
+        yield (
+            boundary
+            + _error_frame(
+                "webcam not available - close other apps using the camera, and check "
+                "Windows camera privacy settings (allow desktop apps)."
+            )
+            + b"\r\n"
+        )
+        return
     while _active["id"] == sid:
         with _cap_lock:
             ok, frame = cap.read()
