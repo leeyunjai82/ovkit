@@ -1,0 +1,28 @@
+# openvino-genai models (LLM / STT / TTS / text2image / VLM).
+# ---------------------------------------------------------------------------
+# These are NOT OpenVINO IR served through Model(); they are openvino-genai
+# pipelines. Use them via:
+#
+#     from ovkit.genai import pipeline
+#     llm = pipeline("tinyllama_chat")          # downloads + builds the pipeline
+#     print(llm.generate("Hello", max_new_tokens=50))
+#
+# Each entry: src=genai, pipeline=<llm|whisper|text2image|text2speech|vlm>,
+# repo=<HF repo of the OpenVINO-converted model>. Requires `pip install
+# "ovkit[genai]"`. license must be permissive (see spec §7).
+#
+# ⚠ Repo ids should be confirmed with network access (OpenVINO org re-hosts
+# many converted models); add more by copying a line.
+# ---------------------------------------------------------------------------
+
+tinyllama_chat:
+  src: genai
+  pipeline: llm
+  repo: OpenVINO/TinyLlama-1.1B-Chat-v1.0-int4-ov
+  license: apache-2.0
+
+whisper_base:
+  src: genai
+  pipeline: whisper
+  repo: OpenVINO/whisper-base-fp16-ov
+  license: mit

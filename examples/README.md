@@ -41,6 +41,26 @@ python examples/denoise_audio.py noise_suppression_poconetlike_0001 in.wav out.w
 Mono 16 kHz wav. (Best-effort generic state loop — if a model pairs states
 differently, share the run output and it can be adjusted.)
 
+## GenAI — LLM / STT / TTS (`llm.py`, `stt.py`, `tts.py`)
+
+Modern OpenVINO models via **openvino-genai** (separate from the vision mirror).
+
+```bash
+pip install "ovkit[genai]"
+python examples/llm.py "Explain OpenVINO in one sentence."   # LLM
+python examples/stt.py audio.wav                              # Whisper STT
+python examples/tts.py "Hello" /path/to/tts-ov-model out.wav  # TTS (local model dir)
+```
+
+Registered genai models live in `src/ovkit/manifests/genai.yaml` (downloaded on
+first use). In code:
+
+```python
+from ovkit.genai import pipeline
+llm = pipeline("tinyllama_chat"); print(llm.generate("Hi", max_new_tokens=50))
+stt = pipeline("whisper_base");  print(stt.generate(audio_16k_mono))
+```
+
 ## `predict.py` — one-shot CLI
 
 ```bash
