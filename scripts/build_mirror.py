@@ -311,13 +311,28 @@ def _operations_for(entry: ModelEntry, repo: str, precision: str) -> tuple[list,
     return ops, _manifest_snippet(entry, repo)
 
 
-def _commit_in_batches(api, repo: str, operations: list, batch: int = 50) -> None:
-    """Commit operations in batches, backing off on HF rate limits (HTTP 429)."""
+def _dedupe_ops(operations: list) -> list:
+    """Keep one operation per repo path (last wins) to avoid dup-in-commit."""
+    by_path: dict[str, object] = {}
+    for op in operations:
+        by_path[op.path_in_repo] = op
+    return list(by_path.values())
+
+
+def _commit_in_batches(api, repo: str, operations: list, batch: int = 200) -> None:
+    """Commit operations in a few large batches, backing off on HF 429s.
+
+    HF rate-limits *commits*, so we make as few as possible (large batches) and
+    back off patiently. If the account is in a rate-limit cooldown (e.g. from an
+    earlier many-commit run), even this can fail — re-running later resumes
+    cheaply because uploaded blobs are cached.
+    """
+    operations = _dedupe_ops(operations)
     total = len(operations)
     for start in range(0, total, batch):
         chunk = operations[start : start + batch]
         n = start // batch + 1
-        for attempt in range(6):
+        for attempt in range(8):
             try:
                 api.create_commit(
                     repo_id=repo,
@@ -330,13 +345,18 @@ def _commit_in_batches(api, repo: str, operations: list, batch: int = 50) -> Non
             except Exception as exc:  # backoff only on rate limiting
                 msg = str(exc).lower()
                 if "429" in msg or "rate limit" in msg or "too many requests" in msg:
-                    wait = min(60, 5 * 2**attempt)
+                    wait = min(120, 10 * 2**attempt)
                     print(f"  rate limited; waiting {wait}s then retrying batch {n}...")
                     time.sleep(wait)
                     continue
                 raise
         else:
-            raise RuntimeError(f"batch {n} still rate-limited after retries; try again later.")
+            raise RuntimeError(
+                f"batch {n} still rate-limited after retries. Your HF account is likely "
+                f"in a commit rate-limit cooldown (try again in ~30-60 min). Uploaded files "
+                f"are cached, so re-running resumes quickly."
+            )
+        time.sleep(2)  # be gentle between commits
 
 
 def _repo_readme_text() -> str:
