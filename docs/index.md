@@ -24,6 +24,7 @@ pretrained). See the [license policy](usage.md#license-policy).
 :caption: Contents
 
 usage
+cookbook
 api
 ```
 
