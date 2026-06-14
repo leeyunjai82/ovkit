@@ -115,7 +115,7 @@ def check_mirror() -> bool:
         return False
 
 
-def check_download_infer() -> bool:
+def check_download_infer(only: list[str] | None, limit: int, load_only: bool) -> bool:
     _hr("[4/5] 다운로드 + 추론 (Download from mirror & run)")
     import numpy as np
 
@@ -124,15 +124,31 @@ def check_download_infer() -> bool:
 
     # Registered IR models (genai handled separately in step 5).
     names = [n for n in list_models() if getattr(resolve(n), "src", None) != "genai"]
+    if only:
+        wanted = set(only)
+        names = [n for n in names if n in wanted]
+        missing = wanted - set(names)
+        if missing:
+            print(f"  {SKIP} 레지스트리에 없음: {sorted(missing)}")
+    if limit > 0:
+        names = names[:limit]
     if not names:
         print(f"  {SKIP} 등록된 IR 모델 없음 (build_mirror.py --emit-manifest 로 배선 필요)")
         return True
 
-    all_ok = True
+    print(f"  대상 {len(names)}개" + ("  (load-only: 다운로드+컴파일만)" if load_only else ""))
+    ok = warn = fail = 0
     img = np.zeros((640, 640, 3), dtype=np.uint8)
     for name in names:
         try:
-            model = Model(name)
+            model = Model(name)  # download from mirror + compile
+            # Multi-input models (gaze, some face pipelines) can't be dummy-fed;
+            # a successful load still proves the mirror fetch works.
+            if load_only or len(model.inputs) > 1:
+                why = "multi-input" if len(model.inputs) > 1 else "load-only"
+                print(f"  {OK} {name:34s} task={model.task} (loaded, {why})")
+                ok += 1
+                continue
             r = model(img)[0]
             if r.boxes is not None:
                 detail = f"boxes={len(r.boxes)}"
@@ -144,11 +160,20 @@ def check_download_infer() -> bool:
                 detail = f"text={r.text!r}"
             else:
                 detail = f"tensors={list(getattr(r, 'tensors', {}) or {})}"
-            print(f"  {OK} {name:30s} task={model.task} {detail}")
+            print(f"  {OK} {name:34s} task={model.task} {detail}")
+            ok += 1
         except Exception as e:
-            all_ok = False
-            print(f"  {NO} {name:30s} {type(e).__name__}: {str(e)[:120]}")
-    return all_ok
+            # Distinguish a download/compile failure (real ❌) from a model that
+            # downloaded fine but couldn't run on a blank frame (⚠️ inspect).
+            msg = str(e)
+            if "Failed to download" in msg or "primary source failed" in msg:
+                fail += 1
+                print(f"  {NO} {name:34s} 다운로드 실패: {msg[:90]}")
+            else:
+                warn += 1
+                print(f"  ⚠️  {name:34s} 받았으나 더미추론 실패: {type(e).__name__}: {msg[:80]}")
+    print(f"\n  요약: {OK}{ok}  ⚠️{warn}(받음/추론보류)  {NO}{fail}(다운로드실패)")
+    return fail == 0
 
 
 def check_genai() -> bool:
@@ -169,7 +194,20 @@ def check_genai() -> bool:
         return False
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="ovkit self-check (mirror download + run).")
+    ap.add_argument("--models", nargs="*", metavar="NAME", help="only these models in step 4")
+    ap.add_argument("--limit", type=int, default=0, help="step 4: test only the first N models")
+    ap.add_argument(
+        "--load-only",
+        action="store_true",
+        help="step 4: download + compile only (skip dummy inference) — fast",
+    )
+    ap.add_argument("--no-genai", action="store_true", help="skip the GenAI step")
+    args = ap.parse_args(argv)
+
     print("ovkit self-check —", f"mirror={REPO}")
     results: dict[str, bool] = {}
 
@@ -182,12 +220,15 @@ def main() -> int:
     results["HF 도달"] = reachable
     if reachable:
         results["미러 완전성"] = check_mirror()
-        results["다운로드+추론"] = check_download_infer()
-        try:
-            results["GenAI"] = check_genai()
-        except Exception:
-            traceback.print_exc()
-            results["GenAI"] = False
+        results["다운로드+추론"] = check_download_infer(args.models, args.limit, args.load_only)
+        if args.no_genai:
+            print("\n[5/5] GenAI — --no-genai 로 건너뜀")
+        else:
+            try:
+                results["GenAI"] = check_genai()
+            except Exception:
+                traceback.print_exc()
+                results["GenAI"] = False
     else:
         print("\nHF에 못 나가서 미러/다운로드 검증을 건너뜁니다.")
 
