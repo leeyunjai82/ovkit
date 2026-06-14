@@ -66,7 +66,9 @@ intersphinx_mapping = {
 }
 
 templates_path = ["_templates"]
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+# The Korean docs live in docs/ko/ (built separately); keep them out of the
+# English build so autodoc objects aren't documented twice.
+exclude_patterns = ["_build", "ko", "ko/**", "Thumbs.db", ".DS_Store"]
 
 # -- HTML output -------------------------------------------------------------
 
@@ -114,4 +116,16 @@ html_theme_options = {
         "color-brand-primary": _BRAND_DARK,
         "color-brand-content": _BRAND_DARK,
     },
+}
+
+# Language switcher (EN <-> KO) at the top of the sidebar.
+html_sidebars = {
+    "**": [
+        "lang-switch.html",
+        "sidebar/brand.html",
+        "sidebar/search.html",
+        "sidebar/scroll-start.html",
+        "sidebar/navigation.html",
+        "sidebar/scroll-end.html",
+    ]
 }

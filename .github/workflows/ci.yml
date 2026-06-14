@@ -57,5 +57,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e .
           python -m pip install -r docs/requirements.txt
-      - name: Build HTML docs
-        run: sphinx-build -b html -W --keep-going docs docs/_build/html
+      - name: Build HTML docs (EN + KO)
+        run: |
+          sphinx-build -b html -W --keep-going docs docs/_build/html
+          sphinx-build -b html -W --keep-going docs/ko docs/_build/html/ko
