@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Text-to-speech via openvino-genai.
 
-    pip install "ovkit[genai]"
+    pip install -e ".[genai]"
     # point at a local OpenVINO-converted Text2Speech model directory:
     python examples/tts.py "Hello from ovkit" /path/to/tts-ov-model out.wav
 

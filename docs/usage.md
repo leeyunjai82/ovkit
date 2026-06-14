@@ -2,13 +2,21 @@
 
 ## Install
 
-```bash
-pip install ovkit                 # core (lightweight)
+Not on PyPI yet — install from source in a virtual environment:
 
-pip install "ovkit[quant]"        # + NNCF INT8 quantization
-pip install "ovkit[genai]"        # + openvino-genai / optimum-intel
-pip install "ovkit[anomaly]"      # + anomalib
-pip install "ovkit[all]"          # everything
+```bash
+git clone https://github.com/leeyunjai82/ovkit.git
+cd ovkit
+
+python -m venv .venv                     # create a virtualenv
+source .venv/bin/activate                # Windows: .venv\Scripts\activate
+
+pip install -e .                         # core (lightweight)
+
+pip install -e ".[quant]"                # + NNCF INT8 quantization
+pip install -e ".[genai]"                # + openvino-genai / optimum-intel
+pip install -e ".[anomaly]"              # + anomalib
+pip install -e ".[all]"                  # everything
 ```
 
 Python 3.10+. Core deps: `openvino`, `numpy`, `opencv-python-headless`,
@@ -72,7 +80,7 @@ synchronously; `stream=True` uses an `AsyncInferQueue` for throughput.
 model.quantize(calib_images, preset="int8")   # NNCF PTQ; INT8 IR is cached
 ```
 
-Requires `pip install "ovkit[quant]"`.
+Requires `pip install -e ".[quant]"`.
 
 ## CLI
 

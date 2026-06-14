@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Chat with an LLM via openvino-genai.
 
-    pip install "ovkit[genai]"
+    pip install -e ".[genai]"
     python examples/llm.py "Explain OpenVINO in one sentence."
 
 The model is downloaded from Hugging Face on first use.

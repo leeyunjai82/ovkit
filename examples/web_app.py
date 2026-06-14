@@ -9,7 +9,7 @@ Pick a model; the right input appears automatically:
 Run::
 
     pip install -e . && pip install -r examples/requirements.txt
-    # genai (LLM/STT/TTS) also needs:  pip install "ovkit[genai]"
+    # genai (LLM/STT/TTS) also needs:  pip install -e ".[genai]"
     python scripts/build_mirror.py --omz-intel --emit-manifest src/ovkit/manifests/omz.yaml
     python examples/web_app.py        # http://127.0.0.1:8000
 """
