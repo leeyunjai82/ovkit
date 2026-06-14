@@ -126,6 +126,18 @@ def _http_text(url: str) -> str:
         return resp.read().decode("utf-8")
 
 
+def _oneline(text: object) -> str | None:
+    """Collapse a (possibly multi-line) description to a single trimmed line."""
+    if not text:
+        return None
+    return " ".join(str(text).split()) or None
+
+
+def _yaml_scalar(s: str) -> str:
+    """A safely-quoted one-line YAML scalar (double-quoted, JSON-compatible)."""
+    return json.dumps(" ".join(s.split()), ensure_ascii=False)
+
+
 def _omz_source_url(spec: dict) -> str | None:
     """Pick the FP16 ``.xml`` source URL from an OMZ model.yml ``files`` list."""
     for f in spec.get("files", []):
@@ -172,6 +184,7 @@ def omz_intel_entries() -> list[ModelEntry]:
                 src="url",
                 url=url,
                 task=task,
+                description=_oneline(spec.get("description")),
                 precision="fp16",
                 license="apache-2.0",
                 license_url=spec.get("license"),
@@ -200,6 +213,8 @@ def _model_card(entry: ModelEntry, source_name: str) -> str:
         ---
 
         # {entry.name}
+
+        {entry.description or "OpenVINO IR mirror for ovkit."}
 
         OpenVINO IR mirror for [ovkit](https://github.com/leeyunjai82/ovkit).
 
@@ -231,6 +246,8 @@ def _manifest_snippet(entry: ModelEntry, repo: str) -> str:
         f"  precision: {entry.precision}",
         f"  license: {entry.license}",
     ]
+    if entry.description:
+        lines.append(f"  description: {_yaml_scalar(entry.description)}")
     if entry.imgsz:
         lines.append(f"  imgsz: {entry.imgsz}")
     if entry.license_url:
@@ -292,6 +309,8 @@ def _genai_manifest_snippet(entry: ModelEntry, repo: str) -> str:
         f"  subfolder: {_genai_base(entry)}",
         f"  license: {entry.license}",
     ]
+    if entry.description:
+        lines.append(f"  description: {_yaml_scalar(entry.description)}")
     if upstream and upstream != repo:
         lines.append(f"  upstream: {upstream}")
     return "\n".join(lines)

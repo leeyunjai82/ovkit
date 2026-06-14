@@ -35,6 +35,7 @@ class ModelEntry:
     name: str
     src: str
     task: str | None = None
+    description: str | None = None
     license: str | None = None
     precision: str = "fp16"
     repo: str | None = None
@@ -54,6 +55,7 @@ class ModelEntry:
         known = {
             "src",
             "task",
+            "description",
             "license",
             "precision",
             "repo",

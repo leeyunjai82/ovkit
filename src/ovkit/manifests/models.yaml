@@ -29,6 +29,7 @@ rtdetr_r50:
   repo: leeyunjai/ovkit-models
   filename: detect/rtdetr_r50/model.xml
   task: detect
+  description: RT-DETR (ResNet-50) real-time DETR detector, COCO-80, NMS-free.
   precision: fp16
   license: apache-2.0
   imgsz: 640
@@ -51,6 +52,7 @@ rtdetr_r101:
   repo: leeyunjai/ovkit-models
   filename: detect/rtdetr_r101/model.xml
   task: detect
+  description: RT-DETR (ResNet-101) real-time DETR detector, COCO-80, NMS-free.
   precision: fp16
   license: apache-2.0
   imgsz: 640
