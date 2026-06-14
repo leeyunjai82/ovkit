@@ -1,0 +1,84 @@
+/* ovkit docs — visual polish on top of furo */
+
+:root {
+  --ovk-brand: #0a7d8c;
+  --ovk-brand-2: #22b8cf;
+}
+
+/* Webfonts (graceful fallback to system fonts if offline) */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+/* Headings: tighter, bolder */
+h1, h2, h3 { letter-spacing: -0.01em; font-weight: 700; }
+article h1 { font-size: 2.1rem; }
+
+/* Hero block on the landing page */
+.ovk-hero {
+  text-align: center;
+  padding: 1.6rem 0 0.4rem;
+}
+.ovk-hero .ovk-badges { margin-top: 0.6rem; }
+.ovk-tagline {
+  font-size: 1.15rem;
+  color: var(--color-foreground-muted);
+  max-width: 42rem;
+  margin: 0.4rem auto 0;
+}
+
+/* sphinx-design cards: lift + brand accent */
+.sd-card {
+  border: 1px solid var(--color-background-border);
+  border-radius: 12px;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+}
+.sd-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .12);
+  border-color: var(--ovk-brand-2);
+}
+.sd-card-title { font-weight: 600; }
+
+/* Brandy code + inline literals */
+code.literal {
+  background: color-mix(in srgb, var(--ovk-brand) 12%, transparent);
+  border-radius: 5px;
+  padding: 0.1em 0.35em;
+}
+div.highlight { border-radius: 10px; }
+
+/* Sidebar brand title next to the logo */
+.sidebar-brand-text { font-weight: 700; }
+
+/* Tables a touch nicer */
+table.docutils { border-radius: 8px; overflow: hidden; }
+table.docutils th { background: color-mix(in srgb, var(--ovk-brand) 10%, transparent); }
+
+/* Buttons (sphinx-design) in brand color */
+.sd-btn-primary {
+  background: var(--ovk-brand) !important;
+  border-color: var(--ovk-brand) !important;
+}
+
+/* Language switcher (top of sidebar) */
+.ovk-lang {
+  display: flex;
+  gap: 6px;
+  padding: 12px 16px 4px;
+}
+.ovk-lang a {
+  flex: 1;
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 4px 0;
+  border-radius: 7px;
+  border: 1px solid var(--color-background-border);
+  color: var(--color-foreground-muted);
+  text-decoration: none;
+}
+.ovk-lang a.ovk-lang-active {
+  background: var(--ovk-brand);
+  border-color: var(--ovk-brand);
+  color: #fff;
+}
+
