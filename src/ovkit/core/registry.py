@@ -124,16 +124,25 @@ def list_models() -> list[str]:
     return sorted(_load_raw().keys())
 
 
-def resolve(name: str) -> ModelEntry | None:
+def resolve(name: str, _seen: set[str] | None = None) -> ModelEntry | None:
     """Resolve a registered model ``name`` to a :class:`ModelEntry`.
 
-    Returns ``None`` if the name is not in any manifest. The entry's license is
-    validated to be permissive; non-permissive entries raise
-    :class:`~ovkit.core.errors.LicenseError` so they can never load.
+    Returns ``None`` if the name is not in any manifest. An ``alias`` entry
+    (``{alias: other_name}``) transparently resolves to its target, so friendly
+    capability names (e.g. ``face_detection`` -> ``face_detection_0205``) work.
+    The entry's license is validated to be permissive; non-permissive entries
+    raise :class:`~ovkit.core.errors.LicenseError` so they can never load.
     """
     raw = _load_raw().get(name)
     if raw is None:
         return None
+    target = raw.get("alias")
+    if target:
+        _seen = _seen or set()
+        if name in _seen:
+            raise LicenseError(f"alias cycle detected resolving '{name}'.")
+        _seen.add(name)
+        return resolve(target, _seen)
     entry = ModelEntry.from_dict(name, raw)
     if not is_permissive(entry.license):
         raise LicenseError(

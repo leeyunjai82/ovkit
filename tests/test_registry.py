@@ -40,3 +40,20 @@ def test_non_permissive_license_rejected(tmp_path, monkeypatch):
     finally:
         monkeypatch.delenv("OVKIT_MANIFESTS", raising=False)
         registry.reload()
+
+
+def test_alias_resolves_to_target(tmp_path, monkeypatch):
+    m = tmp_path / "alias_test.yaml"
+    m.write_text(
+        "real_det:\n  src: hf\n  repo: x/y\n  filename: a.xml\n  task: detect\n"
+        "  license: apache-2.0\n"
+        "detect_alias:\n  alias: real_det\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("OVKIT_MANIFESTS", str(m))
+    registry.reload()
+    entry = registry.resolve("detect_alias")
+    assert entry is not None
+    assert entry.name == "real_det"
+    assert entry.task == "detect"
+    registry.reload()
