@@ -348,6 +348,32 @@ def _genai_operations_for(entry: ModelEntry, repo: str) -> tuple[list, str]:
     return ops, _genai_manifest_snippet(entry, repo)
 
 
+_MIN_BIN_BYTES = 4096  # smaller than this = an error page or an empty/stale .bin
+
+
+def _validate_ir(ir_xml: Path, ir_bin: Path, name: str) -> None:
+    """Raise if the IR won't read or its weights are missing/an error page.
+
+    Catches the common mirror failure where only the ``.xml`` was fetched (the
+    sibling ``.bin`` 404'd or came back as an error page), which produces an IR
+    that loads structurally but cannot run. Uses the real OpenVINO reader rather
+    than a size threshold, so genuinely small models aren't rejected.
+    """
+    from ovkit.core.download import _looks_like_error_page
+
+    if ir_bin.is_file() and _looks_like_error_page(ir_bin):
+        raise RuntimeError(
+            f"weights for '{name}' are an HTML/XML error page, not binary; "
+            f"the source .bin URL is likely stale."
+        )
+    try:
+        import openvino as ov
+
+        ov.Core().read_model(str(ir_xml))  # raises if weights are missing/mismatched
+    except Exception as exc:
+        raise RuntimeError(f"IR for '{name}' does not load ({exc}); skipping.") from exc
+
+
 def _operations_for(entry: ModelEntry, repo: str, precision: str) -> tuple[list, str]:
     """Download + convert one model and return its commit operations + snippet.
 
@@ -366,6 +392,11 @@ def _operations_for(entry: ModelEntry, repo: str, precision: str) -> tuple[list,
     ir_xml = to_ir(source, entry.name, precision)
     ir_bin = ir_xml.with_suffix(".bin")
     print(f"  source : {source}\n  IR     : {ir_xml}")
+
+    # Validate the IR actually loads (and has weights) before staging it, so a
+    # model with a missing/stale .bin is reported as failed instead of being
+    # uploaded broken (it would "load" then fail at inference).
+    _validate_ir(ir_xml, ir_bin, entry.name)
 
     xml_path, bin_path, base = _mirror_paths(entry)
     ops = [CommitOperationAdd(path_in_repo=xml_path, path_or_fileobj=str(ir_xml))]
@@ -436,6 +467,34 @@ def _commit_in_batches(api, repo: str, operations: list, batch: int = 200) -> No
                 f"are cached, so re-running resumes quickly."
             )
         time.sleep(2)  # be gentle between commits
+
+
+def _mirror_complete_names(repo: str) -> set[str] | None:
+    """Return the set of model names that have a complete, non-broken IR on the
+    mirror (``<task>/<name>/`` with ``model.xml`` and a ``model.bin`` of plausible
+    size). Returns ``None`` if the mirror can't be inspected (offline)."""
+    try:
+        from huggingface_hub import HfApi
+    except ImportError:
+        return None
+    try:
+        tree = HfApi().list_repo_tree(repo, recursive=True, repo_type="model")
+        sizes = {it.path: getattr(it, "size", None) for it in tree if hasattr(it, "size")}
+    except Exception as exc:
+        print(f"  note: could not inspect mirror ({exc}); emitting all selected.")
+        return None
+    per_model: dict[str, dict[str, int | None]] = {}
+    for path, size in sizes.items():
+        parts = path.split("/")
+        if len(parts) >= 3:  # <task>/<name>/<file...>
+            per_model.setdefault(parts[1], {})["/".join(parts[2:])] = size
+    good: set[str] = set()
+    for name, files in per_model.items():
+        has_xml = any(f.endswith("model.xml") for f in files)
+        bin_size = next((s for f, s in files.items() if f.endswith("model.bin")), None)
+        if has_xml and bin_size is not None and bin_size >= _MIN_BIN_BYTES:
+            good.add(name)
+    return good
 
 
 def _repo_readme_text() -> str:
@@ -516,6 +575,17 @@ def main(argv: list[str] | None = None) -> int:
         # genai models are configured in manifests/genai.yaml, not here; emitting
         # them as IR entries would clobber that. Keep this manifest IR-only.
         ir_entries = [e for e in entries if e.src != "genai"]
+        # Cross-check the mirror: only emit models that actually have a complete,
+        # non-broken IR uploaded, so the manifest never points at a model that
+        # would fail at runtime. (Degrades to "emit all" if the mirror can't be
+        # reached.)
+        good = _mirror_complete_names(args.repo)
+        if good is not None:
+            skipped = [e.name for e in ir_entries if e.name not in good]
+            ir_entries = [e for e in ir_entries if e.name in good]
+            if skipped:
+                print(f"  excluding {len(skipped)} model(s) missing/broken on the mirror:")
+                print("    " + ", ".join(sorted(skipped)))
         body = "\n\n".join(_manifest_snippet(e, args.repo) for e in ir_entries)
         Path(args.emit_manifest).write_text(header + body + "\n", encoding="utf-8")
         print(f"Wrote {len(ir_entries)} entries to {args.emit_manifest}")
