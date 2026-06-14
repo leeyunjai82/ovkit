@@ -1,0 +1,54 @@
+# Capability aliases — friendly, function-centric names that point at a chosen
+# default model, so you don't have to pick among version/precision variants.
+# ---------------------------------------------------------------------------
+# Each entry is just `{alias: <model_name>}`; resolve() follows it transparently,
+# so `Model("face_detection")` loads the target below. Targets are well-tested
+# defaults. Most live in the OMZ manifest (src/ovkit/manifests/omz.yaml, which
+# you generate with build_mirror.py --emit-manifest); `detect`, `llm` and `stt`
+# work out of the box. Re-point any alias by editing one line.
+# ---------------------------------------------------------------------------
+
+# --- detection ---
+detect: {alias: rtdetr_r50}  # general objects (COCO-80)
+face_detection: {alias: face_detection_0205}
+person_detection: {alias: person_detection_0202}
+pedestrian_detection: {alias: pedestrian_detection_adas_0002}
+vehicle_detection: {alias: vehicle_detection_0200}
+text_detection: {alias: text_detection_0004}
+
+# --- segmentation ---
+segment: {alias: road_segmentation_adas_0001}  # semantic (road/scene)
+semantic_segmentation: {alias: road_segmentation_adas_0001}
+instance_segmentation: {alias: instance_segmentation_person_0007}
+
+# --- pose / landmarks / gaze ---
+pose: {alias: human_pose_estimation_0007}
+face_landmarks: {alias: landmarks_regression_retail_0009}
+head_pose: {alias: head_pose_estimation_adas_0001}
+gaze: {alias: gaze_estimation_adas_0002}
+
+# --- attributes / re-id ---
+age_gender: {alias: age_gender_recognition_retail_0013}
+emotion: {alias: emotions_recognition_retail_0003}
+face_reid: {alias: face_reidentification_retail_0095}
+person_attributes: {alias: person_attributes_recognition_crossroad_0234}
+vehicle_attributes: {alias: vehicle_attributes_recognition_barrier_0042}
+
+# --- classify / embedding / super-resolution ---
+classify: {alias: resnet50_binary_0001}
+image_retrieval: {alias: image_retrieval_0001}
+super_resolution: {alias: single_image_super_resolution_1033}
+
+# --- OCR ---
+text_recognition: {alias: text_recognition_0014}
+license_plate: {alias: vehicle_license_plate_detection_barrier_0106}
+
+# --- NLP / audio / time series ---
+qa: {alias: bert_small_uncased_whole_word_masking_squad_0002}
+translation: {alias: machine_translation_nar_en_de_0002}
+noise_suppression: {alias: noise_suppression_poconetlike_0001}
+time_series: {alias: time_series_forecasting_electricity_0001}
+
+# --- GenAI (work out of the box) ---
+llm: {alias: tinyllama_chat}
+stt: {alias: whisper_base}
