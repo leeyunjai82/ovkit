@@ -143,22 +143,25 @@ def check_download_infer(
     print(f"  대상 {len(names)}개" + ("  (load-only: 다운로드+컴파일만)" if load_only else ""))
     img = np.zeros((640, 640, 3), dtype=np.uint8)
     for name in names:
-        # Loading (download + compile) is the real "is the mirror usable" test.
+        # Loading (download) + compiling is the real "is the mirror usable" test.
+        # Compilation is lazy — accessing model.inputs forces it — so do it here,
+        # inside the try, to catch broken weights / unsupported ops as load_fail.
         try:
             model = Model(name)
+            n_inputs = len(model.inputs)  # forces compile; raises on empty/bad .bin
         except Exception as e:
             msg = str(e)
             if "Failed to download" in msg or "primary source failed" in msg:
                 res["download_fail"].append(name)
-                print(f"  {NO} {name:34s} 다운로드 실패: {msg[:90]}")
+                print(f"  {NO} {name:34s} 다운로드 실패: {msg[:80]}")
             else:
                 res["load_fail"].append(name)
-                print(f"  ⚠️  {name:34s} 로드/컴파일 실패: {type(e).__name__}: {msg[:70]}")
+                print(f"  ⚠️  {name:34s} 로드/컴파일 실패: {type(e).__name__}: {msg[:60]}")
             continue
-        # Multi-input models (gaze etc.) can't be dummy-fed; a successful load
+        # Multi-input models (gaze etc.) can't be dummy-fed; a successful compile
         # still proves the mirror fetch + the model are good.
-        if load_only or len(model.inputs) > 1:
-            why = "multi-input" if len(model.inputs) > 1 else "load-only"
+        if load_only or n_inputs > 1:
+            why = "multi-input" if n_inputs > 1 else "load-only"
             print(f"  {OK} {name:34s} task={model.task} (loaded, {why})")
             res["ok"].append(name)
             continue

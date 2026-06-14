@@ -388,7 +388,9 @@ def _validate_ir(ir_xml: Path, ir_bin: Path, name: str) -> None:
     try:
         import openvino as ov
 
-        ov.Core().read_model(str(ir_xml))  # raises if weights are missing/mismatched
+        # compile_model (not just read_model) deserializes the weights, so this
+        # catches an empty/zero .bin that reads structurally but won't run.
+        ov.Core().compile_model(str(ir_xml), "CPU")
     except Exception as exc:
         raise RuntimeError(f"IR for '{name}' does not load ({exc}); skipping.") from exc
 
