@@ -1,7 +1,9 @@
 # Cookbook — calling every feature
 
-Copy-paste examples for each ovkit capability. (`pip install -e .`; for genai
-add `pip install "ovkit[genai]"`, for quantization `pip install "ovkit[quant]"`.)
+Copy-paste examples for each ovkit capability. Install from source in a venv
+(`git clone ... && cd ovkit && python -m venv .venv && . .venv/bin/activate &&
+pip install -e .`); for genai add `pip install -e ".[genai]"`, for quantization
+`pip install -e ".[quant]"`.
 
 ## Load a model
 

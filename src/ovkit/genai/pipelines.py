@@ -11,7 +11,7 @@ downloads the OpenVINO-converted model from Hugging Face, and returns the ready
     stt = pipeline("whisper_base")
     print(stt.generate(audio))           # audio: float32 16 kHz mono ndarray
 
-Requires ``pip install "ovkit[genai]"`` (openvino-genai + optimum-intel).
+Requires ``pip install -e ".[genai]"`` (openvino-genai + optimum-intel).
 
 The thin per-type factories (``llm_pipeline`` etc.) remain for building a
 pipeline directly from a model directory.

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Speech-to-text (Whisper) via openvino-genai.
 
-    pip install "ovkit[genai]"
+    pip install -e ".[genai]"
     python examples/stt.py audio.wav
 
 Expects mono 16 kHz wav. The model is downloaded from Hugging Face on first use.
