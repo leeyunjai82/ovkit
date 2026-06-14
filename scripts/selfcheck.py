@@ -115,12 +115,16 @@ def check_mirror() -> bool:
         return False
 
 
-def check_download_infer(only: list[str] | None, limit: int, load_only: bool) -> bool:
+def check_download_infer(
+    only: list[str] | None, limit: int, load_only: bool
+) -> dict[str, list[str]]:
     _hr("[4/5] 다운로드 + 추론 (Download from mirror & run)")
     import numpy as np
 
     from ovkit import Model
     from ovkit.core.registry import list_models, resolve
+
+    res: dict[str, list[str]] = {"ok": [], "load_fail": [], "infer_warn": [], "download_fail": []}
 
     # Registered IR models (genai handled separately in step 5).
     names = [n for n in list_models() if getattr(resolve(n), "src", None) != "genai"]
@@ -134,21 +138,31 @@ def check_download_infer(only: list[str] | None, limit: int, load_only: bool) ->
         names = names[:limit]
     if not names:
         print(f"  {SKIP} 등록된 IR 모델 없음 (build_mirror.py --emit-manifest 로 배선 필요)")
-        return True
+        return res
 
     print(f"  대상 {len(names)}개" + ("  (load-only: 다운로드+컴파일만)" if load_only else ""))
-    ok = warn = fail = 0
     img = np.zeros((640, 640, 3), dtype=np.uint8)
     for name in names:
+        # Loading (download + compile) is the real "is the mirror usable" test.
         try:
-            model = Model(name)  # download from mirror + compile
-            # Multi-input models (gaze, some face pipelines) can't be dummy-fed;
-            # a successful load still proves the mirror fetch works.
-            if load_only or len(model.inputs) > 1:
-                why = "multi-input" if len(model.inputs) > 1 else "load-only"
-                print(f"  {OK} {name:34s} task={model.task} (loaded, {why})")
-                ok += 1
-                continue
+            model = Model(name)
+        except Exception as e:
+            msg = str(e)
+            if "Failed to download" in msg or "primary source failed" in msg:
+                res["download_fail"].append(name)
+                print(f"  {NO} {name:34s} 다운로드 실패: {msg[:90]}")
+            else:
+                res["load_fail"].append(name)
+                print(f"  ⚠️  {name:34s} 로드/컴파일 실패: {type(e).__name__}: {msg[:70]}")
+            continue
+        # Multi-input models (gaze etc.) can't be dummy-fed; a successful load
+        # still proves the mirror fetch + the model are good.
+        if load_only or len(model.inputs) > 1:
+            why = "multi-input" if len(model.inputs) > 1 else "load-only"
+            print(f"  {OK} {name:34s} task={model.task} (loaded, {why})")
+            res["ok"].append(name)
+            continue
+        try:
             r = model(img)[0]
             if r.boxes is not None:
                 detail = f"boxes={len(r.boxes)}"
@@ -161,19 +175,46 @@ def check_download_infer(only: list[str] | None, limit: int, load_only: bool) ->
             else:
                 detail = f"tensors={list(getattr(r, 'tensors', {}) or {})}"
             print(f"  {OK} {name:34s} task={model.task} {detail}")
-            ok += 1
+            res["ok"].append(name)
         except Exception as e:
-            # Distinguish a download/compile failure (real ❌) from a model that
-            # downloaded fine but couldn't run on a blank frame (⚠️ inspect).
-            msg = str(e)
-            if "Failed to download" in msg or "primary source failed" in msg:
-                fail += 1
-                print(f"  {NO} {name:34s} 다운로드 실패: {msg[:90]}")
-            else:
-                warn += 1
-                print(f"  ⚠️  {name:34s} 받았으나 더미추론 실패: {type(e).__name__}: {msg[:80]}")
-    print(f"\n  요약: {OK}{ok}  ⚠️{warn}(받음/추론보류)  {NO}{fail}(다운로드실패)")
-    return fail == 0
+            # Loaded fine; only the blank-frame dummy inference didn't fit. Real
+            # input would work, so this is not a mirror/model defect.
+            res["infer_warn"].append(name)
+            print(f"  ⚠️  {name:34s} 로드OK·더미추론보류: {type(e).__name__}: {str(e)[:60]}")
+    print(
+        f"\n  요약: {OK}{len(res['ok'])}  ⚠️{len(res['load_fail'])}(로드실패)"
+        f"  ⚠️{len(res['infer_warn'])}(추론보류)  {NO}{len(res['download_fail'])}(다운로드실패)"
+    )
+    return res
+
+
+def _prune_manifest(path: str, step4: dict[str, list[str]]) -> None:
+    """Rewrite a manifest, dropping entries that failed to load/download.
+
+    Non-destructive beyond the manifest: it only removes registry *entries* (so
+    ``Model(name)`` no longer offers a model that can't run); the model's files
+    stay on the mirror. Models that loaded — even if a blank-frame dummy
+    inference didn't fit — are kept.
+    """
+    import yaml
+
+    p = Path(path)
+    if not p.is_file():
+        print(f"\n  {NO} --prune-manifest: {p} 없음")
+        return
+    drop = set(step4["load_fail"]) | set(step4["download_fail"])
+    if not drop:
+        print(f"\n  {OK} prune: 제거할 깨진 모델 없음 ({p.name} 그대로)")
+        return
+    data = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    kept = {k: v for k, v in data.items() if k not in drop}
+    removed = sorted(set(data) - set(kept))
+    header = "# Generated by scripts/build_mirror.py, pruned by scripts/selfcheck.py\n\n"
+    p.write_text(
+        header + yaml.safe_dump(kept, sort_keys=False, allow_unicode=True), encoding="utf-8"
+    )
+    print(f"\n  {OK} prune: {p.name} 에서 {len(removed)}개 제거 -> {len(kept)}개 유지")
+    print("     제거: " + ", ".join(removed))
 
 
 def check_genai() -> bool:
@@ -206,6 +247,12 @@ def main(argv: list[str] | None = None) -> int:
         help="step 4: download + compile only (skip dummy inference) — fast",
     )
     ap.add_argument("--no-genai", action="store_true", help="skip the GenAI step")
+    ap.add_argument(
+        "--prune-manifest",
+        metavar="PATH",
+        help="rewrite this manifest (e.g. src/ovkit/manifests/omz.yaml) keeping only "
+        "models that loaded OK; removes models that fail to load/download",
+    )
     args = ap.parse_args(argv)
 
     print("ovkit self-check —", f"mirror={REPO}")
@@ -220,7 +267,12 @@ def main(argv: list[str] | None = None) -> int:
     results["HF 도달"] = reachable
     if reachable:
         results["미러 완전성"] = check_mirror()
-        results["다운로드+추론"] = check_download_infer(args.models, args.limit, args.load_only)
+        step4 = check_download_infer(args.models, args.limit, args.load_only)
+        # The step passes if nothing failed to download (a model that loads but
+        # can't be dummy-fed, or won't compile, isn't a mirror-reachability fault).
+        results["다운로드+추론"] = not step4["download_fail"]
+        if args.prune_manifest:
+            _prune_manifest(args.prune_manifest, step4)
         if args.no_genai:
             print("\n[5/5] GenAI — --no-genai 로 건너뜀")
         else:
