@@ -20,8 +20,10 @@ def _cmd_list(_: argparse.Namespace) -> int:
     for name in names:
         entry = resolve(name)
         task = entry.task if entry else "?"
-        lic = entry.license if entry else "?"
-        print(f"{name:24s} task={task:9s} license={lic}")
+        desc = (entry.description if entry and entry.description else "") or ""
+        if len(desc) > 60:
+            desc = desc[:57] + "..."
+        print(f"{name:40s} {str(task):28s} {desc}")
     return 0
 
 
@@ -32,6 +34,8 @@ def _cmd_info(args: argparse.Namespace) -> int:
         return 1
     print(f"name       : {entry.name}")
     print(f"task       : {entry.task}")
+    if entry.description:
+        print(f"description: {entry.description}")
     print(f"license    : {entry.license}")
     print(f"source     : {entry.src} ({entry.repo or entry.url})")
     print(f"precision  : {entry.precision}")

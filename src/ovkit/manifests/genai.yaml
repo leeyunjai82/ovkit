@@ -22,6 +22,7 @@
 tinyllama_chat:
   src: genai
   pipeline: llm
+  description: TinyLlama 1.1B chat LLM, INT4-quantized for OpenVINO GenAI.
   repo: leeyunjai/ovkit-models
   subfolder: genai/tinyllama_chat
   upstream: OpenVINO/TinyLlama-1.1B-Chat-v1.0-int4-ov
@@ -30,6 +31,7 @@ tinyllama_chat:
 whisper_base:
   src: genai
   pipeline: whisper
+  description: Whisper base speech-to-text (multilingual ASR), FP16 OpenVINO.
   repo: leeyunjai/ovkit-models
   subfolder: genai/whisper_base
   upstream: OpenVINO/whisper-base-fp16-ov
