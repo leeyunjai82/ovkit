@@ -63,6 +63,20 @@ def _verify(path: Path, expected: str | None) -> None:
         )
 
 
+# Error pages (HTML / S3-style XML) served with HTTP 200 instead of real
+# weights start with one of these. Real ``.bin`` weight blobs never do.
+_ERROR_PAGE_PREFIXES = (b"<!", b"<htm", b"<HTM", b"<?xm", b"<Error", b"<error", b"<ERROR")
+
+
+def _looks_like_error_page(path: Path) -> bool:
+    """True if ``path`` is an HTML/XML error page rather than binary weights."""
+    try:
+        head = path.read_bytes()[:16].lstrip()
+    except OSError:
+        return False
+    return head.startswith(_ERROR_PAGE_PREFIXES)
+
+
 def _atomic_url_download(url: str, dest: Path) -> None:
     """Download ``url`` to ``dest`` atomically (temp file + rename)."""
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -155,6 +169,15 @@ def _fetch_url(entry: ModelEntry, dest_dir: Path) -> Path:
             _atomic_url_download(bin_url, bin_dest)
         except DownloadError:
             pass  # some IR is weight-embedded; tolerate a missing .bin
+        else:
+            # A 200 response that is really an HTML/XML error page is worse than a
+            # missing .bin: it produces an IR that "loads" then fails. Reject it.
+            if _looks_like_error_page(bin_dest):
+                bin_dest.unlink(missing_ok=True)
+                raise DownloadError(
+                    f"Weights for '{entry.name}' came back as an error page, not "
+                    f"binary ({bin_url}); the source URL is likely stale."
+                )
     return dest
 
 

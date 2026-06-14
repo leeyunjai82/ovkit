@@ -20,6 +20,8 @@ import argparse
 import sys
 from collections import defaultdict
 
+_MIN_BIN_BYTES = 4096  # smaller than this = an error page or an empty/stale .bin
+
 
 def verify(repo: str) -> int:
     try:
@@ -29,14 +31,18 @@ def verify(repo: str) -> int:
         return 2
 
     api = HfApi()
-    files = api.list_repo_files(repo, repo_type="model")
+    # Use the tree (with file sizes) so we can spot stale/error-page .bin files
+    # (a few KB) that pass a name-only check but produce a broken model.
+    tree = api.list_repo_tree(repo, recursive=True, repo_type="model")
 
-    # Group files under <task>/<name>/...
-    models: dict[tuple[str, str], set[str]] = defaultdict(set)
-    for f in files:
-        parts = f.split("/")
+    # Group files (name -> size) under <task>/<name>/...
+    models: dict[tuple[str, str], dict[str, int | None]] = defaultdict(dict)
+    for item in tree:
+        if not hasattr(item, "size"):
+            continue
+        parts = item.path.split("/")
         if len(parts) >= 3:
-            models[(parts[0], parts[1])].add("/".join(parts[2:]))
+            models[(parts[0], parts[1])]["/".join(parts[2:])] = getattr(item, "size", None)
 
     per_task: dict[str, int] = defaultdict(int)
     incomplete: list[tuple[str, str, list[str]]] = []
@@ -44,9 +50,13 @@ def verify(repo: str) -> int:
     for (task, name), fileset in sorted(models.items()):
         per_task[task] += 1
         has_xml = any(x.endswith("model.xml") for x in fileset)
-        has_bin = any(x.endswith("model.bin") for x in fileset)
-        if not (has_xml and has_bin):
-            incomplete.append((task, name, sorted(fileset)))
+        bin_size = next((s for x, s in fileset.items() if x.endswith("model.bin")), None)
+        ok_bin = bin_size is not None and bin_size >= _MIN_BIN_BYTES
+        if not (has_xml and ok_bin):
+            reason = sorted(fileset) if has_xml else ["(no model.xml)"]
+            if has_xml and not ok_bin:
+                reason = [f"model.bin={bin_size} bytes (too small/missing)"]
+            incomplete.append((task, name, reason))
         if "LICENSE" not in fileset:
             no_license.append(f"{task}/{name}")
 
