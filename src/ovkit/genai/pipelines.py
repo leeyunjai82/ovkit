@@ -52,12 +52,41 @@ def _builder(ptype: str):
     return builders[ptype]
 
 
-def _download(repo: str) -> str:
+def _download(entry: Any) -> str:
+    """Download a genai model directory: ovkit mirror first, upstream fallback.
+
+    Tries the ovkit mirror (``entry.repo`` + optional ``entry.subfolder``); if
+    that repo/subfolder isn't populated yet, falls back to
+    ``entry.extra['upstream']`` (the original OpenVINO repo). Returns the local
+    model directory.
+    """
     try:
         from huggingface_hub import snapshot_download
     except ImportError as exc:  # pragma: no cover - dependency missing
         raise OVKitError("huggingface_hub is required to download genai models.") from exc
-    return snapshot_download(repo_id=repo)
+
+    # (repo, subfolder) candidates in priority order: mirror, then upstream.
+    candidates: list[tuple[str, str | None]] = []
+    if entry.repo:
+        candidates.append((entry.repo, entry.subfolder))
+    upstream = entry.extra.get("upstream")
+    if upstream and upstream != entry.repo:
+        candidates.append((upstream, None))
+
+    last_err: Exception | None = None
+    for repo_id, subfolder in candidates:
+        try:
+            patterns = [f"{subfolder}/**", f"{subfolder}/*"] if subfolder else None
+            local = Path(snapshot_download(repo_id=repo_id, allow_patterns=patterns))
+            model_dir = local / subfolder if subfolder else local
+            if model_dir.is_dir() and any(model_dir.iterdir()):
+                return str(model_dir)
+        except Exception as exc:  # try the next candidate (e.g. mirror not populated)
+            last_err = exc
+    raise OVKitError(
+        "Could not download genai model from mirror or upstream "
+        f"({[c[0] for c in candidates]})." + (f" Last error: {last_err}" if last_err else "")
+    )
 
 
 def pipeline(name: str, device: str = _DEFAULT_DEVICE, **kwargs: Any) -> Any:
@@ -72,7 +101,7 @@ def pipeline(name: str, device: str = _DEFAULT_DEVICE, **kwargs: Any) -> Any:
         ptype = entry.extra.get("pipeline") or kwargs.pop("pipeline_type", None)
         if not ptype:
             raise OVKitError(f"genai model '{name}' is missing a 'pipeline' type.")
-        model_dir = _download(entry.repo) if entry.repo else name
+        model_dir = _download(entry) if (entry.repo or entry.extra.get("upstream")) else name
     else:
         model_dir = str(name)
         ptype = kwargs.pop("pipeline_type", None)

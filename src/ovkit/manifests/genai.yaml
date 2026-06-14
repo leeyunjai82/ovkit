@@ -7,22 +7,30 @@
 #     llm = pipeline("tinyllama_chat")          # downloads + builds the pipeline
 #     print(llm.generate("Hello", max_new_tokens=50))
 #
-# Each entry: src=genai, pipeline=<llm|whisper|text2image|text2speech|vlm>,
-# repo=<HF repo of the OpenVINO-converted model>. Requires `pip install
-# "ovkit[genai]"`. license must be permissive (see spec §7).
+# Each entry: src=genai, pipeline=<llm|whisper|text2image|text2speech|vlm>.
+# Served from the ovkit mirror like every other model:
+#   repo       : the ovkit mirror (where ovkit downloads from)
+#   subfolder  : the model's directory inside the mirror
+#   upstream   : the original OpenVINO-converted repo. Used by
+#                scripts/build_mirror.py as the source to mirror FROM, and by
+#                ovkit at runtime as a fallback if the mirror lacks the model.
+# Requires `pip install "ovkit[genai]"`. license must be permissive (spec §7).
 #
-# ⚠ Repo ids should be confirmed with network access (OpenVINO org re-hosts
-# many converted models); add more by copying a line.
+# Populate the mirror with these:  python scripts/build_mirror.py
 # ---------------------------------------------------------------------------
 
 tinyllama_chat:
   src: genai
   pipeline: llm
-  repo: OpenVINO/TinyLlama-1.1B-Chat-v1.0-int4-ov
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/tinyllama_chat
+  upstream: OpenVINO/TinyLlama-1.1B-Chat-v1.0-int4-ov
   license: apache-2.0
 
 whisper_base:
   src: genai
   pipeline: whisper
-  repo: OpenVINO/whisper-base-fp16-ov
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/whisper_base
+  upstream: OpenVINO/whisper-base-fp16-ov
   license: mit
