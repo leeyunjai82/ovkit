@@ -62,6 +62,26 @@ class Backend:
             dims.append(int(d.get_length()) if d.is_static else -1)
         return tuple(dims)
 
+    def _adapt_image_channels(self, arr: np.ndarray) -> np.ndarray:
+        """Match a single NCHW image tensor to the model's channel count.
+
+        Many OMZ models (OCR, some classifiers) take 1-channel grayscale; the
+        preprocessor always produces 3 channels, so reconcile the two here —
+        every image adapter funnels through :meth:`infer`. Only the 3<->1 image
+        case is touched; anything else passes through unchanged.
+        """
+        shape = self.input_shape
+        if arr.ndim != 4 or len(shape) != 4 or shape[1] not in (1, 3):
+            return arr
+        exp, got = shape[1], arr.shape[1]
+        if got == exp:
+            return arr
+        if exp == 1 and got == 3:  # to grayscale (channel-order agnostic)
+            return arr.mean(axis=1, keepdims=True).astype(arr.dtype)
+        if exp == 3 and got == 1:  # broadcast gray -> 3 channels
+            return np.repeat(arr, 3, axis=1)
+        return arr
+
     def output_signatures(self) -> list[tuple[str, tuple[int, ...]]]:
         """Return ``(name, shape)`` for each output (``-1`` for dynamic dims)."""
         sigs: list[tuple[str, tuple[int, ...]]] = []
@@ -88,6 +108,8 @@ class Backend:
 
     def infer(self, inputs: np.ndarray | dict[Any, np.ndarray]) -> dict[str, np.ndarray]:
         """Run one synchronous inference and return ``{output_name: ndarray}``."""
+        if isinstance(inputs, np.ndarray):
+            inputs = self._adapt_image_channels(inputs)
         result = self.compiled(inputs)
         return self._named(result)
 
@@ -119,6 +141,8 @@ class Backend:
         queue.set_callback(_on_done)
         count = 0
         for i, feed in enumerate(feeds):
+            if isinstance(feed, np.ndarray):
+                feed = self._adapt_image_channels(feed)
             queue.start_async(feed, userdata=i)
             count += 1
         queue.wait_all()
