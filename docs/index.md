@@ -84,6 +84,7 @@ AGPL-licensed model stacks or non-commercial weights. See the
 :hidden:
 
 usage
+guide
 cookbook
 models
 api
