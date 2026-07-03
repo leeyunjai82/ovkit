@@ -266,6 +266,11 @@ class Results:
         elif self.tensors is not None and not any(
             (self.boxes, self.masks, self.keypoints, self.probs)
         ):
+            # If an output IS an image (super-resolution, enhancement, ...),
+            # show that image instead of tensor metadata.
+            rendered = self._image_output()
+            if rendered is not None:
+                return rendered
             y = 30
             for name, arr in list(self.tensors.items())[:5]:
                 a = np.asarray(arr)
@@ -286,6 +291,27 @@ class Results:
                 y += 28
 
         return img
+
+    def _image_output(self) -> np.ndarray | None:
+        """Return the first image-like output tensor as a displayable image.
+
+        Matches ``[1, C, H, W]`` with ``C`` in {1, 3} and a real spatial size;
+        float outputs in ``[0, 1]`` are scaled to ``[0, 255]``.
+        """
+        if not self.tensors:
+            return None
+        for arr in self.tensors.values():
+            a = np.asarray(arr)
+            if a.ndim == 4 and a.shape[0] == 1 and a.shape[1] in (1, 3):
+                if a.shape[2] < 32 or a.shape[3] < 32:
+                    continue
+                hwc = np.transpose(a[0], (1, 2, 0)).astype(np.float32)
+                if hwc.shape[2] == 1:
+                    hwc = np.repeat(hwc, 3, axis=2)
+                if float(hwc.max(initial=0.0)) <= 2.0:  # [0,1]-range float output
+                    hwc = hwc * 255.0
+                return np.clip(hwc, 0, 255).astype(np.uint8)
+        return None
 
     def save(self, path: str | Path) -> Path:
         """Render with :meth:`plot` and write the result to ``path``."""

@@ -31,12 +31,43 @@ class GenericAdapter(BaseAdapter):
         self.task = task
 
     def run(self, backend: Backend, image: np.ndarray, **_: Any) -> Results:
-        size = self.model_input_hw(backend)
         rgb = bool(self.pre.get("rgb", False))
-        chw = self.preprocess(image, size, rgb=rgb, scale=self.pre.get("scale", 1.0))[0]
+        scale = self.pre.get("scale", 1.0)
+        if len(backend.inputs) > 1:
+            # All-image multi-input models (e.g. super-resolution takes the image
+            # plus a pre-upscaled copy): feed the same image resized per input.
+            feed = self._multi_image_feed(backend, image, rgb=rgb, scale=scale)
+            outputs = backend.infer(feed)
+            return Results(image, task=self.task, names=self.names, tensors=outputs)
+        size = self.model_input_hw(backend)
+        chw = self.preprocess(image, size, rgb=rgb, scale=scale)[0]
         feed = _fit_to_shape(chw, backend.input_shape)
         outputs = backend.infer(feed)
         return Results(image, task=self.task, names=self.names, tensors=outputs)
+
+    def _multi_image_feed(
+        self, backend: Backend, image: np.ndarray, *, rgb: bool, scale: float
+    ) -> dict[str, np.ndarray]:
+        """Build a feed for a model whose inputs are all 4-D images.
+
+        Raises ``ValueError`` when any input is not image-like (those models
+        need :meth:`ovkit.Model.infer` with hand-built tensors).
+        """
+        feeds: dict[str, np.ndarray] = {}
+        for inp in backend.inputs:
+            ps = inp.get_partial_shape()
+            dims = [int(d.get_length()) if d.is_static else -1 for d in ps]
+            if len(dims) != 4 or dims[1] not in (1, 3) or dims[2] <= 0 or dims[3] <= 0:
+                names = ", ".join(i.get_any_name() for i in backend.inputs)
+                raise ValueError(
+                    f"This model takes {len(backend.inputs)} inputs ({names}) and not all "
+                    f"of them are images; build the tensors and call model.infer({{...}})."
+                )
+            arr = self.preprocess(image, (dims[2], dims[3]), rgb=rgb, scale=scale)
+            if dims[1] == 1:  # grayscale input
+                arr = arr.mean(axis=1, keepdims=True).astype(np.float32)
+            feeds[inp.get_any_name()] = arr
+        return feeds
 
 
 def _fit_to_shape(chw: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:

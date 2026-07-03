@@ -137,7 +137,8 @@ def summarize(r) -> str:
         lines.append(f"masks {tuple(r.masks.data.shape)}")
     if r.keypoints is not None:
         lines.append(f"{len(r.keypoints)} instance(s), {r.keypoints.data.shape[1]} keypoints")
-    if r.tensors is not None:
+    if r.tensors is not None and len(lines) == 1:
+        lines.append("raw outputs:")
         for n, a in r.tensors.items():
             lines.append(f"  {n}: {tuple(np.asarray(a).shape)}")
     return "\n".join(lines)
