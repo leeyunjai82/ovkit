@@ -177,7 +177,10 @@ class Model:
             return self.infer(raw, device=dev)
 
         backend = self._backend_for(dev)
-        if len(backend.inputs) > 1:
+        # Multi-input models: OK when every input is an image (e.g. super-resolution
+        # takes the image + a pre-upscaled copy — the adapter feeds both). Anything
+        # else (gaze: eye crops + head-pose angles) can't be driven by one image.
+        if len(backend.inputs) > 1 and not _all_image_inputs(backend):
             desc = ", ".join(f"{n}{list(s)}" for n, s, _ in self.inputs)
             raise OVKitError(
                 f"This model takes {len(backend.inputs)} inputs ({desc}); a single image "
@@ -288,6 +291,16 @@ class Model:
 
 
 # --- source iteration ------------------------------------------------------
+
+
+def _all_image_inputs(backend: Any) -> bool:
+    """True when every model input is a static 4-D image ``[N, 1|3, H, W]``."""
+    for inp in backend.inputs:
+        ps = inp.get_partial_shape()
+        dims = [int(d.get_length()) if d.is_static else -1 for d in ps]
+        if len(dims) != 4 or dims[1] not in (1, 3) or dims[2] <= 0 or dims[3] <= 0:
+            return False
+    return True
 
 
 def _iter_sources(source: Any) -> Iterator[tuple[np.ndarray, str | None]]:

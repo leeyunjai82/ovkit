@@ -13,6 +13,7 @@ from typing import Any
 from .base import BaseAdapter
 from .classify import ClassifyAdapter
 from .detect import DetectAdapter
+from .face import FaceAdapter
 from .generic import GenericAdapter
 from .ocr import OCRAdapter
 from .pose import PoseAdapter
@@ -23,6 +24,7 @@ _ADAPTERS: dict[str, type[BaseAdapter]] = {
     "classify": ClassifyAdapter,
     "segment": SegmentAdapter,
     "pose": PoseAdapter,
+    "face": FaceAdapter,
     "optical_character_recognition": OCRAdapter,
     "ocr": OCRAdapter,
 }
@@ -48,6 +50,7 @@ __all__ = [
     "BaseAdapter",
     "ClassifyAdapter",
     "DetectAdapter",
+    "FaceAdapter",
     "GenericAdapter",
     "OCRAdapter",
     "PoseAdapter",
