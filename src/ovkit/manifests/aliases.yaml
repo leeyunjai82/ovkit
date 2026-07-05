@@ -12,7 +12,7 @@
 detect: {alias: rtdetr_r50}  # general objects (COCO-80)
 face_detection: {alias: face_detection_0205}
 person_detection: {alias: person_detection_0202}
-pedestrian_detection: {alias: pedestrian_detection_adas_0002}
+pedestrian_detection: {alias: person_detection_0202}
 vehicle_detection: {alias: vehicle_detection_0200}
 text_detection: {alias: text_detection_0004}
 

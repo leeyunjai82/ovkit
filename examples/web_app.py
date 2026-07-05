@@ -298,6 +298,8 @@ def index() -> str:
         except Exception:
             continue
         if entry:
+            if entry.name != name:
+                continue  # capability alias — its target is already listed
             by_task.setdefault(entry.task or "other", []).append(name)
             kinds[name] = model_kind(name)
     options = ""

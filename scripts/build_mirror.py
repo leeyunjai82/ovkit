@@ -542,6 +542,13 @@ def _repo_readme_text() -> str:
         """)
 
 
+def _representative_names() -> set[str]:
+    """Names in scripts/representatives.yaml (one model per capability)."""
+    path = Path(__file__).resolve().parent / "representatives.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    return set(data.get("representatives") or [])
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build the ovkit HF model mirror.")
     parser.add_argument("--repo", default="leeyunjai/ovkit-models", help="target HF repo id")
@@ -552,6 +559,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--precision", default="fp16", help="IR precision (default: fp16)")
     parser.add_argument("--private", action="store_true", help="create the repo as private")
     parser.add_argument("--dry-run", action="store_true", help="download + convert, no upload")
+    parser.add_argument(
+        "--representatives",
+        action="store_true",
+        help="with --emit-manifest: keep only scripts/representatives.yaml models "
+        "(one per capability) so the registry stays small",
+    )
     parser.add_argument(
         "--emit-manifest",
         metavar="PATH",
@@ -596,6 +609,16 @@ def main(argv: list[str] | None = None) -> int:
         # genai models are configured in manifests/genai.yaml, not here; emitting
         # them as IR entries would clobber that. Keep this manifest IR-only.
         ir_entries = [e for e in entries if e.src != "genai"]
+        # One representative per capability (see scripts/representatives.yaml) —
+        # keeps `ovkit list` / model pickers readable; the mirror keeps every
+        # variant, so re-surfacing one is a one-line edit.
+        if args.representatives:
+            reps = _representative_names()
+            dropped = [e.name for e in ir_entries if e.name not in reps]
+            ir_entries = [e for e in ir_entries if e.name in reps]
+            print(
+                f"  representatives only: kept {len(ir_entries)}, dropped {len(dropped)} variants"
+            )
         # Cross-check the mirror: only emit models that actually have a complete,
         # non-broken IR uploaded, so the manifest never points at a model that
         # would fail at runtime. (Degrades to "emit all" if the mirror can't be

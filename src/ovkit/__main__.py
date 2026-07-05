@@ -17,13 +17,27 @@ def _cmd_list(_: argparse.Namespace) -> int:
     if not names:
         print("No models registered.")
         return 0
+    aliases: list[tuple[str, str]] = []
+    models: list[tuple[str, str, str]] = []
     for name in names:
         entry = resolve(name)
-        task = entry.task if entry else "?"
-        desc = (entry.description if entry and entry.description else "") or ""
+        if entry is None:
+            continue
+        if entry.name != name:  # capability alias -> its target
+            aliases.append((name, entry.name))
+            continue
+        desc = entry.description or ""
         if len(desc) > 60:
             desc = desc[:57] + "..."
-        print(f"{name:40s} {str(task):28s} {desc}")
+        models.append((name, str(entry.task), desc))
+    if aliases:
+        print("aliases (capability -> model):")
+        for alias, target in aliases:
+            print(f"  {alias:24s} -> {target}")
+        print()
+    print(f"models ({len(models)}):")
+    for name, task, desc in models:
+        print(f"  {name:44s} {task:18s} {desc}")
     return 0
 
 
