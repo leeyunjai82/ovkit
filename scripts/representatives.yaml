@@ -1,0 +1,64 @@
+# Representative models — ONE per capability, used to keep the runtime
+# registry (and every model picker) small and readable.
+# ---------------------------------------------------------------------------
+# The mirror still hosts every variant; this list only controls what the
+# runtime manifest exposes by name. Regenerate the trimmed manifest with:
+#
+#   python scripts/build_mirror.py --omz-intel --representatives \
+#       --emit-manifest src/ovkit/manifests/omz.yaml
+#
+# (omit --representatives to emit the full set again). To surface a variant,
+# add its name here — or paste its entry into omz.yaml directly.
+# ---------------------------------------------------------------------------
+
+representatives:
+  # detection (one per target kind)
+  - rtdetr_r50                                    # general objects (COCO-80)
+  - face_detection_0205
+  - person_detection_0202
+  - vehicle_detection_0200
+  - person_vehicle_bike_detection_2000            # traffic combo
+  - text_detection_0004
+  - product_detection_0001
+  - vehicle_license_plate_detection_barrier_0106
+
+  # face analysis
+  - age_gender_recognition_retail_0013
+  - emotions_recognition_retail_0003
+  - head_pose_estimation_adas_0001
+  - landmarks_regression_retail_0009
+  - face_reidentification_retail_0095
+
+  # classification / attributes / embedding
+  - resnet50_binary_0001
+  - person_attributes_recognition_crossroad_0234
+  - vehicle_attributes_recognition_barrier_0042
+  - image_retrieval_0001
+
+  # segmentation
+  - road_segmentation_adas_0001                   # semantic
+  - instance_segmentation_person_0007             # instance
+
+  # pose / gaze
+  - human_pose_estimation_0007
+  - gaze_estimation_adas_0002
+
+  # OCR
+  - text_recognition_0014
+  - handwritten_simplified_chinese_recognition_0001
+
+  # action / industrial
+  - common_sign_language_0002
+  - weld_porosity_detection_0001
+
+  # NLP
+  - bert_small_uncased_whole_word_masking_squad_0002
+  - machine_translation_nar_en_de_0002
+  - machine_translation_nar_de_en_0002
+  - machine_translation_nar_en_ru_0002
+  - machine_translation_nar_ru_en_0002
+
+  # audio / time series / image processing
+  - noise_suppression_poconetlike_0001
+  - time_series_forecasting_electricity_0001
+  - single_image_super_resolution_1033

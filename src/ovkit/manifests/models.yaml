@@ -45,25 +45,3 @@ rtdetr_r50:
     src: hf
     repo: onnx-community/rtdetr_r50vd
     filename: onnx/model.onnx
-
-# rtdetr_r101 — same DETR decode, larger backbone. Served from the mirror.
-rtdetr_r101:
-  src: hf
-  repo: leeyunjai/ovkit-models
-  filename: detect/rtdetr_r101/model.xml
-  task: detect
-  description: RT-DETR (ResNet-101) real-time DETR detector, COCO-80, NMS-free.
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-  preprocess:
-    layout: NCHW
-    scale: 255.0
-  postprocess:
-    format: detr
-    classes: coco80
-  fallback:
-    src: hf
-    repo: onnx-community/rtdetr_r101vd
-    filename: onnx/model.onnx
-
