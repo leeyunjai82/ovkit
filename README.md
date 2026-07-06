@@ -7,13 +7,16 @@ callable object, and clean `Results` — with OpenVINO's strengths layered on to
 ```python
 from ovkit import Model
 
-model = Model("rtdetr_r50")                 # name -> auto download / convert / cache
+model = Model("detect")                     # capability alias -> rtdetr_r50
 results = model("img.jpg", conf=0.25)       # __call__ == predict
 
 for r in results:
     print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
     r.save("out.jpg")
 ```
+
+**Docs:** https://leeyunjai82.github.io/ovkit/ (한국어: [/ko/](https://leeyunjai82.github.io/ovkit/ko/)) —
+usage guide, cookbook, model catalog, API reference.
 
 > **License-clean by design.** ovkit ships and depends only on permissive
 > (Apache-2.0/MIT/BSD) models and libraries. AGPL-licensed model stacks and
@@ -36,45 +39,75 @@ source .venv/bin/activate                # Windows: .venv\Scripts\activate
 pip install -e .                         # core (lightweight)
 
 pip install -e ".[quant]"                # + NNCF INT8 quantization
-pip install -e ".[genai]"                # + openvino-genai / optimum-intel
-pip install -e ".[anomaly]"              # + anomalib
+pip install -e ".[genai]"                # + openvino-genai (LLM / STT)
 pip install -e ".[all]"                  # everything
 ```
 
 Requires Python 3.10+. Core dependencies: `openvino`, `numpy`,
 `opencv-python-headless`, `pillow`, `pyyaml`, `huggingface_hub`.
 
+## Models: one representative per capability
+
+The registry exposes **35 models — one well-tested model per function** — plus
+**capability aliases** so you never pick among variants:
+
+```python
+Model("face_detection")("photo.jpg")   # -> face_detection_0205, boxes drawn
+Model("age_gender")("face.jpg")        # -> "age 31 · male 98%"
+Model("pose")("person.jpg")            # -> keypoints
+Model("super_resolution")("small.png") # -> upscaled image from r.plot()
+
+from ovkit.genai import pipeline
+pipeline("llm").generate("Hello")      # -> tinyllama_chat (ovkit[genai])
+pipeline("stt").generate(audio_16k)    # -> whisper_base
+```
+
+Aliases include `detect`, `face_detection`, `person_detection`,
+`vehicle_detection`, `text_detection`, `segment`, `instance_segmentation`,
+`pose`, `face_landmarks`, `head_pose`, `gaze`, `age_gender`, `emotion`,
+`face_reid`, `person_attributes`, `vehicle_attributes`, `classify`,
+`image_retrieval`, `super_resolution`, `text_recognition`, `license_plate`,
+`qa`, `translation`, `noise_suppression`, `time_series`, `llm`, `stt`.
+
+Every model is served from the ovkit Hugging Face mirror
+([`leeyunjai/ovkit-models`](https://huggingface.co/leeyunjai/ovkit-models)),
+downloaded on first use and cached. The mirror also hosts the **full**
+Apache-2.0 Open Model Zoo set (other accuracy/speed tiers, `int8`, `sparse`
+variants) — surfacing a variant is a one-line edit
+(see the [model catalog](https://leeyunjai82.github.io/ovkit/models.html)).
+
+`ovkit list` prints the alias table and the model list with descriptions.
+
 ## Quick start
 
 ```python
 from ovkit import Model
 
-# Load by registered name (downloaded + converted to OpenVINO IR on first use),
-# by IR path, or by ONNX path (converted on the fly).
+# Load by alias, registered name, IR path, or ONNX path.
+model = Model("detect")
 model = Model("rtdetr_r50")
 model = Model("path/to/model.xml")
-model = Model("path/to/model.onnx")
+model = Model("path/to/model.onnx")          # converted to IR on the fly
 
 # Predict on an image path, ndarray, folder, video file, or camera index (int).
 results = model("img.jpg", device="NPU", conf=0.25)
 results = model.predict("frames/", imgsz=640)
 for r in model.predict(0, stream=True):      # webcam, lazy generator
-    boxes = r.boxes                          # xyxy, conf, cls
-    annotated = r.plot()                     # -> ndarray
+    annotated = r.plot()
 ```
 
 ### Inputs (auto-detected)
 
 `model(x)` routes on the input type — no config needed:
 
-- **image** (path / `ndarray` / folder / video / camera `int`) → vision pipeline
-  → `Results`. Vision tasks fill `boxes`/`masks`/`keypoints`/`probs`; any other
-  image task (super-res, OCR, embeddings, ...) returns raw `Results.tensors`.
-- **non-image** (`.npy` tensor, `.wav` audio, or a raw non-image `ndarray`) →
-  fed to the model directly → raw `{name: ndarray}`.
+- **image** (path / `ndarray` / folder / video / camera `int`) → vision
+  pipeline → typed `Results`.
+- **non-image** (`.npy` tensor, `.wav` audio, raw non-image `ndarray`) → fed to
+  the model directly → raw `{name: ndarray}`.
 
-For full control over any model (NLP / audio / time-series with your own
-tensors), use the low-level API directly:
+Grayscale (1-channel) models and all-image multi-input models (e.g.
+super-resolution) are handled automatically. For everything else (NLP / audio
+with your own tensors), use the low-level API:
 
 ```python
 print(model.inputs)            # [(name, shape, dtype), ...]
@@ -83,22 +116,23 @@ out = model.infer(tensors)     # {output_name: ndarray}, no preprocessing
 
 ### Results
 
-| Attribute        | Task      | Contents                              |
-| ---------------- | --------- | ------------------------------------- |
-| `r.boxes`        | detect    | `xyxy`, `xywh`, `conf`, `cls`         |
-| `r.masks`        | segment   | `(N, H, W)` masks                     |
-| `r.keypoints`    | pose      | `(N, K, 3)` `[x, y, conf]`            |
-| `r.probs`        | classify  | `top1`, `top5`, raw probabilities     |
-| `r.tensors`      | generic   | raw `{name: ndarray}` outputs         |
-| `r.plot()`       | all       | annotated `ndarray`                   |
-| `r.save(path)`   | all       | render + write to disk                |
+| Attribute      | Task            | Contents                                     |
+| -------------- | --------------- | -------------------------------------------- |
+| `r.boxes`      | detect          | `xyxy`, `xywh`, `conf`, `cls`                |
+| `r.masks`      | segment         | `(N, H, W)` masks (or a class map)           |
+| `r.keypoints`  | pose, landmarks | `(N, K, 3)` `[x, y, conf]`                   |
+| `r.probs`      | classify        | `top1`, `top5`, raw probabilities            |
+| `r.text`       | ocr, face attrs | decoded string (`"age 31 · male 98%"`, ...)  |
+| `r.tensors`    | generic         | raw `{name: ndarray}` outputs                |
+| `r.plot()`     | all             | annotated `ndarray` (or the output image)    |
+| `r.save(path)` | all             | render + write to disk                       |
 
 ### Devices
 
 `device="AUTO"` (default) lets OpenVINO choose; `"CPU"`, `"GPU"`, and `"NPU"`
-(Intel® Core™ Ultra and similar) are explicit. Device can be set on the `Model`
-or overridden per call. Single images run synchronously; `stream=True` uses an
-`AsyncInferQueue` for throughput on video and large folders.
+(Intel® Core™ Ultra and similar) are explicit — set on the `Model` or per call.
+Single images run synchronously; `stream=True` uses an `AsyncInferQueue` for
+throughput on video and folders.
 
 ### Quantization (INT8)
 
@@ -108,45 +142,62 @@ model.quantize(calib_images, preset="int8")   # NNCF PTQ; INT8 IR is cached
 
 Needs `pip install -e ".[quant]"`.
 
+## What runs end-to-end
+
+| Task | Decode | Example models |
+| ---- | ------ | -------------- |
+| **detect** | DETR / SSD / boxes+labels / YOLO → `boxes` | `rtdetr_r50`, `face_detection_0205`, `person_detection_0202`, ... |
+| **classify** | softmax → `probs`; multi-head (type+color) → text | `resnet50_binary_0001`, `vehicle_attributes_...` |
+| **segment** | semantic class map + instance masks | `road_segmentation_adas_0001`, `instance_segmentation_person_0007` |
+| **pose / landmarks** | heatmap peaks / coord regressors → `keypoints` | `human_pose_estimation_0007`, `landmarks_regression_retail_0009` |
+| **face analysis** | age+gender / emotion / head pose / re-id → text & probs | `age_gender_...`, `emotions_...`, `head_pose_...` |
+| **OCR** | CTC decode → `r.text` | `text_recognition_0014`, handwritten models |
+| **image processing** | output image rendered by `plot()` | `single_image_super_resolution_1033` |
+| **GenAI** | openvino-genai pipelines | `tinyllama_chat` (LLM), `whisper_base` (STT) |
+| **other** | raw tensors + `model.infer()` | QA (BERT), translation, noise suppression, time series |
+
+## Demo web app
+
+Try any model from the browser — image upload, webcam, audio, and text inputs
+appear automatically per model:
+
+```bash
+pip install -r examples/requirements.txt
+python examples/web_app.py        # http://127.0.0.1:8000
+```
+
+More examples in `examples/`: `predict.py`, `webcam_demo.py`,
+`denoise_audio.py`, `llm.py`, `stt.py`, `tts.py`.
+
 ## CLI
 
 ```bash
-ovkit list                 # registered models
-ovkit info rtdetr_r50      # source, task, license
-ovkit download rtdetr_r50  # fetch + convert to IR
+ovkit list                 # aliases (capability -> model) + models with descriptions
+ovkit info face_detection  # source, task, license (follows aliases)
+ovkit download detect      # fetch + convert to IR (warm the cache)
 ovkit devices              # available OpenVINO devices
 ```
 
-## Models & the registry
+## The registry
 
-Models live in a YAML manifest (`src/ovkit/manifests/models.yaml`), separate
-from code. **Adding a model is a one-line edit** — no Python changes:
+Models live in YAML manifests (`src/ovkit/manifests/`), separate from code.
+**Adding a model is a one-line edit** — no Python changes:
 
 ```yaml
-rtdetr_r50:
-  src: hf                              # primary source (your mirror in practice)
+my_model:
+  src: hf                              # hf | url | genai
   repo: leeyunjai/ovkit-models
-  filename: detect/rtdetr_r50/model.xml
+  filename: detect/my_model/model.xml
   task: detect
-  precision: fp16
+  description: One-line summary shown by `ovkit list`.
   license: apache-2.0                  # required; must be permissive
-  license_url: https://...             # optional; preserved on re-host
-  fallback:                            # optional; used if the primary fails
-    src: hf
-    repo: onnx-community/rtdetr_r50vd
-    filename: onnx/model.onnx
+  fallback: { src: hf, repo: onnx-community/..., filename: onnx/model.onnx }
 ```
 
-Resolution order for `Model("name")`:
-
-1. A local `.xml`/`.onnx` path is used directly.
-2. A cached IR under `$OVKIT_HOME` (or `~/.cache/ovkit/`) is loaded.
-3. Otherwise the **primary** source is downloaded, converted to IR, cached,
-   loaded — and if it fails, the **`fallback`** source is tried.
-
-Robustness: atomic writes (temp + rename), optional `sha256` integrity checks,
-convert-once caching keyed by `(name, precision)`, upstream fallback, and an
-offline mode (`OVKIT_OFFLINE=1`) that serves only from cache.
+Resolution order for `Model("name")`: alias → local path → cached IR under
+`$OVKIT_HOME` → download from the primary source → convert → cache → (on
+failure) the `fallback` source. Atomic writes, `sha256` checks, convert-once
+caching, and an offline mode (`OVKIT_OFFLINE=1`).
 
 ### Environment variables
 
@@ -155,92 +206,47 @@ offline mode (`OVKIT_OFFLINE=1`) that serves only from cache.
 | `OVKIT_HOME`      | Cache root (default `~/.cache/ovkit`)              |
 | `OVKIT_OFFLINE`   | `1` blocks the network; cache-only                 |
 | `OVKIT_MANIFESTS` | Extra manifest files/dirs (`os.pathsep`-separated) |
+| `OVKIT_MIRROR`    | Override the mirror repo id (scripts)              |
+
+## Maintainer: the model mirror
+
+`scripts/` contains the tooling that populates and verifies the mirror — end
+users never need it:
+
+```bash
+python scripts/build_mirror.py --omz-intel        # download + convert + validate + upload
+python scripts/build_mirror.py --omz-intel --representatives \
+    --emit-manifest src/ovkit/manifests/omz.yaml  # regenerate the trimmed registry
+python scripts/verify_mirror.py                   # completeness check
+python scripts/selfcheck.py                       # download + run every registered model
+```
+
+Broken IR (empty weights, dead source URLs) is rejected before upload, and
+`selfcheck.py --prune-manifest` drops anything that won't compile. See the
+[guide](https://leeyunjai82.github.io/ovkit/guide.html) for the full pipeline.
 
 ## License policy
 
 ovkit is **Apache-2.0** and stays license-clean:
 
 - **No AGPL-3.0 model stacks** in dependencies or default models.
-- Detection defaults are DETR-family (RT-DETR, RT-DETRv2, D-FINE, RF-DETR) —
-  all Apache-2.0.
-- Face models will come from Apache-2.0 OMZ weights served from the ovkit HF
-  mirror `leeyunjai/ovkit-models` (not the deprecated `omz_downloader`).
+- Detection default is DETR-family (`rtdetr_r50`) — Apache-2.0.
+- Face models are Apache-2.0 OMZ weights served from the ovkit HF mirror
+  `leeyunjai/ovkit-models` (not the deprecated `omz_downloader`).
 - **No InsightFace pretrained weights** (SCRFD/ArcFace) — non-commercial;
   architecture reference only.
 - Every manifest entry must declare a permissive `license`; non-permissive
   entries are refused at load time.
 
-## What works today (v0)
-
-Concretely, the following is implemented and runnable right now:
-
-**Core runtime (all tasks benefit):**
-
-- ✅ **Auto-resolve & run** — `Model("name")` / `Model("x.xml")` / `Model("x.onnx")`:
-  if the model isn't cached it is **downloaded, converted to IR, and cached**
-  automatically, then run. No manual download step.
-- ✅ **Sources** — HF (`hf_hub_download`) and direct `url`; IR `.xml` pulls its
-  `.bin` companion.
-- ✅ **Upstream fallback** — an entry can list a `fallback`; if the primary
-  source (e.g. the mirror) is down, ovkit retries the original host.
-- ✅ **Robust cache** — atomic writes, `sha256` integrity checks, convert-once
-  caching keyed by `(name, precision)`, offline mode (`OVKIT_OFFLINE=1`).
-- ✅ **Devices** — `AUTO`/`CPU`/`GPU`/`NPU`, settable per call.
-- ✅ **Inference** — synchronous for single images; `stream=True` uses an
-  `AsyncInferQueue` for video/folders.
-- ✅ **Task auto-detection** — manifest → IR `rt_info` → output signature.
-- ✅ **Sources for predict** — image path, `ndarray`, folder, video file,
-  camera index (`int`).
-- ✅ **INT8 quantization** — `model.quantize(calib_data)` (NNCF, `ovkit[quant]`).
-- ✅ **CLI** — `ovkit list | info | download | devices`.
-- ✅ **Mirror tooling** — `scripts/build_mirror.py` mirrors models (incl. the
-  whole Apache Open Model Zoo via `--omz-intel`) to your HF repo, bundling each
-  model's upstream `LICENSE` for clean redistribution.
-
-**Tasks that run end-to-end:**
-
-- ✅ **Detection** — DETR-family (RT-DETR / D-FINE) **and** SSD/DetectionOutput
-  (most OMZ face/person/vehicle detectors): preprocess → infer → decode →
-  `Results` with `boxes` → `plot()` / `save()`.
-- ✅ **Classification** — single-output `[N, C]` models: softmax → `probs`
-  (`top1` / `top5`).
-- ✅ **Segmentation** — `[1, C, H, W]` / `[1, 1, H, W]` models: argmax class map
-  resized to the image → `Results.masks`.
-- ✅ **Pose** — keypoint-heatmap models: per-channel peak → `Results.keypoints`
-  (single-instance; multi-person grouping is a future refinement).
-
-Preprocessing follows each model's own input size with sensible per-family
-defaults, overridable via the manifest `imgsz` / `preprocess` fields.
-
-**Not yet (interface stubs):** `face` analyzer. `genai` is a thin wrapper (works
-once `ovkit[genai]` + a model are present); `solutions` (anomaly / OCR /
-tracking / reid) are scaffolding.
-
-### Feature → model map
-
-| Task / feature | Status | Models |
-| -------------- | ------ | ------ |
-| **detect** | ✅ runs | `rtdetr_r50/r101` (DETR) + OMZ SSD detectors (face/person/vehicle) |
-| **classify** | ✅ runs | mirror: OMZ classification models (`--omz-intel`) |
-| **segment** | ✅ runs | mirror: OMZ semantic segmentation (`road/semantic/icnet/unet`) |
-| **pose** | ✅ runs | mirror: OMZ `human-pose-estimation-*` (single-instance) |
-| **face** | 🚧 stub | mirror: OMZ Apache set — `face-detection-retail-0005`, `landmarks-regression-retail-0009`, `face-reidentification-retail-0095`, `head-pose-estimation-adas-0001`, `emotions-recognition-retail-0003`, `age-gender-recognition-retail-0013`, `anti-spoof-mn3` |
-| **genai** (LLM / T2I / Whisper / VLM / TTS) | ⚙️ wrapper | openvino-genai models (user-provided path); `ovkit[genai]` |
-| **anomaly** | 🚧 stub | anomalib: PatchCore / EfficientAD / PaDiM; `ovkit[anomaly]` |
-| **ocr / tracking / reid** | 🚧 stub | composed over detect + recognize (planned) |
-
-Legend: ✅ runs · ⚙️ thin wrapper (needs optional dep) · 🚧 stub.
-
-Only ✅ tasks perform inference today. 🚧 models still **mirror and download**
-fine; they light up as each task adapter lands.
-
 ## Documentation
 
-Sphinx docs live in `docs/`:
+Published at **https://leeyunjai82.github.io/ovkit/** (English) and
+[/ko/](https://leeyunjai82.github.io/ovkit/ko/) (한국어). Build locally:
 
 ```bash
 pip install -r docs/requirements.txt
-sphinx-build -b html docs docs/_build/html
+sphinx-build -b html docs docs/_build/html          # EN
+sphinx-build -b html docs/ko docs/_build/html/ko    # KO
 ```
 
 ## License
