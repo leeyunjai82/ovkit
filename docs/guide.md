@@ -57,6 +57,7 @@ Three ways to name a model:
 Discover models from the CLI:
 
 ```bash
+ovkit run detect img.jpg   # one-shot inference (prints + saves img_out.jpg)
 ovkit list                 # every registered model: name / task / description
 ovkit info face_detection  # source, task, license, precision (follows aliases)
 ```
@@ -202,8 +203,8 @@ source URL is dead is reported as failed and **not** uploaded.
 ### Generate the runtime manifest
 
 ```bash
-python scripts/build_mirror.py --omz-intel \
-    --emit-manifest src/ovkit/manifests/omz.yaml
+python scripts/build_mirror.py --omz-intel --representatives \
+    --emit-manifest src/ovkit/manifests/omz.yaml   # omit --representatives for ALL
 ```
 
 This writes one entry per OMZ model pointing at the mirror, **cross-checked**
@@ -275,6 +276,7 @@ python scripts/selfcheck.py            # env, HF, mirror, download+run, genai
 ## 14. CLI reference
 
 ```bash
+ovkit run detect img.jpg   # one-shot inference (prints + saves img_out.jpg)
 ovkit list                 # registered models: name / task / description
 ovkit info <name>          # source, task, license, precision (follows aliases)
 ovkit download <name>      # download + IR convert (warm the cache)

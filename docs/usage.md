@@ -156,6 +156,7 @@ Requires `pip install -e ".[quant]"`.
 ## CLI
 
 ```bash
+ovkit run detect img.jpg   # one-shot inference (prints + saves img_out.jpg)
 ovkit list                 # registered models (name / task / license)
 ovkit info rtdetr_r50      # source, task, license, precision
 ovkit download rtdetr_r50  # fetch + convert to IR (warm the cache)

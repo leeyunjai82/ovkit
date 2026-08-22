@@ -38,7 +38,10 @@ dev = ["pytest>=7", "ruff", "black"]
 
 [project.urls]
 Homepage = "https://github.com/leeyunjai82/ovkit"
+Documentation = "https://leeyunjai82.github.io/ovkit/"
 Repository = "https://github.com/leeyunjai82/ovkit"
+Issues = "https://github.com/leeyunjai82/ovkit/issues"
+Models = "https://huggingface.co/leeyunjai/ovkit-models"
 
 [project.scripts]
 ovkit = "ovkit.__main__:main"

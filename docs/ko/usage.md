@@ -145,6 +145,7 @@ r = model("img.jpg")                           # 이제 INT8 모델로 추론
 ## CLI
 
 ```bash
+ovkit run detect img.jpg   # 원샷 추론 (출력 + img_out.jpg 저장)
 ovkit list                 # 등록된 모델 (이름 / 태스크 / 라이선스)
 ovkit info rtdetr_r50      # 소스, 태스크, 라이선스, 정밀도
 ovkit download rtdetr_r50  # 다운로드 + IR 변환 (캐시 워밍업)
