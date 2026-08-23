@@ -225,6 +225,8 @@ ovkit is Apache-2.0 and stays license-clean:
 - Face models come from Apache-2.0 OMZ weights on the ovkit HF mirror
   `leeyunjai/ovkit-models` (not the deprecated `omz_downloader`).
 - **No InsightFace pretrained weights** — non-commercial; architecture reference
-  only.
+  only. This is why `face_recognition_resnet100_arcface_onnx` is skipped when
+  mirroring OMZ public even though OMZ labels it Apache-2.0: that licence covers
+  the packaging, not the InsightFace-derived weights.
 - Every manifest entry must declare a permissive `license`; non-permissive
   entries are refused at load time.

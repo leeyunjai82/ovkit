@@ -62,3 +62,33 @@ representatives:
   - noise_suppression_poconetlike_0001
   - time_series_forecasting_electricity_0001
   - single_image_super_resolution_1033
+
+  # --- from OMZ public (--omz-public), permissive only -----------------------
+  # General ImageNet classifier: models/intel has none (only binary/XNOR
+  # research nets), which is why the classify default was weak.
+  - nfnet_f0
+
+  # General detection alternatives (COCO-80, Apache-2.0 via the ONNX model zoo)
+  - yolo_v3_onnx
+  - yolo_v3_tiny_onnx
+  - ultra_lightweight_face_detection_slim_320   # ~1 MB face detector for edge
+
+  # Semantic segmentation on general scenes (road_segmentation is driving-only)
+  - pspnet_pytorch
+
+  # Capabilities the registry had nothing for at all
+  - aclnet                                      # sound classification (audio in)
+  - fast_neural_style_mosaic_onnx               # style transfer (image out)
+  - background_matting_mobilenetv2              # background matting (image out)
+
+  # Face / re-id utilities
+  - open_closed_eye_0001
+  - vehicle_reid_0001
+
+  # NOT included, deliberately:
+  #   face_recognition_resnet100_arcface_onnx — OMZ labels it Apache-2.0, but the
+  #     weights derive from InsightFace, whose pretrained models are
+  #     non-commercial. ovkit's licence policy names this case explicitly.
+  #   common_sign_language_0001 — superseded by _0002 (already included).
+  #   ssd_resnet34_1200_onnx — superseded by rtdetr_r50 for general detection.
+  #   aclnet_int8, erfnet, brain_tumor_segmentation_0002 — variants / niche.
