@@ -52,3 +52,4 @@ time_series: {alias: time_series_forecasting_electricity_0001}
 # --- GenAI (work out of the box) ---
 llm: {alias: qwen25_1_5b_instruct}   # Qwen2.5 1.5B — better than TinyLlama at the same size
 stt: {alias: whisper_base}
+vlm: {alias: qwen3_vl_4b_instruct}   # lighter option: internvl2_1b

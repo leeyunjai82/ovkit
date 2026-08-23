@@ -39,7 +39,8 @@ that points at a well-tested default. `Model("face_detection")` just works.
 | `translation` | `machine_translation_nar_en_de_0002` | EN→DE translation |
 | `noise_suppression` | `noise_suppression_poconetlike_0001` | denoise speech |
 | `time_series` | `time_series_forecasting_electricity_0001` | forecasting |
-| `llm` | `tinyllama_chat` | chat LLM (genai) |
+| `llm` | `qwen25_1_5b_instruct` | chat LLM (genai) |
+| `vlm` | `qwen3_vl_4b_instruct` | vision-language: image + question -> text |
 | `stt` | `whisper_base` | speech-to-text (genai) |
 
 ```python
