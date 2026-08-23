@@ -1,4 +1,4 @@
-"""``ovkit`` command-line interface: ``download``, ``info``, ``list``, ``devices``."""
+"""``ovkit`` command-line interface: ``run``, ``list``, ``info``, ``download``, ``devices``."""
 
 from __future__ import annotations
 
@@ -82,6 +82,49 @@ def _cmd_devices(_: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run(args: argparse.Namespace) -> int:
+    """One-shot inference from the shell: ``ovkit run detect img.jpg``."""
+    from pathlib import Path
+
+    from .core.model import Model
+
+    model = Model(args.model, device=args.device)
+    results = model(args.source, conf=args.conf)
+    if not isinstance(results, list):  # raw (.npy/.wav) input -> tensor dict
+        for name, arr in results.items():
+            print(f"{name}: shape={tuple(arr.shape)} dtype={arr.dtype}")
+        return 0
+
+    for r in results:
+        parts = [f"task={r.task}"]
+        if r.text:
+            parts.append(f'text="{r.text}"')
+        if r.boxes is not None:
+            parts.append(f"{len(r.boxes)} boxes")
+            for x1, y1, x2, y2, c, cl in r.boxes.data[:20]:
+                print(
+                    f"  {r.name_for(int(cl)):16s} {c:.2f} [{int(x1)},{int(y1)},{int(x2)},{int(y2)}]"
+                )
+        if r.probs is not None:
+            top = ", ".join(
+                f"{r.name_for(int(i))} {r.probs.data[int(i)]:.2f}" for i in r.probs.top5
+            )
+            parts.append(f"top-5: {top}")
+        if r.masks is not None:
+            parts.append(f"masks {tuple(r.masks.data.shape)}")
+        if r.keypoints is not None:
+            parts.append(f"keypoints {tuple(r.keypoints.data.shape)}")
+        print(" | ".join(parts))
+
+    save = args.save
+    if save is None and results and Path(str(args.source)).is_file():
+        save = f"{Path(str(args.source)).stem}_out.jpg"
+    if save and results:
+        results[0].save(save)
+        print(f"saved -> {save}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     parser = argparse.ArgumentParser(prog="ovkit", description="ovkit model utilities")
@@ -102,6 +145,14 @@ def main(argv: list[str] | None = None) -> int:
 
     p_dev = sub.add_parser("devices", help="list OpenVINO devices")
     p_dev.set_defaults(func=_cmd_devices)
+
+    p_run = sub.add_parser("run", help="run a model on an image/folder/video from the shell")
+    p_run.add_argument("model", help="alias, registered name, or model path")
+    p_run.add_argument("source", help="image / folder / video path (or .npy/.wav)")
+    p_run.add_argument("--conf", type=float, default=0.25, help="confidence threshold")
+    p_run.add_argument("--device", default="AUTO", help="AUTO | CPU | GPU | NPU")
+    p_run.add_argument("--save", metavar="PATH", help="annotated output (default: <src>_out.jpg)")
+    p_run.set_defaults(func=_cmd_run)
 
     args = parser.parse_args(argv)
     try:

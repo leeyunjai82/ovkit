@@ -51,6 +51,7 @@ for r in model("street.jpg", conf=0.25): # __call__ == predict
 CLI로 탐색:
 
 ```bash
+ovkit run detect img.jpg   # 원샷 추론 (출력 + img_out.jpg 저장)
 ovkit list                 # 등록 모델: 이름 / 태스크 / 설명
 ovkit info face_detection  # 소스·태스크·라이선스·정밀도 (별칭도 따라감)
 ```
@@ -189,8 +190,8 @@ python scripts/build_mirror.py --models tinyllama_chat whisper_base
 ### 런타임 매니페스트 생성
 
 ```bash
-python scripts/build_mirror.py --omz-intel \
-    --emit-manifest src/ovkit/manifests/omz.yaml
+python scripts/build_mirror.py --omz-intel --representatives \
+    --emit-manifest src/ovkit/manifests/omz.yaml   # --representatives 빼면 전체
 ```
 
 OMZ 모델마다 미러를 가리키는 항목을 쓰되, 미러와 **교차검증**합니다(너무 작거나 없는 `.bin`은
@@ -259,6 +260,7 @@ python scripts/selfcheck.py            # 환경, HF, 미러, 다운로드+실행
 ## 14. CLI 레퍼런스
 
 ```bash
+ovkit run detect img.jpg   # 원샷 추론 (출력 + img_out.jpg 저장)
 ovkit list                 # 등록 모델: 이름 / 태스크 / 설명
 ovkit info <name>          # 소스, 태스크, 라이선스, 정밀도 (별칭도 따라감)
 ovkit download <name>      # 다운로드 + IR 변환 (캐시 워밍업)

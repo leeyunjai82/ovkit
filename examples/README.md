@@ -2,10 +2,29 @@
 
 ```bash
 pip install -e .                         # ovkit, from the repo root
-pip install -r examples/requirements.txt # fastapi / uvicorn / python-multipart
+pip install -r examples/requirements.txt # fastapi / uvicorn (web demos only)
+```
 
-# register the mirror models so the dropdowns are populated (one-time)
-python scripts/build_mirror.py --omz-intel --emit-manifest src/ovkit/manifests/omz.yaml
+## Per-task one-file examples
+
+| example | alias used | shows |
+| ------- | ---------- | ----- |
+| [`detect.py`](detect.py) | `detect` | boxes drawn + printed |
+| [`face_analysis.py`](face_analysis.py) | `age_gender` | `"age 31 · male 98%"` |
+| [`segment.py`](segment.py) | `segment` | colored class-map overlay |
+| [`pose.py`](pose.py) | `pose` | keypoints/skeleton |
+| [`classify.py`](classify.py) | `classify` | top-5 classes |
+| [`ocr.py`](ocr.py) | `text_recognition` | decoded text |
+| [`super_resolution.py`](super_resolution.py) | `super_resolution` | upscaled image |
+
+```bash
+python examples/detect.py photo.jpg      # each is ~15 lines — read the source
+```
+
+Or skip Python entirely:
+
+```bash
+ovkit run detect photo.jpg               # prints results, saves photo_out.jpg
 ```
 
 ## `web_app.py` — model tester (all-in-one) ⭐
