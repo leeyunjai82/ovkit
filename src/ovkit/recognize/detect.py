@@ -113,6 +113,10 @@ class DetectAdapter(BaseAdapter):
                 boxes = self._decode_ssd(outputs, (h, w), conf=conf, max_det=max_det)
             elif fmt == "yolo_v2":
                 boxes = self._decode_yolo(outputs, (h, w), conf=conf, max_det=max_det)
+            elif fmt == "segm_boxes":
+                boxes = self._decode_segm_boxes(outputs, (h, w), conf=conf, max_det=max_det)
+                names = self.names or {0: "text"}
+                return Results(image, task=self.task, names=names, boxes=Boxes(boxes))
             else:
                 boxes = self._decode_boxes_labels(
                     outputs, (h, w), (ih, iw), conf=conf, max_det=max_det
@@ -132,11 +136,67 @@ class DetectAdapter(BaseAdapter):
         # boxes [N, 5] (+ optional labels [N]): any output ending in 5.
         if any(len(s) >= 2 and s[-1] == 5 for s in shapes):
             return "boxes_labels"
+        # PixelLink-style text detectors (text-detection-000x): a 4-D 2-class
+        # segmentation-logits output ALONGSIDE a link-logits tensor (or an
+        # explicitly named segm output). A lone 4-D tensor stays YOLO below.
+        sigs = backend.output_signatures()
+        for name, sh in sigs:
+            if len(sh) == 4 and (sh[-1] == 2 or sh[1] == 2):
+                if len(sigs) > 1 or "segm" in (name or "").lower():
+                    return "segm_boxes"
         # A single 4-D [1, A*(5+C), H, W] tensor on a detect model -> YOLO region
         # (segmentation maps route to SegmentAdapter, so this is unambiguous here).
         if len(shapes) == 1 and len(shapes[0]) == 4:
             return "yolo_v2"
         return "detr"
+
+    # -- segmentation-logit text detectors (PixelLink-style) ----------------
+
+    @staticmethod
+    def _decode_segm_boxes(
+        outputs: dict[str, np.ndarray], orig_hw: tuple[int, int], *, conf: float, max_det: int
+    ) -> np.ndarray:
+        """Boxes from a 2-class text/background segmentation-logits map.
+
+        text-detection-000x emit ``segm_logits`` [1, h, w, 2] (plus link
+        logits, which full PixelLink uses to split touching words; we keep the
+        simpler region decode: softmax -> text mask -> connected components ->
+        one box per component, scored by its mean text probability).
+        """
+        import cv2
+
+        segm = None
+        for v in outputs.values():
+            a = np.asarray(v)
+            if a.ndim == 4 and a.shape[-1] == 2:
+                segm = a[0]  # [h, w, 2]
+                break
+            if a.ndim == 4 and a.shape[1] == 2:
+                segm = np.transpose(a[0], (1, 2, 0))  # NCHW -> [h, w, 2]
+                break
+        if segm is None:
+            return np.zeros((0, 6), dtype=np.float32)
+
+        e = np.exp(segm - segm.max(axis=-1, keepdims=True))
+        prob = (e / e.sum(axis=-1, keepdims=True))[..., 1]  # text probability
+        mask = (prob >= max(conf, 0.5)).astype(np.uint8)
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
+
+        gh, gw = prob.shape
+        oh, ow = orig_hw
+        sx, sy = ow / gw, oh / gh
+        rows = []
+        for i in range(1, n):  # 0 = background
+            x, y, bw, bh, area = stats[i]
+            if area < 4:  # noise
+                continue
+            score = float(prob[labels == i].mean())
+            rows.append([x * sx, y * sy, (x + bw) * sx, (y + bh) * sy, score, 0.0])
+        if not rows:
+            return np.zeros((0, 6), dtype=np.float32)
+        data = np.array(rows, dtype=np.float32)
+        order = np.argsort(data[:, 4])[::-1][:max_det]
+        return data[order]
 
     # -- boxes+labels decode (OMZ -0200/ATSS-style detectors) ---------------
 
