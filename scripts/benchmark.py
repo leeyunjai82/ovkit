@@ -69,7 +69,51 @@ def bench_one(name: str, device: str, runs: int, warmup: int) -> tuple[float, fl
         return f"{type(exc).__name__}: {str(exc)[:60]}"
 
 
+def bench_isolated(name: str, device: str, runs: int, warmup: int) -> tuple[float, float] | str:
+    """Run one benchmark in a subprocess so a native crash can't kill the run.
+
+    Some device compilers (e.g. the NPU compiler on dynamic-shape IR) abort the
+    whole process with a native error that Python cannot catch; isolating each
+    (model, device) cell keeps the rest of the table alive.
+    """
+    import subprocess
+
+    cmd = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--_bench-one",
+        name,
+        device,
+        str(runs),
+        str(warmup),
+    ]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    except subprocess.TimeoutExpired:
+        return "timeout (30 min)"
+    for line in reversed((p.stdout or "").splitlines()):
+        if line.startswith("OVKIT_BENCH_RESULT "):
+            _, med, fps = line.split()
+            return float(med), float(fps)
+        if line.startswith("OVKIT_BENCH_ERROR "):
+            return line[len("OVKIT_BENCH_ERROR ") :]
+    tail = [ln for ln in (p.stderr or "").splitlines() if ln.strip()]
+    reason = tail[-1][:70] if tail else f"crashed (exit {p.returncode})"
+    return f"native crash: {reason}"
+
+
 def main(argv: list[str] | None = None) -> int:
+    # Hidden child mode used by bench_isolated().
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["--_bench-one"]:
+        name, device, runs, warmup = argv[1], argv[2], int(argv[3]), int(argv[4])
+        r = bench_one(name, device, runs, warmup)
+        if isinstance(r, tuple):
+            print(f"OVKIT_BENCH_RESULT {r[0]:.3f} {r[1]:.3f}")
+        else:
+            print(f"OVKIT_BENCH_ERROR {r}")
+        return 0
+
     ap = argparse.ArgumentParser(description="Benchmark ovkit models across devices.")
     ap.add_argument("--models", nargs="*", default=_DEFAULT_MODELS, help="names or aliases")
     ap.add_argument("--devices", nargs="*", default=None, help="default: all available")
@@ -91,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         row = [f"`{real}`"]
         for dev in devices:
             print(f"benchmarking {real} on {dev}...", flush=True)
-            r = bench_one(name, dev, args.runs, args.warmup)
+            r = bench_isolated(name, dev, args.runs, args.warmup)
             row.append(f"{r[0]:.1f} ms ({r[1]:.0f} FPS)" if isinstance(r, tuple) else "—")
             if not isinstance(r, tuple):
                 print(f"  {dev}: {r}")

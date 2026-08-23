@@ -252,6 +252,7 @@ my_model:
 | OCR / 회색조 모델이 추론에서 실패 | 수정됨: 백엔드가 3↔1 채널을 자동 정합. `git pull`로 갱신. |
 | `This model takes N inputs ...` | 다중입력 모델(예: gaze). 단일 이미지 대신 `model.infer({...})`로 모든 입력 제공. |
 | public repo인데 `... repo is gated` (401) | HF "Gated access"는 공개여부와 별개 — 모델 페이지에서 access requests 비활성화하거나 인증. |
+| NPU에서 `rtdetr_r50` 실행 시 `LLVM ERROR` / `vpux-compiler` 크래시 | NPU 컴파일러는 **정적 shape**만 지원하는데 RT-DETR IR은 동적입니다. RT-DETR은 CPU/GPU에서 쓰고, NPU에는 정적 OMZ 모델(`face_detection`, `person_detection` 등)을 쓰세요. `scripts/benchmark.py`는 칸별 격리로 크래시가 전체를 죽이지 않습니다. |
 | `omz.yaml` 재생성 시 깨진 모델이 계속 다시 들어감 | 오래된 `omz.yaml`이 `genai.yaml`/큐레이트를 덮어씀. `omz.yaml` 삭제 → genai 먼저 미러 → 재생성. |
 | `ovkit list`에 모델이 `?`로 보임 | 대상이 `omz.yaml`을 필요로 하는 별칭. 생성 후 커밋([§11](#가이드-미러)). |
 
