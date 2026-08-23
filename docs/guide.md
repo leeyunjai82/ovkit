@@ -14,18 +14,22 @@ mirror (`leeyunjai/ovkit-models`); GenAI (LLM/STT) goes through openvino-genai.
 
 ## 2. Installation
 
-ovkit is installed from source into a virtual environment:
+Install from PyPI:
 
 ```bash
-git clone https://github.com/leeyunjai82/ovkit.git
-cd ovkit
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install ovkit                    # core (lightweight)
 
-pip install -e .                     # core (lightweight)
-pip install -e ".[quant]"            # + NNCF INT8 quantization
-pip install -e ".[genai]"            # + openvino-genai / optimum-intel
-pip install -e ".[all]"              # everything
+pip install "ovkit[quant]"           # + NNCF INT8 quantization
+pip install "ovkit[genai]"           # + openvino-genai (LLM / STT)
+pip install "ovkit[all]"             # everything
+```
+
+For development, install from source instead:
+
+```bash
+git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
 ```
 
 `-e` is an editable install, so `git pull` updates ovkit with no reinstall.
@@ -149,7 +153,7 @@ m.quantize(["calib1.jpg", "calib2.jpg", ...], preset="int8")   # NNCF PTQ
 r = m("img.jpg")                                               # now INT8
 ```
 
-Requires `pip install -e ".[quant]"`.
+Requires `pip install "ovkit[quant]"`.
 
 ## 10. GenAI (LLM / STT)
 
@@ -164,7 +168,7 @@ print(stt.generate(audio_16k_mono_float32))
 ```
 
 genai models are served from the mirror (subfolder) with the upstream OpenVINO
-repo as a fallback. Requires `pip install -e ".[genai]"`.
+repo as a fallback. Requires `pip install "ovkit[genai]"`.
 
 (guide-mirror)=
 ## 11. The model mirror (maintainer)

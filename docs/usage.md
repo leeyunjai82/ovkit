@@ -9,26 +9,25 @@ handled for you.
 
 ## Install
 
-ovkit is not on PyPI yet, so install it from source. A virtual environment keeps
-its dependencies isolated from the rest of your system:
+Install from [PyPI](https://pypi.org/project/ovkit/):
 
 ```bash
-git clone https://github.com/leeyunjai82/ovkit.git
-cd ovkit
+pip install ovkit                        # core (lightweight)
 
-python -m venv .venv                     # create a virtualenv
-source .venv/bin/activate                # Windows: .venv\Scripts\activate
-
-pip install -e .                         # core (lightweight)
-
-pip install -e ".[quant]"                # + NNCF INT8 quantization
-pip install -e ".[genai]"                # + openvino-genai / optimum-intel
-pip install -e ".[anomaly]"              # + anomalib
-pip install -e ".[all]"                  # everything
+pip install "ovkit[quant]"               # + NNCF INT8 quantization
+pip install "ovkit[genai]"               # + openvino-genai (LLM / STT)
+pip install "ovkit[all]"                 # everything
 ```
 
-`-e` is an *editable* install: the package points at your checkout, so `git
-pull` updates it without reinstalling. Python 3.10+ is required. The core
+For development, install from source instead:
+
+```bash
+git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"                  # editable: `git pull` updates in place
+```
+
+Python 3.10+ is required. The core
 dependencies are kept light — `openvino`, `numpy`, `opencv-python-headless`,
 `pillow`, `pyyaml`, `huggingface_hub` — and heavier pieces (NNCF, openvino-genai,
 anomalib) are optional *extras* you opt into with `[...]`.
@@ -151,7 +150,7 @@ model.quantize(calib_images, preset="int8")   # NNCF PTQ; the INT8 IR is cached
 r = model("img.jpg")                           # now served from the INT8 model
 ```
 
-Requires `pip install -e ".[quant]"`.
+Requires `pip install "ovkit[quant]"`.
 
 ## CLI
 
@@ -214,7 +213,7 @@ print(stt.generate(audio_16k_mono_float32))
 ```
 
 Registered genai models live in `src/ovkit/manifests/genai.yaml`. Needs
-`pip install -e ".[genai]"`.
+`pip install "ovkit[genai]"`.
 
 ## License policy
 

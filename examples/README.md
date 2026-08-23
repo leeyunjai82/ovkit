@@ -1,7 +1,7 @@
 # ovkit examples
 
 ```bash
-pip install -e .                         # ovkit, from the repo root
+pip install ovkit                        # or: pip install -e . from the repo root
 pip install -r examples/requirements.txt # fastapi / uvicorn (web demos only)
 ```
 
@@ -41,7 +41,7 @@ Pick a model; the **right input appears automatically**:
 python examples/web_app.py      # http://127.0.0.1:8000
 ```
 
-(genai models — LLM/STT/TTS — also need `pip install -e ".[genai]"`.)
+(genai models — LLM/STT/TTS — also need `pip install "ovkit[genai]"`.)
 
 ## `webcam_demo.py` — minimal live webcam
 
@@ -69,7 +69,7 @@ differently, share the run output and it can be adjusted.)
 Modern OpenVINO models via **openvino-genai** (separate from the vision mirror).
 
 ```bash
-pip install -e ".[genai]"
+pip install "ovkit[genai]"
 python examples/llm.py "Explain OpenVINO in one sentence."   # LLM
 python examples/stt.py audio.wav                              # Whisper STT
 python examples/tts.py "Hello" /path/to/tts-ov-model out.wav  # TTS (local model dir)
