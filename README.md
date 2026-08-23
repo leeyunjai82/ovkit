@@ -28,10 +28,6 @@ r = Model("detect")("image.jpg")[0]   # download -> convert -> cache -> run
 r.save("out.jpg")                     # boxes drawn; r.boxes.xyxy / .conf / .cls
 ```
 
-<!-- Demo GIF: record `python examples/webcam_demo.py` (or the web app) and
-     place it at docs/_static/demo.gif, then uncomment:
-<div align="center"><img src="https://raw.githubusercontent.com/leeyunjai82/ovkit/main/docs/_static/demo.gif" width="640" alt="ovkit demo"/></div> -->
-
 Or without writing Python at all:
 
 ```bash
