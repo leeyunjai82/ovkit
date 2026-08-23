@@ -11,9 +11,8 @@ ready models — with `AUTO`/`NPU`/`GPU` devices, async throughput, and INT8.
 [![Docs](https://img.shields.io/badge/docs-github.io-0a7d8c)](https://leeyunjai82.github.io/ovkit/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/ovkit)](https://pypi.org/project/ovkit/)
 [![Models](https://img.shields.io/badge/🤗%20models-ovkit--models-yellow)](https://huggingface.co/leeyunjai/ovkit-models)
-<!-- After the first PyPI release, add:
-[![PyPI](https://img.shields.io/pypi/v/ovkit)](https://pypi.org/project/ovkit/) -->
 
 [Docs](https://leeyunjai82.github.io/ovkit/) ·
 [한국어 문서](https://leeyunjai82.github.io/ovkit/ko/) ·
@@ -42,14 +41,17 @@ ovkit run detect image.jpg            # prints results, saves image_out.jpg
 ## Install
 
 ```bash
-git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
-python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e .
+pip install ovkit
 ```
 
-<!-- After the first PyPI release this becomes just: pip install ovkit -->
-Extras: `".[quant]"` (INT8/NNCF) · `".[genai]"` (LLM/STT) · `".[all]"`.
-Python 3.10+.
+Extras: `ovkit[quant]` (INT8/NNCF) · `ovkit[genai]` (LLM/STT) · `ovkit[all]`.
+Python 3.10+. For development, install from source:
+
+```bash
+git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
+```
 
 ## Supported tasks
 
@@ -152,7 +154,7 @@ stt = pipeline("stt")                        # whisper_base
 print(stt.generate(audio_16k_mono_float32))
 ```
 
-Needs `pip install -e ".[genai]"`.
+Needs `pip install "ovkit[genai]"`.
 
 </details>
 

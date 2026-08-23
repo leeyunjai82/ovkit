@@ -1,8 +1,7 @@
 # 쿡북 — 모든 기능 호출 예시
 
-각 ovkit 기능의 복붙용 예시입니다. (소스+venv 설치: `git clone ... && cd ovkit &&
-python -m venv .venv && . .venv/bin/activate && pip install -e .`; genai는
-`pip install -e ".[genai]"`, 양자화는 `pip install -e ".[quant]"`.)
+각 ovkit 기능의 복붙용 예시입니다. (설치: `pip install ovkit`; genai는 `pip install "ovkit[genai]"`, 양자화는
+`pip install "ovkit[quant]"`.)
 
 ## 모델 로드
 

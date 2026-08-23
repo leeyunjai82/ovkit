@@ -7,25 +7,25 @@
 
 ## 설치
 
-ovkit은 아직 PyPI에 없어서 소스에서 설치합니다. 가상환경으로 의존성을 시스템과 분리하세요:
+[PyPI](https://pypi.org/project/ovkit/)에서 설치합니다:
 
 ```bash
-git clone https://github.com/leeyunjai82/ovkit.git
-cd ovkit
+pip install ovkit                        # 코어 (가벼움)
 
-python -m venv .venv                     # 가상환경 생성
-source .venv/bin/activate                # Windows: .venv\Scripts\activate
-
-pip install -e .                         # 코어 (가벼움)
-
-pip install -e ".[quant]"                # + NNCF INT8 양자화
-pip install -e ".[genai]"                # + openvino-genai / optimum-intel
-pip install -e ".[anomaly]"              # + anomalib
-pip install -e ".[all]"                  # 전부
+pip install "ovkit[quant]"               # + NNCF INT8 양자화
+pip install "ovkit[genai]"               # + openvino-genai (LLM / STT)
+pip install "ovkit[all]"                 # 전부
 ```
 
-`-e`는 *editable*(개발) 설치라 패키지가 체크아웃을 가리켜서, `git pull`만 하면 재설치 없이
-갱신됩니다. Python 3.10+ 필요. 코어 의존성은 가볍게(`openvino`, `numpy`,
+개발용은 소스에서 설치하세요:
+
+```bash
+git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"                  # editable: `git pull`만으로 갱신
+```
+
+Python 3.10+ 필요. 코어 의존성은 가볍게(`openvino`, `numpy`,
 `opencv-python-headless`, `pillow`, `pyyaml`, `huggingface_hub`) 유지하고, 무거운 것(NNCF,
 openvino-genai, anomalib)은 `[...]` 옵션 extra로 선택 설치합니다.
 
@@ -140,7 +140,7 @@ model.quantize(calib_images, preset="int8")   # NNCF PTQ; INT8 IR 캐시됨
 r = model("img.jpg")                           # 이제 INT8 모델로 추론
 ```
 
-`pip install -e ".[quant]"` 필요.
+`pip install "ovkit[quant]"` 필요.
 
 ## CLI
 
@@ -199,7 +199,7 @@ stt = pipeline("whisper_base")            # 음성 -> 텍스트
 print(stt.generate(audio_16k_mono_float32))
 ```
 
-등록된 genai 모델은 `src/ovkit/manifests/genai.yaml`에 있어요. `pip install -e ".[genai]"`
+등록된 genai 모델은 `src/ovkit/manifests/genai.yaml`에 있어요. `pip install "ovkit[genai]"`
 필요.
 
 ## 라이선스 정책

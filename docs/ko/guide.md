@@ -12,18 +12,22 @@ ovkit은 OpenVINO를 {class}`~ovkit.Model` 객체 하나 뒤로 감쌉니다. �
 
 ## 2. 설치
 
-소스에서 가상환경에 설치합니다:
+PyPI에서 설치합니다:
 
 ```bash
-git clone https://github.com/leeyunjai82/ovkit.git
-cd ovkit
-python -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install ovkit                    # 코어 (가벼움)
 
-pip install -e .                     # 코어 (가벼움)
-pip install -e ".[quant]"            # + NNCF INT8 양자화
-pip install -e ".[genai]"            # + openvino-genai / optimum-intel
-pip install -e ".[all]"              # 전부
+pip install "ovkit[quant]"           # + NNCF INT8 양자화
+pip install "ovkit[genai]"           # + openvino-genai (LLM / STT)
+pip install "ovkit[all]"             # 전부
+```
+
+개발용은 소스에서 설치하세요:
+
+```bash
+git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
 ```
 
 `-e`는 editable 설치라 `git pull`만 하면 재설치 없이 갱신됩니다. Python 3.10+.
@@ -137,7 +141,7 @@ m.quantize(["calib1.jpg", "calib2.jpg", ...], preset="int8")   # NNCF PTQ
 r = m("img.jpg")                                               # 이제 INT8
 ```
 
-`pip install -e ".[quant]"` 필요.
+`pip install "ovkit[quant]"` 필요.
 
 ## 10. GenAI (LLM / STT)
 
@@ -152,7 +156,7 @@ print(stt.generate(audio_16k_mono_float32))
 ```
 
 genai 모델은 미러(서브폴더)에서 받고, 원본 OpenVINO repo를 폴백으로 둡니다.
-`pip install -e ".[genai]"` 필요.
+`pip install "ovkit[genai]"` 필요.
 
 (가이드-미러)=
 ## 11. 모델 미러 (메인테이너)
