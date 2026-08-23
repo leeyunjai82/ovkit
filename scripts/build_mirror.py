@@ -186,6 +186,27 @@ def _omz_source_url(spec: dict) -> str | None:
     return None
 
 
+def _omz_onnx_url(spec: dict) -> str | None:
+    """Pick an ``.onnx`` source from an OMZ ``files`` list.
+
+    ``models/public`` ships the *original* framework files rather than a
+    pre-built IR (the IR is produced by ``omz_converter``), so mirroring a
+    public model means taking its ONNX and letting ovkit convert it. Models
+    that ship only .pth/.caffemodel/.pb need a framework-specific conversion
+    step and are skipped.
+    """
+    for f in spec.get("files", []):
+        name = str(f.get("name", ""))
+        if not name.lower().endswith(".onnx"):
+            continue
+        src = f.get("source")
+        if isinstance(src, str):
+            return src
+        if isinstance(src, dict):
+            return src.get("url") or src.get("$ref")
+    return None
+
+
 def _spdx_from_license_url(url: str | None) -> str | None:
     """Best-effort SPDX id for an OMZ ``license:`` URL, or ``None`` if unclear.
 
@@ -231,9 +252,9 @@ def omz_public_entries() -> list[ModelEntry]:
             spec = yaml.safe_load(_http_text(_OMZ_PUBLIC_RAW.format(name=name))) or {}
         except Exception:
             continue
-        url = _omz_source_url(spec)
+        url = _omz_source_url(spec) or _omz_onnx_url(spec)
         if not url:
-            no_ir += 1  # public models often ship only the original framework files
+            no_ir += 1  # ships only .pth/.caffemodel/.pb -> needs omz_converter
             continue
         spdx = _spdx_from_license_url(spec.get("license"))
         if not spdx or not is_permissive(spdx):
@@ -255,7 +276,7 @@ def omz_public_entries() -> list[ModelEntry]:
     print(
         f"  found {len(entries)} permissively-licensed OMZ public models "
         f"({skipped_licence} skipped: non-permissive or unidentifiable licence, "
-        f"{no_ir} without a downloadable IR)"
+        f"{no_ir} skipped: no IR or ONNX to download)"
     )
     return entries
 
@@ -679,6 +700,13 @@ def main(argv: list[str] | None = None) -> int:
         "(one per capability) so the registry stays small",
     )
     parser.add_argument(
+        "--list",
+        action="store_true",
+        dest="list_only",
+        help="print the selected models (name / task / licence) and exit — no "
+        "downloads, no mirror cross-check",
+    )
+    parser.add_argument(
         "--emit-manifest",
         metavar="PATH",
         help="write a runtime manifest (all selected models, mirror primary + "
@@ -722,6 +750,20 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(f"Selected {len(entries)} model(s) to mirror -> {args.repo}")
 
+    # Just show what qualifies (e.g. after --omz-public) without touching the
+    # network again: --emit-manifest cross-checks the mirror, so it would hide
+    # everything that has not been uploaded yet.
+    if args.list_only:
+        by_task: dict[str, list[ModelEntry]] = {}
+        for e in entries:
+            by_task.setdefault(e.task or "other", []).append(e)
+        for task in sorted(by_task):
+            print(f"\n{task} ({len(by_task[task])})")
+            for e in sorted(by_task[task], key=lambda x: x.name):
+                desc = (e.description or "")[:60]
+                print(f"  {e.name:48s} {str(e.license):12s} {desc}")
+        return 0
+
     # Emit a ready-to-commit runtime manifest without downloading/uploading.
     if args.emit_manifest:
         header = (
@@ -753,7 +795,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"  excluding {len(skipped)} model(s) missing/broken on the mirror:")
                 print("    " + ", ".join(sorted(skipped)))
         body = "\n\n".join(_manifest_snippet(e, args.repo) for e in ir_entries)
-        Path(args.emit_manifest).write_text(header + body + "\n", encoding="utf-8")
+        out_path = Path(args.emit_manifest)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(header + body + "\n", encoding="utf-8")
         print(f"Wrote {len(ir_entries)} entries to {args.emit_manifest}")
         return 0
 
