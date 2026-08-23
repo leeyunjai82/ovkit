@@ -268,6 +268,7 @@ Add a capability alias in `aliases.yaml`: `my_alias: { alias: my_model }`.
 | OCR / grayscale model fails at inference | Fixed: the backend reconciles 3↔1 channels automatically. Update with `git pull`. |
 | `This model takes N inputs ...` | Multi-input model (e.g. gaze). Use `model.infer({...})` with all inputs, not a single image. |
 | `... repo is gated` (401) on a public repo | HF "Gated access" is separate from visibility — disable access requests on the model page, or authenticate. |
+| NPU crashes with `LLVM ERROR` / `vpux-compiler` on `rtdetr_r50` | The NPU compiler requires **static shapes**; the RT-DETR IR is dynamic. Run RT-DETR on CPU/GPU, and use the static OMZ models (`face_detection`, `person_detection`, ...) on NPU. `scripts/benchmark.py` isolates each cell so one crash can't kill the run. |
 | Re-generating `omz.yaml` keeps re-adding a broken model | A stale `omz.yaml` overrode `genai.yaml`/curated entries. Delete `omz.yaml`, mirror genai first, then re-emit. |
 | `ovkit list` shows a model as `?` | An alias whose target needs `omz.yaml`; generate + commit it ([§11](#guide-mirror)). |
 
