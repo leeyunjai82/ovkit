@@ -93,8 +93,19 @@ video/webcam throughput. INT8: `model.quantize(calib_images)` (NNCF).
 python scripts/benchmark.py        # prints a paste-ready CPU/GPU/NPU table
 ```
 
-<!-- BENCHMARKS: run scripts/benchmark.py on your Intel hardware and paste the
-     generated Markdown table here (model x device, median ms + FPS). -->
+| model | CPU | GPU | NPU |
+| --- | --- | --- | --- |
+| `rtdetr_r50` | 429.4 ms (2 FPS) | 36.9 ms (27 FPS) | —* |
+| `face_detection_0205` | 11.7 ms (85 FPS) | 4.5 ms (224 FPS) | —* |
+| `person_detection_0202` | 13.4 ms (75 FPS) | 4.7 ms (211 FPS) | 6.6 ms (151 FPS) |
+| `resnet50_binary_0001` | 7.9 ms (126 FPS) | 5.1 ms (195 FPS) | —* |
+| `road_segmentation_adas_0001` | 28.6 ms (35 FPS) | 13.0 ms (77 FPS) | 23.8 ms (42 FPS) |
+| `human_pose_estimation_0007` | 82.2 ms (12 FPS) | 14.0 ms (71 FPS) | 22.7 ms (44 FPS) |
+| `age_gender_recognition_retail_0013` | 0.5 ms (1867 FPS) | 0.5 ms (2098 FPS) | 0.6 ms (1569 FPS) |
+
+*Measured on an Intel® Core™ Ultra (Lunar Lake) laptop — CPU / integrated GPU /
+NPU, median of 30 runs, 1280x720 input, OpenVINO 2026.3.*
+`—` = model not supported by the NPU compiler (dynamic shapes or unsupported ops).
 
 ## Usage
 

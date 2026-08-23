@@ -39,7 +39,15 @@ _DEFAULT_MODELS = [
 
 def _cpu_name() -> str:
     if platform.system() == "Windows":
-        return platform.processor() or "unknown CPU"
+        try:  # marketing name (e.g. "Intel(R) Core(TM) Ultra 7 258V"), not the family/model id
+            import winreg
+
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE, r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
+            )
+            return str(winreg.QueryValueEx(key, "ProcessorNameString")[0]).strip()
+        except OSError:
+            return platform.processor() or "unknown CPU"
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
             if line.startswith("model name"):
