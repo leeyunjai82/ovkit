@@ -10,6 +10,7 @@ name: Release to PyPI
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch: {}   # manual publish of the current version (same checks)
 
 jobs:
   build:
@@ -45,3 +46,5 @@ jobs:
           name: dist
           path: dist/
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true   # a tag push after a manual publish stays green
