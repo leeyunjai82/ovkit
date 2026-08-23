@@ -37,7 +37,8 @@ ovkit은 permissive 라이선스의 OpenVINO 모델을 미러에서 다량 제�
 | `translation` | `machine_translation_nar_en_de_0002` | EN→DE 번역 |
 | `noise_suppression` | `noise_suppression_poconetlike_0001` | 음성 노이즈 제거 |
 | `time_series` | `time_series_forecasting_electricity_0001` | 시계열 예측 |
-| `llm` | `tinyllama_chat` | 챗 LLM (genai) |
+| `llm` | `qwen25_1_5b_instruct` | 챗 LLM (genai) |
+| `vlm` | `qwen3_vl_4b_instruct` | 비전-언어: 이미지+질문 -> 텍스트 |
 | `stt` | `whisper_base` | 음성→텍스트 (genai) |
 
 ```python

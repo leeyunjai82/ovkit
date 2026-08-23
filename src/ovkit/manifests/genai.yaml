@@ -129,3 +129,28 @@ internvl2_1b:
   subfolder: genai/internvl2_1b
   upstream: OpenVINO/InternVL2-1B-int4-ov
   license: mit
+
+# Verified against the OpenVINO org (check_genai_repos.py --search VL):
+# Qwen-VL ships 4B/7B/8B — there is no 2B build. Qwen3-VL-4B is the smallest
+# of the current generation and is the vlm default; InternVL2-1B stays as the
+# lightweight option.
+qwen3_vl_4b_instruct:
+  src: genai
+  pipeline: vlm
+  description: Qwen3-VL 4B instruct vision-language model (image + text -> text), INT4. (~2.5 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/qwen3_vl_4b_instruct
+  upstream: OpenVINO/Qwen3-VL-4B-Instruct-int4-ov
+  license: apache-2.0
+
+qwen25_vl_7b_instruct:
+  src: genai
+  pipeline: vlm
+  description: Qwen2.5-VL 7B instruct vision-language model, INT4 — highest quality here. (~5 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/qwen25_vl_7b_instruct
+  upstream: OpenVINO/Qwen2.5-VL-7B-Instruct-int4-ov
+  license: apache-2.0
+
+# No text-to-speech: the OpenVINO org publishes no TTS model (searched 'tts',
+# 'speech'), so ovkit has nothing permissive to serve for that pipeline type.
