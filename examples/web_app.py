@@ -288,6 +288,76 @@ def _denoise(model: str, audio: np.ndarray) -> np.ndarray:
     return np.concatenate(out)[: len(audio)] if out else audio
 
 
+@app.post("/stop")
+def stop_stream() -> JSONResponse:
+    _active["id"] += 1  # invalidate any running webcam generator
+    return JSONResponse({"ok": True})
+
+
+@app.get("/selfcheck_stream")
+def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
+    """Test EVERY registered model (download + compile [+ quick inference]);
+    stream one JSON line per model as Server-Sent Events for the live table."""
+    import json as _json
+    import time as _time
+
+    def gen():
+        names = [
+            n
+            for n in list_models()
+            if (e := resolve(n)) is not None and e.name == n and e.src != "genai"
+        ]
+        yield f"data: {_json.dumps({'type': 'start', 'total': len(names)})}\n\n"
+        img = np.zeros((256, 256, 3), dtype=np.uint8)
+        counts = {"ok": 0, "warn": 0, "fail": 0}
+        for name in names:
+            entry = resolve(name)
+            yield "data: " + _json.dumps({"type": "running", "name": name}) + "\n\n"
+            t0 = _time.perf_counter()
+            status, detail = "ok", ""
+            try:
+                with _lock:
+                    _models.clear()  # bound memory across the sweep
+                model = Model(name, device="AUTO")
+                n_inputs = len(model.inputs)  # forces compile
+                if load_only or n_inputs > 1 or model_kind(name) != "image":
+                    detail = "loaded" + (" (multi-input)" if n_inputs > 1 else "")
+                else:
+                    r = model(img)[0]
+                    if r.boxes is not None:
+                        detail = f"{len(r.boxes)} boxes"
+                    elif r.text:
+                        detail = f'"{r.text}"'
+                    elif r.probs is not None:
+                        detail = f"top1 {r.name_for(r.probs.top1)}"
+                    elif r.masks is not None:
+                        detail = f"masks {tuple(r.masks.data.shape)}"
+                    elif r.keypoints is not None:
+                        detail = f"keypoints {tuple(r.keypoints.data.shape)}"
+                    else:
+                        detail = "ran (raw tensors)"
+            except Exception as exc:
+                msg = str(exc)
+                if "Failed to download" in msg or "primary source failed" in msg:
+                    status, detail = "fail", "download failed"
+                else:
+                    status, detail = "warn", f"{type(exc).__name__}: {msg[:70]}"
+            counts[status] += 1
+            yield "data: " + _json.dumps(
+                {
+                    "type": "model",
+                    "name": name,
+                    "task": (entry.task if entry else "") or "",
+                    "status": status,
+                    "detail": detail,
+                    "ms": round((_time.perf_counter() - t0) * 1000),
+                }
+            ) + "\n\n"
+        yield f"data: {_json.dumps({'type': 'done', **counts})}\n\n"
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
+
+
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     by_task: dict[str, list[str]] = {}
@@ -302,86 +372,273 @@ def index() -> str:
                 continue  # capability alias — its target is already listed
             by_task.setdefault(entry.task or "other", []).append(name)
             kinds[name] = model_kind(name)
+    descs: dict[str, str] = {}
+    for names in by_task.values():
+        for n in names:
+            e = resolve(n)
+            descs[n] = (e.description or "") if e else ""
     options = ""
     for task in sorted(by_task):
         opts = "".join(f"<option>{n}</option>" for n in by_task[task])
         options += f'<optgroup label="{task} ({len(by_task[task])})">{opts}</optgroup>'
+    total = sum(len(v) for v in by_task.values())
     import json
 
     return f"""<!doctype html>
-<html><head><meta charset="utf-8"><title>ovkit model tester</title>
+<html><head><meta charset="utf-8"><title>ovkit</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  body {{ font-family: system-ui, sans-serif; margin: 24px; background:#111; color:#eee; }}
-  select, input, button, textarea {{ font-size: 15px; padding: 6px; }}
-  #out {{ display:flex; gap:16px; margin-top:16px; flex-wrap:wrap; }}
-  #view {{ max-width:70vw; border:1px solid #333; border-radius:8px; }}
-  pre {{ background:#1c1c1c; padding:12px; border-radius:8px; max-height:70vh; overflow:auto; }}
-  label {{ margin-right:12px; }} .ctl {{ margin-top:10px; }}
+  :root {{
+    --bg:#0d1117; --card:#161b22; --card2:#1c2330; --line:#2a3240;
+    --fg:#e6edf3; --muted:#8b949e; --brand:#22b8cf; --brand-dim:#0a7d8c;
+    --ok:#3fb950; --warn:#d29922; --fail:#f85149;
+  }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; background:var(--bg); color:var(--fg);
+         font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }}
+  header {{ display:flex; align-items:center; gap:12px; padding:14px 22px;
+            border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:5; }}
+  .logo {{ width:14px; height:14px; border-radius:4px;
+           background:linear-gradient(135deg,var(--brand),var(--brand-dim)); }}
+  header b {{ font-size:17px; letter-spacing:.3px; }}
+  header .sub {{ color:var(--muted); font-size:13px; }}
+  header a {{ color:var(--brand); text-decoration:none; margin-left:auto; font-size:13px; }}
+  .tabs {{ display:flex; gap:6px; padding:14px 22px 0; }}
+  .tab {{ padding:8px 16px; border-radius:9px 9px 0 0; cursor:pointer; color:var(--muted);
+          border:1px solid transparent; border-bottom:none; font-weight:600; font-size:14px; }}
+  .tab.active {{ color:var(--fg); background:var(--card); border-color:var(--line); }}
+  main {{ padding:0 22px 40px; }}
+  .card {{ background:var(--card); border:1px solid var(--line); border-radius:0 12px 12px 12px; padding:18px; }}
+  .row {{ display:flex; gap:12px; align-items:center; flex-wrap:wrap; }}
+  select,input[type=file],textarea,input[type=number] {{
+    background:var(--card2); color:var(--fg); border:1px solid var(--line);
+    border-radius:8px; padding:8px 10px; font-size:14px; }}
+  select {{ min-width:340px; }}
+  textarea {{ width:100%; resize:vertical; }}
+  button {{ background:var(--brand-dim); color:#fff; border:0; border-radius:8px;
+            padding:9px 18px; font-size:14px; font-weight:600; cursor:pointer; }}
+  button:hover {{ background:var(--brand); }}
+  button.ghost {{ background:transparent; border:1px solid var(--line); color:var(--muted); }}
+  button.ghost:hover {{ color:var(--fg); border-color:var(--muted); }}
+  .seg {{ display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; }}
+  .seg label {{ padding:7px 16px; cursor:pointer; color:var(--muted); font-size:14px; }}
+  .seg input {{ display:none; }}
+  .seg label:has(input:checked) {{ background:var(--brand-dim); color:#fff; }}
+  .desc {{ color:var(--muted); font-size:13px; margin:6px 2px 0; min-height:18px; }}
+  .badge {{ font-size:12px; padding:2px 10px; border-radius:99px;
+            background:var(--card2); border:1px solid var(--line); color:var(--brand); }}
+  .grid {{ display:grid; grid-template-columns:minmax(0,1.4fr) minmax(280px,1fr); gap:16px; margin-top:16px; }}
+  @media (max-width:900px) {{ .grid {{ grid-template-columns:1fr; }} }}
+  .media {{ background:#000; border:1px solid var(--line); border-radius:12px;
+            min-height:240px; display:flex; align-items:center; justify-content:center; overflow:hidden; }}
+  .media img {{ max-width:100%; max-height:70vh; display:block; }}
+  .media .hint {{ color:var(--muted); font-size:14px; padding:30px; text-align:center; }}
+  .panel {{ background:var(--card2); border:1px solid var(--line); border-radius:12px;
+            padding:14px; max-height:70vh; overflow:auto; }}
+  .panel h4 {{ margin:0 0 8px; font-size:13px; color:var(--muted);
+               text-transform:uppercase; letter-spacing:.6px; }}
+  .panel pre {{ margin:0; white-space:pre-wrap; font:13px/1.6 ui-monospace,Consolas,monospace; }}
+  .slider {{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:14px; }}
+  input[type=range] {{ accent-color:var(--brand); width:130px; }}
+  /* full-test table */
+  .bar {{ height:8px; background:var(--card2); border-radius:99px; overflow:hidden;
+          border:1px solid var(--line); flex:1; }}
+  .bar > div {{ height:100%; width:0%; background:linear-gradient(90deg,var(--brand-dim),var(--brand));
+                transition:width .3s; }}
+  table {{ width:100%; border-collapse:collapse; margin-top:14px; font-size:14px; }}
+  th,td {{ text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); }}
+  th {{ color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }}
+  td.mono {{ font-family:ui-monospace,Consolas,monospace; font-size:13px; }}
+  .chip {{ display:inline-block; padding:1px 10px; border-radius:99px; font-size:12px; font-weight:700; }}
+  .chip.ok {{ background:rgba(63,185,80,.15); color:var(--ok); }}
+  .chip.warn {{ background:rgba(210,153,34,.15); color:var(--warn); }}
+  .chip.fail {{ background:rgba(248,81,73,.15); color:var(--fail); }}
+  .chip.run {{ background:rgba(34,184,207,.15); color:var(--brand); }}
+  .muted {{ color:var(--muted); }}
 </style></head>
 <body>
-  <h2>ovkit model tester</h2>
-  <label>Model: <select id="model">{options or '<option>(no models)</option>'}</select></label>
-  <span id="kind" style="color:#9b9"></span>
+<header>
+  <div class="logo"></div><b>ovkit</b>
+  <span class="sub">model tester · {total} models</span>
+  <a href="https://leeyunjai82.github.io/ovkit/" target="_blank">docs ↗</a>
+</header>
 
-  <div class="ctl" id="c-image">
-    <label><input type="radio" name="src" value="webcam" checked> Webcam</label>
-    <label><input type="radio" name="src" value="upload"> Image file</label>
-    <label>conf <input id="conf" type="number" value="0.25" min="0" max="1" step="0.05" style="width:70px"></label>
-    <span id="webctl"><button id="load">Load</button></span>
-    <span id="upctl" style="display:none"><input id="file" type="file" accept="image/*"><button id="runimg">Run</button></span>
+<div class="tabs">
+  <div class="tab active" data-tab="one">모델 테스트</div>
+  <div class="tab" data-tab="all">전체 전수 테스트</div>
+</div>
+
+<main>
+<!-- ============ single model ============ -->
+<section id="tab-one" class="card">
+  <div class="row">
+    <select id="model">{options or '<option>(no models)</option>'}</select>
+    <span class="badge" id="kind">image</span>
+    <span class="seg" id="srcseg">
+      <label><input type="radio" name="src" value="webcam" checked>웹캠</label>
+      <label><input type="radio" name="src" value="upload">이미지 파일</label>
+    </span>
+    <span class="slider">conf <input id="conf" type="range" min="0" max="1" step="0.05" value="0.25">
+      <span id="confv">0.25</span></span>
   </div>
-  <div class="ctl" id="c-audio" style="display:none">
-    <input id="afile" type="file" accept="audio/wav,.wav"><button id="runaudio">Run</button>
-    <span style="color:#999">(mono 16 kHz .wav)</span>
+  <div class="desc" id="desc"></div>
+
+  <div class="row" style="margin-top:12px">
+    <span id="webctl"><button id="load">▶ 웹캠 시작</button>
+      <button id="stopbtn" class="ghost">■ 정지</button></span>
+    <span id="upctl" style="display:none"><input id="file" type="file" accept="image/*">
+      <button id="runimg">실행</button></span>
+    <span id="audctl" style="display:none"><input id="afile" type="file" accept="audio/wav,.wav">
+      <button id="runaudio">실행</button> <span class="muted">(mono 16 kHz .wav)</span></span>
   </div>
-  <div class="ctl" id="c-text" style="display:none">
-    <textarea id="text" rows="3" cols="60">Explain OpenVINO in one sentence.</textarea>
-    <button id="runtext">Run</button>
+  <div id="txtctl" style="display:none; margin-top:12px">
+    <textarea id="text" rows="3">Explain OpenVINO in one sentence.</textarea>
+    <div style="margin-top:8px"><button id="runtext">실행</button></div>
   </div>
 
-  <div id="out"><img id="view" src="" alt=""><audio id="audio" controls style="display:none"></audio><pre id="summary"></pre></div>
+  <div class="grid">
+    <div class="media" id="mediabox">
+      <span class="hint" id="hint">모델을 고르고 웹캠을 시작하거나 이미지를 올려보세요.<br>
+      처음 쓰는 모델은 다운로드 때문에 수십 초 걸릴 수 있어요 (이후엔 캐시).</span>
+      <img id="view" src="" alt="" style="display:none">
+    </div>
+    <div class="panel"><h4>결과</h4><pre id="summary"></pre>
+      <audio id="audio" controls style="display:none; width:100%; margin-top:10px"></audio></div>
+  </div>
+</section>
+
+<!-- ============ full sweep ============ -->
+<section id="tab-all" class="card" style="display:none">
+  <div class="row">
+    <button id="sweep">전체 모델 전수 테스트 시작</button>
+    <label class="muted" style="font-size:14px">
+      <input type="checkbox" id="loadonly" checked> 로드까지만 (빠름 — 다운로드+컴파일 확인)</label>
+    <div class="bar"><div id="prog"></div></div>
+    <span class="muted" id="count">0 / 0</span>
+  </div>
+  <div class="desc">모델을 <b>하나씩 순서대로</b> 미러에서 받아 검사합니다. 처음엔 다운로드 때문에
+  느리지만 전부 캐시되므로 두 번째부터는 빠릅니다. 창을 닫아도 다시 열어 이어서 돌리면 됩니다.</div>
+  <div class="row" style="margin-top:10px; gap:8px">
+    <span class="chip ok" id="n-ok">✓ 0</span>
+    <span class="chip warn" id="n-warn">⚠ 0</span>
+    <span class="chip fail" id="n-fail">✗ 0</span>
+  </div>
+  <table id="tbl"><thead><tr>
+    <th>#</th><th>model</th><th>task</th><th>status</th><th>detail</th><th>ms</th>
+  </tr></thead><tbody></tbody></table>
+</section>
+</main>
+
 <script>
   const KINDS = {json.dumps(kinds)};
+  const DESCS = {json.dumps(descs)};
   const $ = (id) => document.getElementById(id);
-  function show(kind) {{
-    $('c-image').style.display = kind==='image' ? '' : 'none';
-    $('c-audio').style.display = kind==='audio' ? '' : 'none';
-    $('c-text').style.display  = kind==='text'  ? '' : 'none';
-    $('kind').textContent = ' [' + kind + ']';
-    $('view').src=''; $('audio').style.display='none'; $('summary').textContent='';
-  }}
+
+  // tabs
+  document.querySelectorAll('.tab').forEach(t => t.onclick = () => {{
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    $('tab-one').style.display = t.dataset.tab==='one' ? '' : 'none';
+    $('tab-all').style.display = t.dataset.tab==='all' ? '' : 'none';
+  }});
+
+  // ---- single model ----
   function curKind() {{ return KINDS[$('model').value] || 'image'; }}
-  $('model').addEventListener('change', () => show(curKind()));
-  document.querySelectorAll('input[name=src]').forEach(el => el.addEventListener('change', () => {{
-    const web = document.querySelector('input[name=src]:checked').value==='webcam';
-    $('webctl').style.display = web?'':'none'; $('upctl').style.display = web?'none':'';
-    $('view').src='';
-  }}));
-  async function post(url, fd) {{
-    $('summary').textContent='running '+$('model').value+' ...';
-    const j = await (await fetch(url,{{method:'POST',body:fd}})).json();
-    if (j.error) {{ $('summary').textContent='error: '+j.error; return; }}
-    $('summary').textContent = j.summary || '';
-    if (j.image) {{ $('view').src=j.image; }}
-    if (j.audio) {{ $('audio').src=j.audio; $('audio').style.display=''; }}
+  function show(kind) {{
+    $('kind').textContent = kind;
+    $('desc').textContent = DESCS[$('model').value] || '';
+    $('srcseg').style.display = kind==='image' ? '' : 'none';
+    const web = kind==='image' && document.querySelector('input[name=src]:checked').value==='webcam';
+    $('webctl').style.display = kind==='image' && web ? '' : 'none';
+    $('upctl').style.display  = kind==='image' && !web ? '' : 'none';
+    $('audctl').style.display = kind==='audio' ? '' : 'none';
+    $('txtctl').style.display = kind==='text'  ? '' : 'none';
+    stopView();
   }}
-  $('load').addEventListener('click', () => {{
-    $('summary').textContent='streaming ...';
-    $('view').src=`/stream?model=${{encodeURIComponent($('model').value)}}&conf=${{$('conf').value}}&t=${{Date.now()}}`;
-  }});
-  $('runimg').addEventListener('click', () => {{
+  function stopView() {{
+    $('view').src=''; $('view').style.display='none'; $('hint').style.display='';
+    $('audio').style.display='none'; $('summary').textContent='';
+    fetch('/stop', {{method:'POST'}});
+  }}
+  function showImg(src) {{ $('hint').style.display='none'; $('view').style.display=''; $('view').src=src; }}
+  $('model').onchange = () => show(curKind());
+  document.querySelectorAll('input[name=src]').forEach(el => el.onchange = () => show(curKind()));
+  $('conf').oninput = () => $('confv').textContent = $('conf').value;
+
+  async function post(url, fd) {{
+    $('summary').textContent = $('model').value + ' 실행 중... (처음이면 다운로드에 시간이 걸립니다)';
+    try {{
+      const j = await (await fetch(url,{{method:'POST',body:fd}})).json();
+      if (j.error) {{ $('summary').textContent = '오류: ' + j.error; return; }}
+      $('summary').textContent = j.summary || '';
+      if (j.image) showImg(j.image);
+      if (j.audio) {{ $('audio').src=j.audio; $('audio').style.display=''; }}
+    }} catch (e) {{ $('summary').textContent = '요청 실패: ' + e; }}
+  }}
+  $('load').onclick = () => {{
+    $('summary').textContent = '스트리밍 중... (모델 첫 로드시 수십 초)';
+    showImg(`/stream?model=${{encodeURIComponent($('model').value)}}&conf=${{$('conf').value}}&t=${{Date.now()}}`);
+  }};
+  $('stopbtn').onclick = stopView;
+  $('runimg').onclick = () => {{
     if(!$('file').files[0]) return; const fd=new FormData();
-    fd.append('model',$('model').value); fd.append('conf',$('conf').value); fd.append('file',$('file').files[0]);
-    post('/run', fd);
-  }});
-  $('runaudio').addEventListener('click', () => {{
+    fd.append('model',$('model').value); fd.append('conf',$('conf').value);
+    fd.append('file',$('file').files[0]); post('/run', fd);
+  }};
+  $('runaudio').onclick = () => {{
     if(!$('afile').files[0]) return; const fd=new FormData();
-    fd.append('model',$('model').value); fd.append('file',$('afile').files[0]); post('/run_audio', fd);
-  }});
-  $('runtext').addEventListener('click', () => {{
-    const fd=new FormData(); fd.append('model',$('model').value); fd.append('text',$('text').value); post('/run_text', fd);
-  }});
+    fd.append('model',$('model').value); fd.append('file',$('afile').files[0]);
+    post('/run_audio', fd);
+  }};
+  $('runtext').onclick = () => {{
+    const fd=new FormData(); fd.append('model',$('model').value);
+    fd.append('text',$('text').value); post('/run_text', fd);
+  }};
   show(curKind());
+
+  // ---- full sweep ----
+  let es = null, done = 0, total = 0;
+  const C = {{ok:0, warn:0, fail:0}};
+  $('sweep').onclick = () => {{
+    if (es) {{ es.close(); }}
+    $('tbl').querySelector('tbody').innerHTML=''; done=0; C.ok=C.warn=C.fail=0; refresh();
+    $('sweep').textContent='실행 중...'; $('sweep').disabled=true;
+    es = new EventSource('/selfcheck_stream?load_only=' + ($('loadonly').checked?1:0));
+    es.onmessage = (ev) => {{
+      const d = JSON.parse(ev.data);
+      if (d.type==='start') {{ total=d.total; refresh(); }}
+      else if (d.type==='running') {{ setRow(d.name, '', 'run', '다운로드/컴파일 중...', ''); }}
+      else if (d.type==='model') {{
+        done++; C[d.status]++; setRow(d.name, d.task, d.status, d.detail, d.ms+' ms'); refresh();
+      }}
+      else if (d.type==='done') {{
+        es.close(); es=null;
+        $('sweep').textContent='전체 모델 전수 테스트 시작'; $('sweep').disabled=false;
+      }}
+    }};
+    es.onerror = () => {{ if(es) es.close(); es=null;
+      $('sweep').textContent='전체 모델 전수 테스트 시작'; $('sweep').disabled=false; }};
+  }};
+  function refresh() {{
+    $('count').textContent = done + ' / ' + (total||'?');
+    $('prog').style.width = total ? (100*done/total)+'%' : '0%';
+    $('n-ok').textContent='✓ '+C.ok; $('n-warn').textContent='⚠ '+C.warn; $('n-fail').textContent='✗ '+C.fail;
+  }}
+  const ICONS = {{ok:'✓ OK', warn:'⚠ 확인필요', fail:'✗ 실패', run:'… 진행중'}};
+  function setRow(name, task, status, detail, ms) {{
+    let tr = document.getElementById('row-'+name);
+    if (!tr) {{
+      tr = document.createElement('tr'); tr.id='row-'+name;
+      tr.innerHTML = '<td class="muted"></td><td class="mono"></td><td class="muted"></td><td></td><td class="muted"></td><td class="muted"></td>';
+      $('tbl').querySelector('tbody').appendChild(tr);
+      tr.children[0].textContent = $('tbl').querySelectorAll('tbody tr').length;
+      tr.children[1].textContent = name;
+    }}
+    if (task) tr.children[2].textContent = task;
+    tr.children[3].innerHTML = '<span class="chip '+status+'">'+ICONS[status]+'</span>';
+    tr.children[4].textContent = detail; tr.children[5].textContent = ms;
+    tr.scrollIntoView({{block:'nearest'}});
+  }}
 </script>
 </body></html>"""
 
