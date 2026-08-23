@@ -30,7 +30,7 @@ from .core.model import Model
 from .core.registry import list_models
 from .core.results import Boxes, Keypoints, Masks, Probs, Results
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 __all__ = [
     "Model",
