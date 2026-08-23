@@ -72,3 +72,23 @@ def test_spdx_from_license_url_identifies_permissive_urls():
     # Non-permissive or unknown must be None so the mirror skips it.
     assert _spdx_from_license_url("https://creativecommons.org/licenses/by-nc/4.0/") is None
     assert _spdx_from_license_url(None) is None
+
+
+def test_omz_onnx_url_picks_onnx_when_no_ir():
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from build_mirror import _omz_onnx_url, _omz_source_url
+
+    # A public-style model.yml: original framework files, no pre-built IR.
+    spec = {
+        "files": [
+            {"name": "model.pth", "source": "https://example.com/model.pth"},
+            {"name": "model.onnx", "source": "https://example.com/model.onnx"},
+        ]
+    }
+    assert _omz_source_url(spec) is None  # no FP16 .xml
+    assert _omz_onnx_url(spec) == "https://example.com/model.onnx"
+    # Nothing convertible -> None, so the model is skipped rather than half-added.
+    assert _omz_onnx_url({"files": [{"name": "w.caffemodel", "source": "u"}]}) is None
