@@ -211,4 +211,7 @@ ovkit은 Apache-2.0이고 라이선스가 깨끗합니다:
 - 얼굴 모델은 ovkit HF 미러 `leeyunjai/ovkit-models`의 Apache-2.0 OMZ 가중치 사용(폐기된
   `omz_downloader` 미사용).
 - **InsightFace 사전학습 가중치 미사용** — 비상업 라이선스; 아키텍처 참고만.
+  이 때문에 OMZ public 미러링에서 `face_recognition_resnet100_arcface_onnx`는
+  제외합니다 — OMZ는 Apache-2.0으로 표기하지만, 그 라이선스는 패키징에 대한
+  것이고 가중치는 InsightFace에서 파생됐습니다.
 - 모든 매니페스트 항목은 permissive `license`를 선언해야 하며, 비-permissive는 로드 시 거부됩니다.
