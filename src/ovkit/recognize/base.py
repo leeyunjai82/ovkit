@@ -70,6 +70,10 @@ class BaseAdapter:
                 f"(e.g. face crops + head pose); use model.infer() with all inputs."
             )
         shape = backend.input_shape  # full shape, -1 for dynamic dims
+        # NHWC (TF-converted OMZ models): channels last -> spatial dims are 1, 2.
+        if len(shape) == 4 and shape[-1] in (1, 3) and shape[1] not in (1, 3):
+            if shape[1] > 0 and shape[2] > 0:
+                return int(shape[1]), int(shape[2])
         if len(shape) >= 2 and shape[-1] and shape[-1] > 0 and shape[-2] and shape[-2] > 0:
             return int(shape[-2]), int(shape[-1])
         return self.imgsz, self.imgsz
