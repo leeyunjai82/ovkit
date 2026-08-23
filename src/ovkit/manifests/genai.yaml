@@ -35,7 +35,7 @@ whisper_base:
   repo: leeyunjai/ovkit-models
   subfolder: genai/whisper_base
   upstream: OpenVINO/whisper-base-fp16-ov
-  license: mit
+  license: apache-2.0
 
 # --- Extended lineup ------------------------------------------------------
 # Candidates from the OpenVINO HF org, restricted to permissive licences
@@ -101,7 +101,7 @@ whisper_tiny:
   repo: leeyunjai/ovkit-models
   subfolder: genai/whisper_tiny
   upstream: OpenVINO/whisper-tiny-fp16-ov
-  license: mit
+  license: apache-2.0
 
 whisper_small:
   src: genai
@@ -110,7 +110,7 @@ whisper_small:
   repo: leeyunjai/ovkit-models
   subfolder: genai/whisper_small
   upstream: OpenVINO/whisper-small-fp16-ov
-  license: mit
+  license: apache-2.0
 
 whisper_large_v3_turbo:
   src: genai
@@ -128,22 +128,4 @@ internvl2_1b:
   repo: leeyunjai/ovkit-models
   subfolder: genai/internvl2_1b
   upstream: OpenVINO/InternVL2-1B-int4-ov
-  license: mit
-
-qwen2_vl_2b_instruct:
-  src: genai
-  pipeline: vlm
-  description: Qwen2-VL 2B instruct vision-language model, INT4. (~1.5 GB)
-  repo: leeyunjai/ovkit-models
-  subfolder: genai/qwen2_vl_2b_instruct
-  upstream: OpenVINO/Qwen2-VL-2B-Instruct-int4-ov
-  license: apache-2.0
-
-speecht5_tts:
-  src: genai
-  pipeline: text2speech
-  description: SpeechT5 text-to-speech, FP16. (~600 MB)
-  repo: leeyunjai/ovkit-models
-  subfolder: genai/speecht5_tts
-  upstream: OpenVINO/speecht5-tts-fp16-ov
   license: mit
