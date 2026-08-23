@@ -57,3 +57,18 @@ def test_alias_resolves_to_target(tmp_path, monkeypatch):
     assert entry.name == "real_det"
     assert entry.task == "detect"
     registry.reload()
+
+
+def test_spdx_from_license_url_identifies_permissive_urls():
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from build_mirror import _spdx_from_license_url
+
+    assert _spdx_from_license_url("https://www.apache.org/licenses/LICENSE-2.0") == "apache-2.0"
+    assert _spdx_from_license_url("https://opensource.org/licenses/MIT") == "mit"
+    assert _spdx_from_license_url("https://opensource.org/licenses/BSD-3-Clause") == "bsd-3-clause"
+    # Non-permissive or unknown must be None so the mirror skips it.
+    assert _spdx_from_license_url("https://creativecommons.org/licenses/by-nc/4.0/") is None
+    assert _spdx_from_license_url(None) is None
