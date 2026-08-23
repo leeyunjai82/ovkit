@@ -36,3 +36,114 @@ whisper_base:
   subfolder: genai/whisper_base
   upstream: OpenVINO/whisper-base-fp16-ov
   license: mit
+
+# --- Extended lineup ------------------------------------------------------
+# Candidates from the OpenVINO HF org, restricted to permissive licences
+# (Apache-2.0 / MIT). Llama, Gemma and Stable-Diffusion/LCM are deliberately
+# absent: their licences (Llama Community, Gemma, CreativeML OpenRAIL) are not
+# on ovkit's permissive allow-list, so they would be refused at load time.
+#
+# Verify the upstream ids before mirroring (fast, no downloads):
+#     python scripts/check_genai_repos.py
+# then mirror the ones you want:
+#     python scripts/build_mirror.py --models qwen25_1_5b_instruct whisper_small
+# ---------------------------------------------------------------------------
+
+qwen25_1_5b_instruct:
+  src: genai
+  pipeline: llm
+  description: Qwen2.5 1.5B instruct LLM, INT4 — good quality/size balance. (~1 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/qwen25_1_5b_instruct
+  upstream: OpenVINO/Qwen2.5-1.5B-Instruct-int4-ov
+  license: apache-2.0
+
+qwen25_7b_instruct:
+  src: genai
+  pipeline: llm
+  description: Qwen2.5 7B instruct LLM, INT4 — strongest general chat in this set. (~4.5 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/qwen25_7b_instruct
+  upstream: OpenVINO/Qwen2.5-7B-Instruct-int4-ov
+  license: apache-2.0
+
+phi35_mini_instruct:
+  src: genai
+  pipeline: llm
+  description: Microsoft Phi-3.5 mini (3.8B) instruct LLM, INT4. (~2.5 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/phi35_mini_instruct
+  upstream: OpenVINO/Phi-3.5-mini-instruct-int4-ov
+  license: mit
+
+mistral_7b_instruct:
+  src: genai
+  pipeline: llm
+  description: Mistral 7B Instruct v0.2, INT4. (~4 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/mistral_7b_instruct
+  upstream: OpenVINO/Mistral-7B-Instruct-v0.2-int4-ov
+  license: apache-2.0
+
+deepseek_r1_distill_qwen_1_5b:
+  src: genai
+  pipeline: llm
+  description: DeepSeek-R1 distilled into Qwen 1.5B — reasoning-style output, INT4. (~1 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/deepseek_r1_distill_qwen_1_5b
+  upstream: OpenVINO/DeepSeek-R1-Distill-Qwen-1.5B-int4-ov
+  license: mit
+
+whisper_tiny:
+  src: genai
+  pipeline: whisper
+  description: Whisper tiny speech-to-text — fastest, lowest accuracy. (~80 MB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/whisper_tiny
+  upstream: OpenVINO/whisper-tiny-fp16-ov
+  license: mit
+
+whisper_small:
+  src: genai
+  pipeline: whisper
+  description: Whisper small speech-to-text — better accuracy than base. (~500 MB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/whisper_small
+  upstream: OpenVINO/whisper-small-fp16-ov
+  license: mit
+
+whisper_large_v3_turbo:
+  src: genai
+  pipeline: whisper
+  description: Whisper large-v3 turbo speech-to-text — best accuracy. (~1.6 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/whisper_large_v3_turbo
+  upstream: OpenVINO/whisper-large-v3-turbo-fp16-ov
+  license: mit
+
+internvl2_1b:
+  src: genai
+  pipeline: vlm
+  description: InternVL2 1B vision-language model (image + text -> text), INT4. (~1 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/internvl2_1b
+  upstream: OpenVINO/InternVL2-1B-int4-ov
+  license: mit
+
+qwen2_vl_2b_instruct:
+  src: genai
+  pipeline: vlm
+  description: Qwen2-VL 2B instruct vision-language model, INT4. (~1.5 GB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/qwen2_vl_2b_instruct
+  upstream: OpenVINO/Qwen2-VL-2B-Instruct-int4-ov
+  license: apache-2.0
+
+speecht5_tts:
+  src: genai
+  pipeline: text2speech
+  description: SpeechT5 text-to-speech, FP16. (~600 MB)
+  repo: leeyunjai/ovkit-models
+  subfolder: genai/speecht5_tts
+  upstream: OpenVINO/speecht5-tts-fp16-ov
+  license: mit
