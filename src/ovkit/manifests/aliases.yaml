@@ -50,5 +50,5 @@ noise_suppression: {alias: noise_suppression_poconetlike_0001}
 time_series: {alias: time_series_forecasting_electricity_0001}
 
 # --- GenAI (work out of the box) ---
-llm: {alias: tinyllama_chat}
+llm: {alias: qwen25_1_5b_instruct}   # Qwen2.5 1.5B — better than TinyLlama at the same size
 stt: {alias: whisper_base}

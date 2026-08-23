@@ -21,6 +21,10 @@ Where the models come from
 * ``--omz-intel``: the **entire** Open Model Zoo ``intel`` set, enumerated live
   from GitHub. Only Apache-2.0 models are kept, so the mirror stays clean. This
   is how you mirror "all the OpenVINO models", not a hand-written list.
+* ``--omz-public``: Open Model Zoo ``public`` (third-party) models, but only
+  those whose licence can be **proved** permissive — OMZ records a licence URL
+  rather than an SPDX id, so each is resolved from the URL (and, failing that,
+  the licence text) and anything unidentifiable is skipped.
 
 It prints, per model, the manifest entry that points ovkit at the mirror — paste
 those into ``src/ovkit/manifests/models.yaml`` to switch ovkit over to it.
@@ -36,6 +40,7 @@ Flags::
 
     --models NAME ...     subset by name (default: every selected model)
     --omz-intel           also mirror all Apache-2.0 OMZ intel models
+    --omz-public          also mirror OMZ public models with a permissive licence
     --manifest PATH ...   extra source manifests to include
     --no-extra            do not auto-load scripts/mirror_extra/
     --precision fp16      IR precision (default: fp16)
@@ -59,6 +64,7 @@ import yaml
 # Reuse ovkit's own resolve/download/convert so the mirror matches what ovkit
 # will later fetch from it.
 from ovkit.core import registry as reg
+from ovkit.core.constants import is_permissive
 from ovkit.core.convert import to_ir
 from ovkit.core.download import fetch
 from ovkit.core.registry import ModelEntry, list_models, resolve
@@ -73,6 +79,34 @@ _OMZ_API = (
 _OMZ_RAW = (
     "https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/models/intel/"
     "{name}/model.yml"
+)
+_OMZ_PUBLIC_API = (
+    "https://api.github.com/repos/openvinotoolkit/open_model_zoo/contents/models/public?ref=master"
+)
+_OMZ_PUBLIC_RAW = (
+    "https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/models/public/"
+    "{name}/model.yml"
+)
+
+#: Substrings that identify a permissive licence from its URL (lower-cased).
+_LICENSE_URL_SPDX: tuple[tuple[str, str], ...] = (
+    ("apache.org/licenses/license-2.0", "apache-2.0"),
+    ("apache-2.0", "apache-2.0"),
+    ("opensource.org/licenses/mit", "mit"),
+    ("mit-license", "mit"),
+    ("/license.mit", "mit"),
+    ("opensource.org/licenses/bsd-3-clause", "bsd-3-clause"),
+    ("bsd-3-clause", "bsd-3-clause"),
+    ("opensource.org/licenses/bsd-2-clause", "bsd-2-clause"),
+    ("bsd-2-clause", "bsd-2-clause"),
+)
+
+#: Distinctive phrases in the licence *text*, checked when the URL is generic
+#: (e.g. a repo LICENSE file). Order matters: first match wins.
+_LICENSE_TEXT_SPDX: tuple[tuple[str, str], ...] = (
+    ("apache license", "apache-2.0"),
+    ("permission is hereby granted, free of charge", "mit"),
+    ("redistributions of source code must retain", "bsd-3-clause"),
 )
 
 # OMZ task_type -> ovkit task (folder name in the mirror).
@@ -150,6 +184,80 @@ def _omz_source_url(spec: dict) -> str | None:
         if isinstance(src, dict):
             return src.get("url") or src.get("$ref")
     return None
+
+
+def _spdx_from_license_url(url: str | None) -> str | None:
+    """Best-effort SPDX id for an OMZ ``license:`` URL, or ``None`` if unclear.
+
+    OMZ records a *URL*, not an SPDX id. Match the URL first; if it is generic
+    (a repo LICENSE file), fetch the text and look for a distinctive phrase.
+    Anything that cannot be identified returns ``None`` and is skipped — for a
+    licence-clean mirror, "unknown" must mean "don't redistribute".
+    """
+    if not url:
+        return None
+    low = url.lower()
+    for needle, spdx in _LICENSE_URL_SPDX:
+        if needle in low:
+            return spdx
+    raw = url.replace("github.com/", "raw.githubusercontent.com/").replace("/blob/", "/")
+    try:
+        text = _http_text(raw)[:4000].lower()
+    except Exception:
+        return None
+    for needle, spdx in _LICENSE_TEXT_SPDX:
+        if needle in text:
+            return spdx
+    return None
+
+
+def omz_public_entries() -> list[ModelEntry]:
+    """Enumerate OMZ ``public`` models that are provably permissively licensed.
+
+    Unlike ``models/intel`` (uniformly Apache-2.0), ``models/public`` re-hosts
+    third-party models under many licences, so each one is resolved to an SPDX
+    id and anything not on ovkit's permissive allow-list — or not identifiable
+    — is skipped.
+    """
+    print("Enumerating Open Model Zoo public models from GitHub...")
+    listing = _http_json(_OMZ_PUBLIC_API)
+    entries: list[ModelEntry] = []
+    skipped_licence = no_ir = 0
+    for item in listing if isinstance(listing, list) else []:
+        if item.get("type") != "dir":
+            continue
+        name = item["name"]
+        try:
+            spec = yaml.safe_load(_http_text(_OMZ_PUBLIC_RAW.format(name=name))) or {}
+        except Exception:
+            continue
+        url = _omz_source_url(spec)
+        if not url:
+            no_ir += 1  # public models often ship only the original framework files
+            continue
+        spdx = _spdx_from_license_url(spec.get("license"))
+        if not spdx or not is_permissive(spdx):
+            skipped_licence += 1
+            continue
+        task = _TASK_MAP.get(str(spec.get("task_type", "")), str(spec.get("task_type") or "model"))
+        entries.append(
+            ModelEntry(
+                name=name.replace("-", "_"),
+                src="url",
+                url=url,
+                task=task,
+                description=_oneline(spec.get("description")),
+                precision="fp16",
+                license=spdx,
+                license_url=spec.get("license"),
+            )
+        )
+    print(
+        f"  found {len(entries)} permissively-licensed OMZ public models "
+        f"({skipped_licence} skipped: non-permissive or unidentifiable licence, "
+        f"{no_ir} without a downloadable IR)"
+    )
+    return entries
 
 
 def omz_intel_entries() -> list[ModelEntry]:
@@ -554,6 +662,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--repo", default="leeyunjai/ovkit-models", help="target HF repo id")
     parser.add_argument("--models", nargs="*", help="subset by name (default: all selected)")
     parser.add_argument("--omz-intel", action="store_true", help="mirror all Apache OMZ models")
+    parser.add_argument(
+        "--omz-public",
+        action="store_true",
+        help="also mirror OMZ public models whose licence is provably permissive",
+    )
     parser.add_argument("--manifest", nargs="*", default=[], help="extra source manifest paths")
     parser.add_argument("--no-extra", action="store_true", help="skip scripts/mirror_extra/")
     parser.add_argument("--precision", default="fp16", help="IR precision (default: fp16)")
@@ -584,6 +697,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warning: '{name}' is not registered; skipping.", file=sys.stderr)
             continue
         selected[entry.name] = entry
+
+    if args.omz_public:
+        try:
+            for entry in omz_public_entries():
+                if args.models and entry.name not in args.models:
+                    continue
+                selected.setdefault(entry.name, entry)
+        except Exception as exc:
+            print(f"warning: OMZ public enumeration failed: {exc}", file=sys.stderr)
 
     if args.omz_intel:
         try:
