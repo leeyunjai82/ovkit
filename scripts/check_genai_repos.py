@@ -40,19 +40,60 @@ def _get(url: str) -> object | None:
         return None
 
 
-def _suggest(name: str, limit: int = 5) -> list[str]:
-    """Close matches in the same org, to fix a wrong id without guessing."""
-    org, _, model = name.partition("/")
-    stem = model.split("-")[0] or model
-    q = urllib.parse.urlencode({"author": org, "search": stem, "limit": limit})
+def _org_search(org: str, term: str, limit: int = 5) -> list[str]:
+    """Model ids in ``org`` matching ``term`` (Hugging Face search API)."""
+    q = urllib.parse.urlencode({"author": org, "search": term, "limit": limit})
     data = _get(SEARCH + q)
     return [m["id"] for m in data] if isinstance(data, list) else []
+
+
+def _suggest(name: str, limit: int = 6) -> list[str]:
+    """Close matches in the same org, to fix a wrong id without guessing.
+
+    Tries progressively broader terms taken from the id — the longest prefixes
+    first ("Qwen2-VL-2B" before "Qwen2") — because searching only the first
+    token surfaces unrelated families (Qwen2.5 LLMs for a Qwen2-VL request).
+    """
+    org, _, model = name.partition("/")
+    parts = [p for p in model.split("-") if p and p.lower() not in {"ov", "int4", "int8", "fp16"}]
+    terms: list[str] = []
+    for n in range(min(3, len(parts)), 0, -1):  # "A-B-C", "A-B", "A"
+        terms.append("-".join(parts[:n]))
+    terms += [p for p in parts[1:] if len(p) > 2]  # distinctive middle tokens ("VL", "tts")
+
+    seen, out = set(), []
+    for term in terms:
+        for mid in _org_search(org, term, limit):
+            if mid not in seen:
+                seen.add(mid)
+                out.append(mid)
+        if len(out) >= limit:
+            break
+    return out[:limit]
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Check genai upstream repos on Hugging Face.")
     ap.add_argument("--prune", action="store_true", help="remove entries whose upstream is missing")
+    ap.add_argument(
+        "--search",
+        metavar="TERM",
+        help="just search the OpenVINO org for TERM and exit (find a replacement id)",
+    )
+    ap.add_argument("--org", default="OpenVINO", help="org to search (default: OpenVINO)")
     args = ap.parse_args(argv)
+
+    if args.search:
+        hits = _org_search(args.org, args.search, limit=25)
+        if not hits:
+            print(f"No models matching {args.search!r} in the {args.org} org.")
+            return 1
+        print(f"{len(hits)} match(es) for {args.search!r} in {args.org}:")
+        for mid in hits:
+            info = _get(API + mid)
+            lic = ((info or {}).get("cardData") or {}).get("license", "?")
+            print(f"  {mid:60s} {lic}")
+        return 0
 
     if _get(SEARCH + "limit=1") is None:
         print(
