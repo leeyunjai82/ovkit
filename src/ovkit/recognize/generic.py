@@ -17,7 +17,8 @@ from typing import Any
 import numpy as np
 
 from ..core.backend import Backend
-from ..core.results import Results
+from ..core.constants import class_names
+from ..core.results import Probs, Results
 from .base import BaseAdapter
 
 
@@ -38,11 +39,33 @@ class GenericAdapter(BaseAdapter):
             # plus a pre-upscaled copy): feed the same image resized per input.
             feed = self._multi_image_feed(backend, image, rgb=rgb, scale=scale)
             outputs = backend.infer(feed)
-            return Results(image, task=self.task, names=self.names, tensors=outputs)
+            return self._results(image, outputs)
         size = self.model_input_hw(backend)
         chw = self.preprocess(image, size, rgb=rgb, scale=scale)[0]
         feed = _fit_to_shape(chw, backend.input_shape)
         outputs = backend.infer(feed)
+        return self._results(image, outputs)
+
+    def _results(self, image: np.ndarray, outputs: dict[str, np.ndarray]) -> Results:
+        """Wrap raw outputs, decoding a labelled score vector when there is one.
+
+        Several tasks without a typed adapter are really classifiers over an
+        unusual input (a video clip for gesture/weld recognition, for example).
+        When the manifest names their class table, decode it here — "normal
+        weld 0.82" instead of a tensor shape.
+        """
+        names = self.names or class_names(self.post.get("classes"))
+        if names and len(outputs) == 1:
+            scores = np.asarray(next(iter(outputs.values()))).reshape(-1).astype(np.float32)
+            if 2 <= scores.size <= len(names):
+                if self.post.get("softmax", True):
+                    scores = _softmax(scores)
+                r = Results(
+                    image, task=self.task, names=names, probs=Probs(scores), tensors=outputs
+                )
+                top = int(np.argmax(scores))
+                r.text = f"{names.get(top, f'class_{top}')} {float(scores[top]):.2f}"
+                return r
         return Results(image, task=self.task, names=self.names, tensors=outputs)
 
     def _multi_image_feed(
@@ -68,6 +91,11 @@ class GenericAdapter(BaseAdapter):
                 arr = arr.mean(axis=1, keepdims=True).astype(np.float32)
             feeds[inp.get_any_name()] = arr
         return feeds
+
+
+def _softmax(x: np.ndarray) -> np.ndarray:
+    e = np.exp(x - np.max(x))
+    return e / np.sum(e)
 
 
 def _fit_to_shape(chw: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 import threading
 import wave
 
@@ -27,12 +28,22 @@ from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from ovkit import Model
+from ovkit.audio import read_wav
 from ovkit.core.registry import list_models, resolve
+from ovkit.core.results import draw_caption, wrap_text
+from ovkit.pipelines import is_pipeline, list_pipelines
 
 app = FastAPI(title="ovkit model tester")
 
 _VISION = {"detect", "classify", "segment", "pose", "optical_character_recognition", "ocr"}
-_GENAI_KIND = {"llm": "text", "whisper": "audio", "text2speech": "text", "vlm": "image"}
+_GENAI_KIND = {"llm": "text", "whisper": "audio", "text2speech": "text", "vlm": "vlm"}
+#: Non-"vision" tasks that still take an image in and can be driven from a frame.
+_IMAGE_TASKS = {
+    "image_processing",
+    "action_recognition",
+    "style_transfer",
+    "background_matting",
+}
 
 _models: dict[str, Model] = {}
 _genai: dict[str, object] = {}
@@ -43,6 +54,8 @@ _active = {"id": 0}
 
 
 def model_kind(name: str) -> str:
+    if is_pipeline(name):
+        return "image"  # every composed capability takes an image in
     try:
         e = resolve(name)
     except Exception:
@@ -52,9 +65,9 @@ def model_kind(name: str) -> str:
     if e.src == "genai":
         return _GENAI_KIND.get(e.extra.get("pipeline"), "text")
     t = e.task or ""
-    if t in _VISION or t.startswith("face") or t in {"image_processing", "action_recognition"}:
+    if t in _VISION or t.startswith("face") or t in _IMAGE_TASKS:
         return "image"
-    if "noise" in t or "audio" in t or "speech" in t:
+    if "noise" in t or "audio" in t or "speech" in t or "sound" in t:
         return "audio"
     return "text"
 
@@ -84,27 +97,12 @@ def get_cap() -> cv2.VideoCapture | None:
 
 def _error_frame(msg: str) -> bytes:
     """Render an error message as a JPEG frame so failures are visible."""
-    words, lines, cur = msg.split(), [], ""
-    for word in words:
-        if len(cur) + len(word) > 58:
-            lines.append(cur)
-            cur = word
-        else:
-            cur = (cur + " " + word).strip()
-    lines.append(cur)
-    height = max(360, 30 + len(lines) * 26)
-    img = np.zeros((height, 720, 3), dtype=np.uint8)
-    for i, line in enumerate(lines[:24]):
-        cv2.putText(img, line, (10, 30 + i * 26), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 1)
+    lines = wrap_text(msg, 700, 0.55)[:24]
+    img = np.zeros((max(360, 30 + len(lines) * 26), 720, 3), dtype=np.uint8)
+    for i, line in enumerate(lines):
+        cv2.putText(img, line, (10, 30 + i * 26), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (90, 160, 255), 1)
     ok, buf = cv2.imencode(".jpg", img)
     return buf.tobytes() if ok else b""
-
-
-def read_wav(data: bytes) -> tuple[np.ndarray, int]:
-    with wave.open(io.BytesIO(data), "rb") as wf:
-        sr = wf.getframerate()
-        raw = wf.readframes(wf.getnframes())
-    return np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0, sr
 
 
 def wav_b64(audio: np.ndarray, sr: int) -> str:
@@ -116,6 +114,16 @@ def wav_b64(audio: np.ndarray, sr: int) -> str:
         wf.setframerate(sr)
         wf.writeframes(pcm.tobytes())
     return "data:audio/wav;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+#: Answers that are not answers: a class index, an attribute index, or a
+#: tensor-shape dump instead of something a person can read.
+_UNREADABLE = re.compile(r"class_\d|attribute \d|#\d|^raw output|no result")
+
+
+def unreadable(answer: str) -> bool:
+    """True when a model's summary still shows plumbing instead of an answer."""
+    return bool(_UNREADABLE.search(answer.strip()))
 
 
 def summarize(r) -> str:
@@ -164,9 +172,10 @@ def frames(name: str, conf: float, sid: int):
             res = model(frame, conf=conf)
             annotated = res[0].plot() if isinstance(res, list) and res else frame
         except Exception as exc:
-            annotated = frame.copy()
-            cv2.putText(
-                annotated, str(exc)[:80], (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
+            # Wrap it: a one-line 80-char slice smeared off the right edge of
+            # the frame told nobody anything.
+            annotated = draw_caption(
+                frame.copy(), str(exc), 0.55, max_lines=4, color=(90, 160, 255)
             )
         ok, buf = cv2.imencode(".jpg", annotated)
         if ok:
@@ -208,18 +217,23 @@ async def run_audio(model: str = Form(...), file: UploadFile = File(...)):
         audio, sr = read_wav(await file.read())
     except Exception as exc:
         return JSONResponse({"error": f"wav read failed: {exc}"}, status_code=400)
-    kind = model_kind(model)
+    entry = resolve(model)
     try:
-        if kind == "audio" and resolve(model) and resolve(model).src == "genai":
-            from ovkit.genai import pipeline
+        if entry is not None and entry.src == "genai":
+            from ovkit.genai import transcribe
 
-            stt = _genai.get(model) or _genai.setdefault(model, pipeline(model))
-            return JSONResponse({"summary": f'text: "{stt.generate(audio)}"'})
-        # OMZ noise-suppression: streaming state loop.
-        out = _denoise(model, audio)
-        return JSONResponse({"summary": f"denoised {len(out)} samples", "audio": wav_b64(out, sr)})
+            return JSONResponse({"summary": transcribe(audio, model=model)})
+        # OMZ audio models: ovkit frames, runs and decodes the clip.
+        r = get_model(model)((audio, sr))[0]
+        payload = {"summary": r.summary()}
+        ok, buf = cv2.imencode(".jpg", r.plot())
+        if ok:
+            payload["image"] = "data:image/jpeg;base64," + base64.b64encode(buf.tobytes()).decode()
+        if r.audio is not None:
+            payload["audio"] = wav_b64(r.audio[0], r.audio[1])
+        return JSONResponse(payload)
     except Exception as exc:
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=500)
 
 
 @app.post("/run_text")
@@ -259,23 +273,30 @@ async def run_text(model: str = Form(...), text: str = Form(...)):
         return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=500)
 
 
-def _denoise(model: str, audio: np.ndarray) -> np.ndarray:
-    m = get_model(model)
-    info = {n: tuple(s) for n, s, _ in m.inputs}
-    audio_name = "input" if "input" in info else max(info, key=lambda n: int(np.prod(info[n])))
-    patch = int(info[audio_name][-1])
-    state_in = sorted(n for n in info if n != audio_name)
-    states = {n: np.zeros(info[n], dtype=np.float32) for n in state_in}
-    out, audio_out, state_out = [], None, []
-    for i in range(0, len(audio), patch):
-        chunk = np.pad(audio[i : i + patch], (0, max(0, patch - len(audio[i : i + patch]))))
-        res = m.infer({audio_name: chunk[None].astype(np.float32), **states})
-        if audio_out is None:
-            audio_out = "output" if "output" in res else next(iter(res))
-            state_out = sorted(k for k in res if k != audio_out)
-        out.append(np.asarray(res[audio_out]).reshape(-1)[:patch])
-        states = {n: np.asarray(res[o]) for n, o in zip(state_in, state_out, strict=False)}
-    return np.concatenate(out)[: len(audio)] if out else audio
+@app.post("/run_vlm")
+async def run_vlm(model: str = Form(...), prompt: str = Form(...), file: UploadFile = File(...)):
+    """Ask a vision-language model about one uploaded image.
+
+    A VLM is gigabytes and takes seconds per answer, so this is a single shot
+    on one picture — not a webcam stream.
+    """
+    data = np.frombuffer(await file.read(), dtype=np.uint8)
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+    if img is None:
+        return JSONResponse({"error": "could not read image"}, status_code=400)
+    try:
+        from ovkit.genai import describe
+
+        print(f"[run_vlm] {model}: {prompt[:60]!r}", flush=True)
+        answer = describe(img, prompt, model=model)
+        ok, buf = cv2.imencode(".jpg", img)
+        b64 = base64.b64encode(buf.tobytes()).decode() if ok else ""
+        return JSONResponse({"summary": answer, "image": f"data:image/jpeg;base64,{b64}"})
+    except Exception as exc:
+        import traceback
+
+        traceback.print_exc()
+        return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=500)
 
 
 @app.post("/stop")
@@ -325,19 +346,11 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
                     detail = "loaded" + (" (multi-input)" if n_inputs > 1 else "") + device_note
                 else:
                     r = model(img)[0]
-                    if r.boxes is not None:
-                        detail = f"{len(r.boxes)} boxes"
-                    elif r.text:
-                        detail = f'"{r.text}"'
-                    elif r.probs is not None:
-                        detail = f"top1 {r.name_for(r.probs.top1)}"
-                    elif r.masks is not None:
-                        detail = f"masks {tuple(r.masks.data.shape)}"
-                    elif r.keypoints is not None:
-                        detail = f"keypoints {tuple(r.keypoints.data.shape)}"
-                    else:
-                        detail = "ran (raw tensors)"
-                    detail += device_note
+                    # The sweep reports the answer a person would read, and
+                    # flags models that still reply with plumbing.
+                    detail = r.summary() + device_note
+                    if unreadable(r.summary()):
+                        status = "warn"
             except Exception as exc:
                 raw = str(exc)
                 msg = " ".join(raw.split())
@@ -387,11 +400,21 @@ def index() -> str:
         for n in names:
             e = resolve(n)
             descs[n] = (e.description or "") if e else ""
-    options = ""
+    # Composed capabilities first — they are what a beginner should try before
+    # picking individual networks apart.
+    pipelines = list_pipelines()
+    for name, desc in pipelines.items():
+        descs[name] = desc
+        kinds[name] = "image"
+
+    options = '<optgroup label="쓸 수 있는 기능 (capabilities, {n})">{opts}</optgroup>'.format(
+        n=len(pipelines),
+        opts="".join(f"<option>{n}</option>" for n in pipelines),
+    )
     for task in sorted(by_task):
         opts = "".join(f"<option>{n}</option>" for n in by_task[task])
         options += f'<optgroup label="{task} ({len(by_task[task])})">{opts}</optgroup>'
-    total = sum(len(v) for v in by_task.values())
+    total = sum(len(v) for v in by_task.values()) + len(pipelines)
     import json
 
     return f"""<!doctype html>
@@ -501,6 +524,12 @@ def index() -> str:
     <span id="audctl" style="display:none"><input id="afile" type="file" accept="audio/wav,.wav">
       <button id="runaudio">실행</button> <span class="muted">(mono 16 kHz .wav)</span></span>
   </div>
+  <div id="vlmctl" style="display:none; margin-top:12px">
+    <div class="row"><input id="vfile" type="file" accept="image/*">
+      <span class="muted">이미지 한 장에 질문 (VLM은 수 GB — 웹캠 스트리밍은 안 됩니다)</span></div>
+    <textarea id="vprompt" rows="2" style="margin-top:8px">이 사진에 무엇이 보이나요?</textarea>
+    <div style="margin-top:8px"><button id="runvlm">실행</button></div>
+  </div>
   <div id="txtctl" style="display:none; margin-top:12px">
     <textarea id="text" rows="3">Explain OpenVINO in one sentence.</textarea>
     <div style="margin-top:8px"><button id="runtext">실행</button></div>
@@ -563,6 +592,7 @@ def index() -> str:
     $('upctl').style.display  = kind==='image' && !web ? '' : 'none';
     $('audctl').style.display = kind==='audio' ? '' : 'none';
     $('txtctl').style.display = kind==='text'  ? '' : 'none';
+    $('vlmctl').style.display = kind==='vlm'   ? '' : 'none';
     stopView();
   }}
   function stopView() {{
@@ -590,6 +620,12 @@ def index() -> str:
     showImg(`/stream?model=${{encodeURIComponent($('model').value)}}&conf=${{$('conf').value}}&t=${{Date.now()}}`);
   }};
   $('stopbtn').onclick = stopView;
+  $('runvlm').onclick = () => {{
+    if(!$('vfile').files[0]) {{ $('summary').textContent='이미지를 먼저 고르세요.'; return; }}
+    const fd=new FormData(); fd.append('model',$('model').value);
+    fd.append('prompt',$('vprompt').value); fd.append('file',$('vfile').files[0]);
+    post('/run_vlm', fd);
+  }};
   $('runimg').onclick = () => {{
     if(!$('file').files[0]) return; const fd=new FormData();
     fd.append('model',$('model').value); fd.append('conf',$('conf').value);

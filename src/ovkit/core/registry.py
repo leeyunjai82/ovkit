@@ -106,8 +106,28 @@ def _load_raw() -> dict[str, dict[str, Any]]:
             continue
         for name, spec in data.items():
             if isinstance(spec, dict):
-                merged[name] = spec  # later manifests override earlier ones
+                merged[name] = _merge_entry(merged.get(name), spec)
     return merged
+
+
+def _merge_entry(old: dict[str, Any] | None, new: dict[str, Any]) -> dict[str, Any]:
+    """Merge a later manifest's entry over an earlier one, key by key.
+
+    Later manifests win, but only for the keys they actually set. This matters
+    because ``omz.yaml`` is *generated* (``build_mirror.py --emit-manifest``) and
+    carries only source information — without a key-wise merge, regenerating it
+    would silently drop the hand-written ``preprocess``/``postprocess`` metadata
+    that gives a model its class names and decode format.
+    """
+    if not old:
+        return dict(new)
+    out = dict(old)
+    for key, value in new.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = {**out[key], **value}
+        else:
+            out[key] = value
+    return out
 
 
 class OVKitManifestError(Exception):

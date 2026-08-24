@@ -50,6 +50,30 @@ for r in model("img.jpg", conf=0.25):  # __call__ == predict
 :::
 ::::
 
+## 기능(capability) 한 줄 호출
+
+`Model()`에 기능 이름을 주면 필요한 모델을 알아서 이어 붙여 **답**을 돌려줍니다.
+검출하고, 자르고, 속성 모델을 돌리고, 합치는 코드를 직접 쓸 필요가 없습니다.
+
+```python
+from ovkit import Model, list_pipelines
+
+list_pipelines()                                   # 사용 가능한 기능 목록
+Model("face_analyze")("group.jpg")[0].summary()    # '2 faces: age 31 · male 98% · happy 92%, ...'
+Model("read_text")("sign.jpg")[0].text             # 'STOP AHEAD'
+Model("track")(0)                                  # 웹캠, 프레임이 바뀌어도 같은 id 유지
+```
+
+| `Model(...)` | 결과 | 내부 구성 |
+| ------------ | ---- | --------- |
+| `face_analyze` | 얼굴마다 나이·성별·감정 | 얼굴 검출 + age/gender + emotion |
+| `person_analyze` | 사람마다 착용/소지 속성 | 사람 검출 + 속성 |
+| `vehicle_analyze` | 차량마다 종류·색상 | 차량 검출 + 속성 |
+| `read_text` | 읽기 순서대로 모든 단어 | 텍스트 검출 + 인식 |
+| `track` | 프레임 간 유지되는 객체 id | 검출 + IoU 연결 |
+| `gaze` | 어디를 보고 있는지 | 얼굴 검출 + 랜드마크 + 머리 자세 + 시선 |
+| `face_match` | 직접 만든 갤러리에서 누구인지 | 임베딩 + 코사인 매칭 |
+
 ## 무엇을 하나
 
 ::::{grid} 1 2 2 2

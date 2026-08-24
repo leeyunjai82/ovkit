@@ -1,9 +1,14 @@
-"""Higher-level solutions assembled from primitives: anomaly, OCR, tracking, ReID.
+"""Composed solutions — now implemented in :mod:`ovkit.pipelines`.
 
-v0 ships interface stubs only; the structure (compose on top of detect/recognize)
-is fixed so the implementations can be filled in without API churn.
+These names are kept as the documented import path; the implementations live
+next to each other in ``ovkit.pipelines`` so they can share the source handling
+and model caching. The friendly entry point is ``ovkit.vis(name)``.
 """
 
 from __future__ import annotations
 
-__all__ = ["anomaly", "ocr", "tracking", "reid"]
+from ..pipelines import ReID, Tracker
+from ..pipelines.text import TextReader as OCR
+from .anomaly import AnomalyModel
+
+__all__ = ["OCR", "ReID", "Tracker", "AnomalyModel"]

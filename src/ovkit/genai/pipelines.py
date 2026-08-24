@@ -148,3 +148,100 @@ def vlm_pipeline(model_path: str, device: str = _DEFAULT_DEVICE, **kwargs: Any) 
 def text2speech_pipeline(model_path: str, device: str = _DEFAULT_DEVICE, **kwargs: Any) -> Any:
     """Return an ``openvino_genai.Text2SpeechPipeline`` (text-to-speech)."""
     return _require_genai().Text2SpeechPipeline(model_path, device, **kwargs)
+
+
+# --- one-call helpers (the usable surface over the pipelines) --------------
+#
+# Building a pipeline is only half the job: a VLM wants an ``ov.Tensor`` of
+# uint8 RGB, Whisper wants float32 mono at 16 kHz, and an LLM wants its
+# generation config. These three functions do that conversion so calling code
+# passes an image path or a wav path and gets a string back.
+
+_PIPES: dict[tuple[str, str], Any] = {}
+
+
+def _cached(name: str, device: str) -> Any:
+    """Build a pipeline once per (name, device) — they are expensive to load."""
+    key = (name, device)
+    if key not in _PIPES:
+        _PIPES[key] = pipeline(name, device)
+    return _PIPES[key]
+
+
+def generate(prompt: str, model: str = "llm", device: str = _DEFAULT_DEVICE, **kwargs: Any) -> str:
+    """Answer ``prompt`` with a text LLM and return the text.
+
+    >>> from ovkit.genai import generate
+    >>> generate("Explain OpenVINO in one sentence.")
+    """
+    kwargs.setdefault("max_new_tokens", 200)
+    return str(_cached(model, device).generate(prompt, **kwargs))
+
+
+def describe(
+    image: Any,
+    prompt: str = "Describe this image.",
+    model: str = "vlm",
+    device: str = _DEFAULT_DEVICE,
+    **kwargs: Any,
+) -> str:
+    """Ask a vision-language model about ``image`` and return its answer.
+
+    ``image`` is a path or a BGR ``ndarray`` (what OpenCV and ovkit hand you);
+    it is converted to the RGB tensor the pipeline expects.
+
+        >>> from ovkit.genai import describe
+        >>> describe("desk.jpg", "How many monitors are there?")
+    """
+    tensor = _image_tensor(image)
+    pipe = _cached(model, device)
+    kwargs.setdefault("max_new_tokens", 200)
+    # The images= keyword replaced image= in openvino-genai 2025.x; accept both
+    # so ovkit works across the versions people actually have installed.
+    try:
+        return str(pipe.generate(prompt, images=[tensor], **kwargs))
+    except TypeError:
+        return str(pipe.generate(prompt, image=tensor, **kwargs))
+
+
+def transcribe(
+    audio: Any,
+    model: str = "stt",
+    device: str = _DEFAULT_DEVICE,
+    **kwargs: Any,
+) -> str:
+    """Transcribe speech and return the text.
+
+    ``audio`` is a path (any format the audio helpers can read) or a float32
+    mono ``ndarray``; it is resampled to the 16 kHz Whisper expects.
+
+        >>> from ovkit.genai import transcribe
+        >>> transcribe("meeting.wav")
+    """
+    import numpy as np
+
+    if isinstance(audio, (str, Path)):
+        from ..audio import read_audio
+
+        samples, _sr = read_audio(audio, target_sr=16_000)
+    else:
+        samples = np.asarray(audio, dtype=np.float32).reshape(-1)
+    result = _cached(model, device).generate(samples, **kwargs)
+    return str(result).strip()
+
+
+def _image_tensor(image: Any) -> Any:
+    """Convert a path / BGR ndarray into the uint8 RGB ``ov.Tensor`` a VLM wants."""
+    import numpy as np
+    import openvino as ov
+
+    if isinstance(image, (str, Path)):
+        from ..image.ops import imread
+
+        arr = imread(image)
+    else:
+        arr = np.asarray(image)
+    if arr.ndim != 3 or arr.shape[2] not in (3, 4):
+        raise OVKitError(f"Expected an HxWx3 image for a vision-language model, got {arr.shape}.")
+    arr = arr[:, :, :3][:, :, ::-1]  # BGR -> RGB
+    return ov.Tensor(np.ascontiguousarray(arr, dtype=np.uint8)[None])

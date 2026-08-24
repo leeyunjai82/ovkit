@@ -51,6 +51,30 @@ Copy-paste call examples for every feature.
 :::
 ::::
 
+## Capabilities
+
+A capability name gives you the answer, not the plumbing — one `Model(...)`
+call chains a detector with the models that describe what it found.
+
+```python
+from ovkit import Model, list_pipelines
+
+list_pipelines()                                   # every capability, described
+Model("face_analyze")("group.jpg")[0].summary()    # '2 faces: age 31 · male 98% · happy 92%, ...'
+Model("read_text")("sign.jpg")[0].text             # 'STOP AHEAD'
+Model("track")(0)                                  # webcam, ids stable across frames
+```
+
+| `Model(...)` | Answers | Chains |
+| ------------ | ------- | ------ |
+| `face_analyze` | ages, genders and emotions of every face | face detection + age/gender + emotion |
+| `person_analyze` | what each person wears or carries | person detection + attributes |
+| `vehicle_analyze` | type and colour of each vehicle | vehicle detection + attributes |
+| `read_text` | every word, in reading order | text detection + recognition |
+| `track` | a stable id per object across frames | detection + IoU association |
+| `gaze` | where a face is looking | detection + landmarks + head pose + gaze |
+| `face_match` | who this is, from your own gallery | embedding + cosine matching |
+
 ## What it does
 
 ::::{grid} 1 2 2 2

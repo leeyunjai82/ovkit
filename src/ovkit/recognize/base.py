@@ -86,9 +86,9 @@ class BaseAdapter:
                 except RuntimeError:
                     names.append("?")
             raise ValueError(
-                f"This model takes {len(backend.inputs)} inputs ({', '.join(names)}) and "
-                f"can't be driven by a single image. It needs a composed pipeline "
-                f"(e.g. face crops + head pose); use model.infer() with all inputs."
+                f"This model needs {len(backend.inputs)} separate inputs "
+                f"({', '.join(names)}), so one image cannot drive it. "
+                f"Feed them yourself with model.infer({{...}})."
             )
         shape = backend.input_shape  # full shape, -1 for dynamic dims
         # NHWC (TF-converted OMZ models): channels last -> spatial dims are 1, 2.

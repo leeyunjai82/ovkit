@@ -115,11 +115,11 @@ class DetectAdapter(BaseAdapter):
                 boxes = self._decode_yolo(outputs, (h, w), conf=conf, max_det=max_det)
             elif fmt == "scores_boxes":
                 boxes = self._decode_scores_boxes(outputs, (h, w), conf=conf, max_det=max_det)
-                names = self.names or {0: "object"}
+                names = self.names or class_names(self._classes_key) or {0: "object"}
                 return Results(image, task=self.task, names=names, boxes=Boxes(boxes))
             elif fmt == "segm_boxes":
                 boxes = self._decode_segm_boxes(outputs, (h, w), conf=conf, max_det=max_det)
-                names = self.names or {0: "text"}
+                names = self.names or class_names(self._classes_key) or {0: "text"}
                 return Results(image, task=self.task, names=names, boxes=Boxes(boxes))
             else:
                 boxes = self._decode_boxes_labels(
