@@ -32,6 +32,39 @@ def available_devices() -> list[str]:
     return list(core().available_devices)
 
 
+def _friendlier_compile_error(exc: Exception, model: str | Path | Any) -> Exception:
+    """Turn OpenVINO's nested compile errors into something actionable.
+
+    The most common one by far is IR whose ``.bin`` never arrived (a mirror
+    upload that dropped the weights, or an interrupted download). OpenVINO
+    reports it as "Empty weights data in bin file", buried under two layers of
+    "Exception from ...", which tells a user nothing about what to do.
+    """
+    from .errors import OVKitError
+
+    text = str(exc)
+    if "Empty weights data" not in text and "bin file" not in text:
+        return exc
+    if not isinstance(model, (str, Path)):
+        return exc
+    xml = Path(str(model))
+    if xml.suffix != ".xml":
+        return exc
+    bin_path = xml.with_suffix(".bin")
+    if not bin_path.exists():
+        state = "is missing"
+    elif bin_path.stat().st_size < 1024:
+        state = f"is only {bin_path.stat().st_size} bytes"
+    else:
+        return exc  # weights look fine — a different problem, keep the original
+    return OVKitError(
+        f"The weights file for this model {state}: {bin_path}\n"
+        f"An OpenVINO IR needs both model.xml and model.bin. Delete the cached "
+        f"copy and download it again; if it keeps happening, the mirrored model "
+        f"itself is incomplete and needs re-uploading."
+    )
+
+
 class Backend:
     """A compiled model bound to a device, with sync and async inference.
 
@@ -47,7 +80,10 @@ class Backend:
         self.device = device
         c = core()
         src = str(model) if isinstance(model, (str, Path)) else model
-        self.compiled = c.compile_model(src, device)
+        try:
+            self.compiled = c.compile_model(src, device)
+        except Exception as exc:
+            raise _friendlier_compile_error(exc, model) from exc
         self.inputs = self.compiled.inputs
         self.outputs = self.compiled.outputs
 
