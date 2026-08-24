@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -167,17 +168,14 @@ def check_download_infer(
             continue
         try:
             r = model(img)[0]
-            if r.boxes is not None:
-                detail = f"boxes={len(r.boxes)}"
-            elif r.probs is not None:
-                detail = f"top1={r.probs.top1}"
-            elif r.masks is not None:
-                detail = f"masks={r.masks.data.shape}"
-            elif r.text is not None:
-                detail = f"text={r.text!r}"
-            else:
-                detail = f"tensors={list(getattr(r, 'tensors', {}) or {})}"
-            print(f"  {OK} {name:34s} task={model.task} {detail}")
+            answer = r.summary()
+            # The real test is not "did a tensor come back" but "can a person
+            # read the answer": a model replying "class_37" has not answered.
+            unreadable = _unreadable(answer)
+            mark = "⚠️ " if unreadable else OK
+            print(f"  {mark} {name:34s} task={model.task} -> {answer[:70]}")
+            if unreadable:
+                res.setdefault("unreadable", []).append(f"{name}: {answer[:60]}")
             res["ok"].append(name)
         except Exception as e:
             # Loaded fine; only the blank-frame dummy inference didn't fit. Real
@@ -188,7 +186,21 @@ def check_download_infer(
         f"\n  요약: {OK}{len(res['ok'])}  ⚠️{len(res['load_fail'])}(로드실패)"
         f"  ⚠️{len(res['infer_warn'])}(추론보류)  {NO}{len(res['download_fail'])}(다운로드실패)"
     )
+    if res.get("unreadable"):
+        print(f"  ⚠️  사람이 못 읽는 결과 {len(res['unreadable'])}개 (클래스표/디코더 필요):")
+        for line in res["unreadable"]:
+            print(f"       - {line}")
     return res
+
+
+#: Answers that are not answers: a class index, an attribute index, a bare
+#: output name, or a tensor shape dump.
+_UNREADABLE = re.compile(r"class_\d|attribute \d|attr_\d|#\d|^raw output|^\d+ [\d.]+$|no result")
+
+
+def _unreadable(answer: str) -> bool:
+    """True when the summary line still shows plumbing instead of an answer."""
+    return bool(_UNREADABLE.search(answer.strip()))
 
 
 def _prune_manifest(path: str, step4: dict[str, list[str]]) -> None:

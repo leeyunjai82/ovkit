@@ -1,0 +1,77 @@
+# Class names for mirrored models that ship no labels.txt.
+# ---------------------------------------------------------------------------
+# A model that answers "class_3 0.91" has not answered anything. Most OMZ
+# models publish their class list only in their README, so ovkit keeps the
+# tables in `core/constants.py` (CLASS_TABLES) and wires them to models here.
+#
+# This file only carries *metadata*: where a model comes from is described in
+# `models.yaml` / the generated `omz.yaml`, and the registry merges manifests
+# key by key, so regenerating `omz.yaml` never drops what is set below.
+#
+#   classes    : CLASS_TABLES key used for box/segment class ids and top-1
+#   attributes : CLASS_TABLES key for independent sigmoid attribute heads
+#   heads      : {output_name: CLASS_TABLES key} for multi-output classifiers
+#
+# Every table is transcribed from the model's documented output interface.
+# ---------------------------------------------------------------------------
+
+# --- detection: what the class ids mean ------------------------------------
+face_detection_0205:
+  postprocess: {classes: face}
+ultra_lightweight_face_detection_slim_320:
+  postprocess: {classes: face}
+person_detection_0202:
+  postprocess: {classes: person}
+vehicle_detection_0200:
+  postprocess: {classes: vehicle}
+text_detection_0004:
+  postprocess: {classes: text}
+person_vehicle_bike_detection_2000:
+  postprocess: {classes: person_vehicle_bike}
+vehicle_license_plate_detection_barrier_0106:
+  postprocess: {classes: vehicle_plate}
+product_detection_0001:
+  postprocess: {classes: product14}
+yolo_v3_onnx:
+  postprocess: {classes: coco80}
+yolo_v3_tiny_onnx:
+  postprocess: {classes: coco80}
+
+# --- segmentation: what the mask colours mean ------------------------------
+pspnet_pytorch:
+  postprocess: {classes: voc21}
+road_segmentation_adas_0001:
+  postprocess: {classes: road4}
+instance_segmentation_person_0007:
+  postprocess: {classes: person}
+
+# --- classification: what the top-1 index means ----------------------------
+open_closed_eye_0001:
+  postprocess: {classes: open_closed_eye}
+weld_porosity_detection_0001:
+  postprocess: {classes: weld3}
+common_sign_language_0002:
+  postprocess: {classes: sign_language12}
+aclnet:
+  postprocess: {classes: aclnet53}
+
+# --- attribute heads -------------------------------------------------------
+person_attributes_recognition_crossroad_0234:
+  postprocess: {attributes: person_attributes7}
+vehicle_attributes_recognition_barrier_0042:
+  postprocess:
+    heads: {type: vehicle_type, color: vehicle_color}
+
+# --- descriptors: not a class distribution at all --------------------------
+image_retrieval_0001:
+  postprocess: {kind: embedding}
+vehicle_reid_0001:
+  postprocess: {kind: embedding}
+face_reidentification_retail_0095:
+  postprocess: {kind: embedding}
+
+# --- ImageNet classifiers (1000 names live in src/ovkit/data/imagenet1000.txt)
+nfnet_f0:
+  postprocess: {classes: imagenet1000}
+resnet50_binary_0001:
+  postprocess: {classes: imagenet1000}

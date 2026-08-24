@@ -44,6 +44,73 @@ def _color(idx: int) -> tuple[int, int, int]:
     return int(c[0]), int(c[1]), int(c[2])
 
 
+def wrap_text(text: str, max_width: int, font_scale: float, thickness: int = 1) -> list[str]:
+    """Break ``text`` into lines that fit ``max_width`` pixels when drawn.
+
+    Wraps on spaces, and hard-splits a single word too long to fit, so a long
+    answer stays inside the frame instead of running off the right edge.
+    """
+    import cv2
+
+    font = cv2.FONT_HERSHEY_SIMPLEX
+
+    def width(s: str) -> int:
+        return cv2.getTextSize(s, font, font_scale, thickness)[0][0]
+
+    lines: list[str] = []
+    for word in text.split():
+        while width(word) > max_width and len(word) > 1:  # unbreakable token
+            cut = len(word)
+            while cut > 1 and width(word[:cut]) > max_width:
+                cut -= 1
+            lines.append(word[:cut])
+            word = word[cut:]
+        if lines and width(f"{lines[-1]} {word}") <= max_width:
+            lines[-1] = f"{lines[-1]} {word}"
+        else:
+            lines.append(word)
+    return lines or [""]
+
+
+def draw_caption(
+    img: np.ndarray,
+    text: str,
+    font_scale: float = 0.6,
+    max_lines: int = 5,
+    color: tuple[int, int, int] = (255, 255, 255),
+) -> np.ndarray:
+    """Draw ``text`` across the top of ``img`` on a dark band, in place.
+
+    The band is what makes a result legible: bright text alone disappears over
+    a light wall or a white shirt. Text is wrapped to the image width and
+    clipped to ``max_lines`` so a long answer never spills off the frame.
+    """
+    import cv2
+
+    if not text:
+        return img
+    h, w = img.shape[:2]
+    pad = max(4, int(w * 0.008))
+    lines = wrap_text(text, w - 2 * pad, font_scale)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1][: max(0, len(lines[-1]) - 1)] + "..."
+    (_, th), _ = cv2.getTextSize("Ag", cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
+    step = th + max(4, int(th * 0.45))
+    band = min(h, pad + step * len(lines) + pad // 2)
+
+    strip = img[:band]
+    cv2.addWeighted(strip, 0.25, np.zeros_like(strip), 0.75, 0, dst=strip)
+    for i, line in enumerate(lines):
+        y = pad + th + i * step
+        if y >= h:
+            break
+        cv2.putText(
+            img, line, (pad, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, 1, cv2.LINE_AA
+        )
+    return img
+
+
 class Boxes:
     """Detection boxes in ``xyxy`` pixel coordinates with scores and classes.
 
@@ -247,11 +314,26 @@ class Results:
             return " · ".join(shown) if shown else "no class above 1%"
         return f"{len(self.masks)} mask(s)"
 
-    def plot(self, line_width: int = 2, font_scale: float = 0.5) -> np.ndarray:
-        """Render detections/keypoints onto a copy of the image and return it."""
+    def plot(
+        self,
+        line_width: int = 2,
+        font_scale: float | None = None,
+        caption: bool = True,
+    ) -> np.ndarray:
+        """Render this result onto a copy of the image and return it.
+
+        Draws masks, boxes (with ``name conf`` labels) and keypoints, then one
+        caption — :meth:`summary` — across the top. ``font_scale`` defaults to a
+        size derived from the image width, so a 320-px webcam frame and a 4K
+        photo are equally readable; pass ``caption=False`` to leave the top of
+        the image clean.
+        """
         import cv2
 
         img = self.orig_img.copy()
+        h, w = img.shape[:2]
+        if font_scale is None:
+            font_scale = float(np.clip(w / 900.0, 0.45, 0.9))
 
         if self.masks is not None and len(self.masks):
             data = self.masks.data
@@ -278,11 +360,15 @@ class Results:
                 cv2.rectangle(img, p1, p2, c, line_width)
                 label = f"{self.name_for(int(cls))} {conf:.2f}"
                 (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
-                cv2.rectangle(img, (p1[0], p1[1] - th - 4), (p1[0] + tw, p1[1]), c, -1)
+                # Keep the label bar on-screen: below the box top when there is
+                # no room above it, and never running off the right edge.
+                x = min(max(p1[0], 0), max(w - tw, 0))
+                top = p1[1] - th - 4 if p1[1] - th - 4 >= 0 else p1[1]
+                cv2.rectangle(img, (x, top), (x + tw, top + th + 4), c, -1)
                 cv2.putText(
                     img,
                     label,
-                    (p1[0], p1[1] - 3),
+                    (x, top + th + 1),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     font_scale,
                     (255, 255, 255),
@@ -296,59 +382,20 @@ class Results:
                     if kc > 0:
                         cv2.circle(img, (int(x), int(y)), 3, (0, 255, 0), -1)
 
-        if self.probs is not None:
-            top = self.probs.top1
-            label = f"{self.name_for(top)} {self.probs.data[top]:.2f}"
-            cv2.putText(
-                img,
-                label,
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.0,
-                (0, 255, 0),
-                2,
-                cv2.LINE_AA,
-            )
-
-        # Generic (raw-tensor) results: overlay output info so something shows.
-        if self.text:
-            cv2.putText(
-                img,
-                f'"{self.text}"',
-                (10, 36),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.0,
-                (0, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
-        elif self.tensors is not None and not any(
-            (self.boxes, self.masks, self.keypoints, self.probs)
+        # When the model's output IS an image (super-resolution, style transfer,
+        # matting), show that image — it is the answer.
+        if self.tensors is not None and not any(
+            (self.boxes, self.masks, self.keypoints, self.probs, self.text)
         ):
-            # If an output IS an image (super-resolution, enhancement, ...),
-            # show that image instead of tensor metadata.
             rendered = self._image_output()
             if rendered is not None:
                 return rendered
-            y = 30
-            for name, arr in list(self.tensors.items())[:5]:
-                a = np.asarray(arr)
-                txt = f"{name}: {tuple(a.shape)}"
-                if a.size and a.ndim <= 2:
-                    flat = a.ravel()
-                    txt += f"  argmax={int(flat.argmax())} ({float(flat.max()):.2f})"
-                cv2.putText(
-                    img,
-                    txt[:60],
-                    (10, y),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.6,
-                    (0, 255, 255),
-                    2,
-                    cv2.LINE_AA,
-                )
-                y += 28
 
+        # One caption, not three. Everything a model has to say goes through
+        # summary(), so classification + text + attributes can never overprint
+        # each other the way separate per-field overlays did.
+        if caption:
+            draw_caption(img, self.summary(), font_scale)
         return img
 
     def _image_output(self) -> np.ndarray | None:

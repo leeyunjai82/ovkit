@@ -192,11 +192,11 @@ class Model:
         # takes the image + a pre-upscaled copy — the adapter feeds both). Anything
         # else (gaze: eye crops + head-pose angles) can't be driven by one image.
         if len(backend.inputs) > 1 and not _all_image_inputs(backend):
-            desc = ", ".join(f"{n}{list(s)}" for n, s, _ in self.inputs)
+            names = ", ".join(n for n, _s, _d in self.inputs)
             raise OVKitError(
-                f"This model takes {len(backend.inputs)} inputs ({desc}); a single image "
-                f"can't drive it (e.g. gaze estimation needs eye crops + head pose). "
-                f"Build the tensors and call model.infer({{...}})."
+                f"{self.name} needs {len(backend.inputs)} separate inputs ({names}), "
+                f"so one image cannot drive it. Feed them yourself with "
+                f"model.infer({{...}}) — see model.inputs for the shapes."
             )
         adapter = self._ensure_adapter(backend)
         if imgsz is not None:

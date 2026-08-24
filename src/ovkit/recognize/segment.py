@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 
 from ..core.backend import Backend
+from ..core.constants import class_names
 from ..core.results import Boxes, Masks, Results
 from .base import BaseAdapter
 
@@ -27,6 +28,11 @@ class SegmentAdapter(BaseAdapter):
     """Adapter for semantic and instance segmentation."""
 
     task = "segment"
+
+    @property
+    def class_table(self) -> dict[int, str]:
+        """Class names for this model — a mask of "class_15" says nothing."""
+        return self.names or class_names(self.post.get("classes"))
 
     def run(self, backend: Backend, image: np.ndarray, *, conf: float = 0.25, **_: Any) -> Results:
         size = self.model_input_hw(backend)
@@ -46,7 +52,7 @@ class SegmentAdapter(BaseAdapter):
         class_map = self._class_map(np.asarray(next(iter(outputs.values()))))
         h, w = image.shape[:2]
         class_map = cv2.resize(class_map.astype(np.int32), (w, h), interpolation=cv2.INTER_NEAREST)
-        return Results(image, task=self.task, names=self.names, masks=Masks(class_map[None]))
+        return Results(image, task=self.task, names=self.class_table, masks=Masks(class_map[None]))
 
     @staticmethod
     def _class_map(out: np.ndarray) -> np.ndarray:
@@ -86,7 +92,7 @@ class SegmentAdapter(BaseAdapter):
                 labels_arr = a.reshape(-1)
         if boxes_arr is None:
             return Results(
-                image, task=self.task, names=self.names, masks=Masks(np.zeros((0, 1, 1)))
+                image, task=self.task, names=self.class_table, masks=Masks(np.zeros((0, 1, 1)))
             )
 
         keep = boxes_arr[:, 4] >= conf
@@ -121,5 +127,5 @@ class SegmentAdapter(BaseAdapter):
             [xyxy, boxes_arr[:, 4:5], labels[:n].reshape(-1, 1).astype(np.float32)], axis=1
         )
         return Results(
-            image, task=self.task, names=self.names, boxes=Boxes(data), masks=Masks(full)
+            image, task=self.task, names=self.class_table, boxes=Boxes(data), masks=Masks(full)
         )

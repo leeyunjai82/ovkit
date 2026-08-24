@@ -27,11 +27,9 @@ def _softmax(x: np.ndarray) -> np.ndarray:
     return e / np.sum(e)
 
 
-#: Known multi-head output names (documented OMZ interfaces), keyed by output name.
-_KNOWN_HEADS = {
-    "type": ["car", "bus", "truck", "van"],
-    "color": ["white", "gray", "yellow", "red", "green", "blue", "black"],
-}
+#: Default class tables for well-known multi-head output names, used when the
+#: manifest does not name them explicitly (``postprocess.heads``).
+_KNOWN_HEADS = {"type": "vehicle_type", "color": "vehicle_color"}
 
 #: Landmark regressors emit [1, 2K] normalized coords; K in {5, 35, 98}.
 _LANDMARK_SIZES = frozenset({10, 70, 196})
@@ -112,7 +110,7 @@ class ClassifyAdapter(BaseAdapter):
             labels = self.names or class_names(self.post.get("attributes"), len(scores))
             hits = np.where(scores >= 0.5)[0]
             order = hits[np.argsort(scores[hits])[::-1]][:5]
-            on = [f"{labels.get(int(i), f'attr_{i}')} {scores[i]:.2f}" for i in order]
+            on = [f"{labels.get(int(i), f'attribute {i}')} {scores[i]:.2f}" for i in order]
             r = Results(image, task=self.task, names=labels, probs=Probs(scores))
             more = f" (+{len(hits) - len(order)} more)" if len(hits) > len(order) else ""
             r.text = (" · ".join(on) + more) if on else "no attribute above 0.5"
@@ -131,6 +129,7 @@ class ClassifyAdapter(BaseAdapter):
         self, image: np.ndarray, arrs: dict[str, np.ndarray], outputs: dict[str, Any]
     ) -> Results:
         """Multi-output classifier (e.g. vehicle type + color): one line per head."""
+        heads = {str(k).lower(): str(v) for k, v in (self.post.get("heads") or {}).items()}
         parts: list[str] = []
         first: np.ndarray | None = None
         for name, arr in arrs.items():
@@ -139,9 +138,12 @@ class ClassifyAdapter(BaseAdapter):
                 continue
             if first is None:
                 first = flat
-            labels = _KNOWN_HEADS.get(name.lower())
+            key = name.lower()
+            labels = class_names(heads.get(key) or _KNOWN_HEADS.get(key))
             idx = int(np.argmax(flat))
-            label = labels[idx] if labels and idx < len(labels) else f"#{idx}"
+            # Without a class table the index is not an answer — say what the
+            # head is instead of printing "#3".
+            label = labels.get(idx) or f"{flat.size}-way head, index {idx}"
             parts.append(f"{name}: {label} ({float(flat[idx]):.2f})")
         r = Results(
             image,

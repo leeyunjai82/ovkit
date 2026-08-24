@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import io
+import re
 import threading
 import wave
 
@@ -28,11 +29,19 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from ovkit import Model
 from ovkit.core.registry import list_models, resolve
+from ovkit.core.results import draw_caption, wrap_text
 
 app = FastAPI(title="ovkit model tester")
 
 _VISION = {"detect", "classify", "segment", "pose", "optical_character_recognition", "ocr"}
 _GENAI_KIND = {"llm": "text", "whisper": "audio", "text2speech": "text", "vlm": "image"}
+#: Non-"vision" tasks that still take an image in and can be driven from a frame.
+_IMAGE_TASKS = {
+    "image_processing",
+    "action_recognition",
+    "style_transfer",
+    "background_matting",
+}
 
 _models: dict[str, Model] = {}
 _genai: dict[str, object] = {}
@@ -52,9 +61,9 @@ def model_kind(name: str) -> str:
     if e.src == "genai":
         return _GENAI_KIND.get(e.extra.get("pipeline"), "text")
     t = e.task or ""
-    if t in _VISION or t.startswith("face") or t in {"image_processing", "action_recognition"}:
+    if t in _VISION or t.startswith("face") or t in _IMAGE_TASKS:
         return "image"
-    if "noise" in t or "audio" in t or "speech" in t:
+    if "noise" in t or "audio" in t or "speech" in t or "sound" in t:
         return "audio"
     return "text"
 
@@ -84,18 +93,10 @@ def get_cap() -> cv2.VideoCapture | None:
 
 def _error_frame(msg: str) -> bytes:
     """Render an error message as a JPEG frame so failures are visible."""
-    words, lines, cur = msg.split(), [], ""
-    for word in words:
-        if len(cur) + len(word) > 58:
-            lines.append(cur)
-            cur = word
-        else:
-            cur = (cur + " " + word).strip()
-    lines.append(cur)
-    height = max(360, 30 + len(lines) * 26)
-    img = np.zeros((height, 720, 3), dtype=np.uint8)
-    for i, line in enumerate(lines[:24]):
-        cv2.putText(img, line, (10, 30 + i * 26), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 0, 255), 1)
+    lines = wrap_text(msg, 700, 0.55)[:24]
+    img = np.zeros((max(360, 30 + len(lines) * 26), 720, 3), dtype=np.uint8)
+    for i, line in enumerate(lines):
+        cv2.putText(img, line, (10, 30 + i * 26), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (90, 160, 255), 1)
     ok, buf = cv2.imencode(".jpg", img)
     return buf.tobytes() if ok else b""
 
@@ -116,6 +117,16 @@ def wav_b64(audio: np.ndarray, sr: int) -> str:
         wf.setframerate(sr)
         wf.writeframes(pcm.tobytes())
     return "data:audio/wav;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+#: Answers that are not answers: a class index, an attribute index, or a
+#: tensor-shape dump instead of something a person can read.
+_UNREADABLE = re.compile(r"class_\d|attribute \d|#\d|^raw output|no result")
+
+
+def unreadable(answer: str) -> bool:
+    """True when a model's summary still shows plumbing instead of an answer."""
+    return bool(_UNREADABLE.search(answer.strip()))
 
 
 def summarize(r) -> str:
@@ -164,9 +175,10 @@ def frames(name: str, conf: float, sid: int):
             res = model(frame, conf=conf)
             annotated = res[0].plot() if isinstance(res, list) and res else frame
         except Exception as exc:
-            annotated = frame.copy()
-            cv2.putText(
-                annotated, str(exc)[:80], (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2
+            # Wrap it: a one-line 80-char slice smeared off the right edge of
+            # the frame told nobody anything.
+            annotated = draw_caption(
+                frame.copy(), str(exc), 0.55, max_lines=4, color=(90, 160, 255)
             )
         ok, buf = cv2.imencode(".jpg", annotated)
         if ok:
@@ -325,19 +337,11 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
                     detail = "loaded" + (" (multi-input)" if n_inputs > 1 else "") + device_note
                 else:
                     r = model(img)[0]
-                    if r.boxes is not None:
-                        detail = f"{len(r.boxes)} boxes"
-                    elif r.text:
-                        detail = f'"{r.text}"'
-                    elif r.probs is not None:
-                        detail = f"top1 {r.name_for(r.probs.top1)}"
-                    elif r.masks is not None:
-                        detail = f"masks {tuple(r.masks.data.shape)}"
-                    elif r.keypoints is not None:
-                        detail = f"keypoints {tuple(r.keypoints.data.shape)}"
-                    else:
-                        detail = "ran (raw tensors)"
-                    detail += device_note
+                    # The sweep reports the answer a person would read, and
+                    # flags models that still reply with plumbing.
+                    detail = r.summary() + device_note
+                    if unreadable(r.summary()):
+                        status = "warn"
             except Exception as exc:
                 raw = str(exc)
                 msg = " ".join(raw.split())
