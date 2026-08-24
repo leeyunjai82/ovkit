@@ -105,6 +105,25 @@ Model("face_analyze", attributes=("age_gender",))   # configure what runs
 
 Aliases: `ocr`, `anpr`, `blur`, `driver`, `describe`, `faces`, `people`, `vehicle`, `tracking`, `reid`.
 
+## Teach your own AI (no GPU)
+
+A Teachable Machine in five lines — an embedding model turns examples into
+vectors, new inputs match the nearest ones. Five modes: `photo` (default),
+`face` (expressions), `hand` (needs `ovkit[hand]`), `upper`, `body`:
+
+```python
+ai = Model("teach")                       # or Model("가르치기")
+ai.learn("can", "photos/cans/")           # a folder per thing to recognise
+ai.learn("bottle", "photos/bottles/")
+print(ai.guess("new_photo.jpg"))          # ('can', 0.93)
+print(ai.score("test_photos/"))           # accuracy + what it confuses
+ai.save("recycling")                      # -> Documents/ovkit/recycling.json
+for r in ai.predict(0, stream=True): ...  # webcam over YOUR classes
+```
+
+Korean method names work too: `배우기`, `맞혀봐`, `점수`, `저장`. Collect
+examples with the webcam: `from ovkit.pipelines.teach import collect; collect("가위", 30)`.
+
 ## Train your own detector
 
 RT-DETR, trainable, Apache-2.0 end to end — an Ultralytics-style workflow with

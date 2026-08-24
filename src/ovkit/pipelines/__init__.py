@@ -30,6 +30,7 @@ from .plates import PlateReader
 from .privacy import Anonymizer
 from .reid import ReID
 from .scene import SceneReport
+from .teach import Teach
 from .temporal import DrowsinessMonitor, GestureRecognizer
 from .text import TextReader
 from .tracking import Tracker
@@ -54,6 +55,8 @@ PIPELINES: dict[str, type[Pipeline]] = {
     # identity: match it, or remove it
     "face_match": ReID,
     "anonymize": Anonymizer,
+    # make your own
+    "teach": Teach,
 }
 
 #: Friendlier spellings people reach for first.
@@ -162,4 +165,5 @@ __all__ = [
     "GestureRecognizer",
     "PlateReader",
     "SceneReport",
+    "Teach",
 ]

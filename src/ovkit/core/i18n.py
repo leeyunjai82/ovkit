@@ -46,6 +46,8 @@ KO_CAPS: dict[str, str] = {
     "얼굴가리기": "anonymize",
     "모자이크": "anonymize",
     "누구지": "face_match",
+    "가르치기": "teach",
+    "내가가르치기": "teach",
     # single-model aliases (registry)
     "물체찾기": "detect",
     "이건뭐야": "classify",
