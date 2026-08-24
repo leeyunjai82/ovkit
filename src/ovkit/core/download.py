@@ -130,8 +130,19 @@ def _fetch_hf(entry: ModelEntry, dest_dir: Path) -> Path:
                         subfolder=entry.subfolder,
                         local_dir=str(dest_dir),
                     )
-                except Exception:
-                    pass  # weight-embedded IR or no companion .bin: tolerate
+                except Exception as bin_exc:
+                    # An IR without its weights cannot compile — OpenVINO fails
+                    # with "Empty weights data in bin file". Swallowing this made
+                    # the failure surface much later, at compile time, with no
+                    # hint that a download had gone wrong (and re-downloading
+                    # would fail the same way, silently). Only tolerate it when
+                    # the weights really are absent by design.
+                    companion = Path(path).with_suffix(".bin")
+                    if not companion.is_file() or companion.stat().st_size < 1024:
+                        raise DownloadError(
+                            f"Got '{entry.filename}' from {entry.repo}, but its weights "
+                            f"('{bin_name}') could not be downloaded: {bin_exc}"
+                        ) from bin_exc
             return Path(path)
         snap = snapshot_download(repo_id=entry.repo, local_dir=str(dest_dir))
         return Path(snap)
