@@ -1,4 +1,4 @@
-"""``ovkit`` command-line interface: ``gui``, ``run``, ``list``, ``info``, ``download``, ``devices``."""
+"""``ovkit`` CLI: ``gui``, ``run``, ``train``, ``val``, ``export``, ``list``, ``info``, ``download``, ``devices``."""
 
 from __future__ import annotations
 
@@ -132,6 +132,33 @@ def _cmd_gui(args: argparse.Namespace) -> int:
     return gui_main(device=args.device, camera=args.camera)
 
 
+def _cmd_train(args: argparse.Namespace) -> int:
+    """Train RT-DETR on YOLO-format data: ``ovkit train --data data.yaml``."""
+    from .rtdetr import RTDETR
+
+    model = RTDETR(args.model, device=args.device)
+    best = model.train(
+        data=args.data, epochs=args.epochs, imgsz=args.imgsz, batch=args.batch, lr=args.lr
+    )
+    print(f"best checkpoint: {best}")
+    return 0
+
+
+def _cmd_val(args: argparse.Namespace) -> int:
+    from .rtdetr import RTDETR
+
+    RTDETR(args.model, device=args.device).val(data=args.data, imgsz=args.imgsz)
+    return 0
+
+
+def _cmd_export(args: argparse.Namespace) -> int:
+    from .rtdetr import RTDETR
+
+    out = RTDETR(args.model).export(imgsz=args.imgsz, half=args.half, out_dir=args.out)
+    print(f"exported: {out} (+ labels.txt)")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     parser = argparse.ArgumentParser(prog="ovkit", description="ovkit model utilities")
@@ -157,6 +184,30 @@ def main(argv: list[str] | None = None) -> int:
     p_dl.add_argument("name")
     p_dl.add_argument("--no-convert", action="store_true", help="skip IR conversion")
     p_dl.set_defaults(func=_cmd_download)
+
+    p_train = sub.add_parser("train", help="train RT-DETR on your own data (needs ovkit[train])")
+    p_train.add_argument("--data", required=True, help="data.yaml (YOLO format)")
+    p_train.add_argument("--model", default="rtdetr-r18", help="variant or a .pt to resume")
+    p_train.add_argument("--epochs", type=int, default=100)
+    p_train.add_argument("--imgsz", type=int, default=640)
+    p_train.add_argument("--batch", type=int, default=8)
+    p_train.add_argument("--lr", type=float, default=1e-4)
+    p_train.add_argument("--device", default=None)
+    p_train.set_defaults(func=_cmd_train)
+
+    p_val = sub.add_parser("val", help="mAP on the val split of a data.yaml")
+    p_val.add_argument("--model", required=True, help="a trained .pt")
+    p_val.add_argument("--data", required=True)
+    p_val.add_argument("--imgsz", type=int, default=640)
+    p_val.add_argument("--device", default=None)
+    p_val.set_defaults(func=_cmd_val)
+
+    p_exp = sub.add_parser("export", help="export a trained .pt to OpenVINO IR + labels.txt")
+    p_exp.add_argument("--model", required=True, help="a trained .pt")
+    p_exp.add_argument("--imgsz", type=int, default=640)
+    p_exp.add_argument("--half", action="store_true", help="FP16 IR")
+    p_exp.add_argument("--out", default=".", help="output directory")
+    p_exp.set_defaults(func=_cmd_export)
 
     p_dev = sub.add_parser("devices", help="list OpenVINO devices")
     p_dev.set_defaults(func=_cmd_devices)

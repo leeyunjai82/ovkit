@@ -42,8 +42,18 @@ from .pipelines import Pipeline, list_pipelines
 
 __version__ = "0.2.0"
 
+
+def __getattr__(name: str):  # lazy: keeps `import ovkit` free of the train stack
+    if name == "RTDETR":
+        from .rtdetr import RTDETR
+
+        return RTDETR
+    raise AttributeError(f"module 'ovkit' has no attribute {name!r}")
+
+
 __all__ = [
     "Model",
+    "RTDETR",
     "Pipeline",
     "list_pipelines",
     "Results",
