@@ -44,11 +44,14 @@ class Pipeline:
     def model(self, name: str) -> Model:
         """Return a sub-model, loading (and downloading) it on first use.
 
-        Loading is lazy so a pipeline configured without, say, head pose never
+        Always a single network: a pipeline's parts are networks, and asking
+        for one by a name that also names a capability (``gaze`` names both)
+        would otherwise hand back a pipeline — in the worst case this one.
+        Loading is lazy, so a pipeline configured without, say, head pose never
         downloads that model.
         """
         if name not in self._models:
-            self._models[name] = Model(name, device=self.device)
+            self._models[name] = Model.network(name, device=self.device)
         return self._models[name]
 
     # -- running ------------------------------------------------------------

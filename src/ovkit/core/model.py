@@ -83,6 +83,25 @@ class Model:
                 return build_pipeline(model, device=device, **kwargs)
         return super().__new__(cls)
 
+    @classmethod
+    def network(
+        cls,
+        model: str | Path,
+        task: str | None = None,
+        device: str = "AUTO",
+        precision: str | None = None,
+    ) -> Model:
+        """Load one network, even when the name also names a capability.
+
+        ``Model("gaze")`` gives you the composed pipeline, which is what a
+        caller wants — but the pipeline itself needs the raw gaze network, and
+        so does anyone who wants to drive it by hand. This skips the capability
+        dispatch in :meth:`__new__` and always returns a plain model.
+        """
+        obj = object.__new__(cls)
+        obj.__init__(model, task, device, precision)  # type: ignore[misc]
+        return obj
+
     def __init__(
         self,
         model: str | Path,
@@ -230,11 +249,21 @@ class Model:
         # takes the image + a pre-upscaled copy — the adapter feeds both). Anything
         # else (gaze: eye crops + head-pose angles) can't be driven by one image.
         if len(backend.inputs) > 1 and not _all_image_inputs(backend):
+            from ..pipelines import capability_using
+
             names = ", ".join(n for n, _s, _d in self.inputs)
+            # Model has no .name: a model can be a bare path, so identify it by
+            # its manifest entry when there is one and by the file otherwise.
+            entry_name = self._entry.name if self._entry else Path(self.ir_path).stem
+            capability = capability_using(entry_name)
+            hint = (
+                f"Model({capability!r}) builds those inputs for you."
+                if capability
+                else "Feed them yourself with model.infer({...}) — see model.inputs."
+            )
             raise OVKitError(
-                f"{self.name} needs {len(backend.inputs)} separate inputs ({names}), "
-                f"so one image cannot drive it. Feed them yourself with "
-                f"model.infer({{...}}) — see model.inputs for the shapes."
+                f"{entry_name} needs {len(backend.inputs)} separate inputs ({names}), "
+                f"so one image cannot drive it. {hint}"
             )
         adapter = self._ensure_adapter(backend)
         if imgsz is not None:

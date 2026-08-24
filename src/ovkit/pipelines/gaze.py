@@ -51,10 +51,14 @@ class GazeEstimator(Pipeline):
         device: str = "AUTO",
         detector: str = "face_detection",
         eye_scale: float = 0.55,
+        gaze_model: str = "gaze_estimation_adas_0002",
     ) -> None:
         super().__init__(device)
         self.detector = detector
         self.eye_scale = float(eye_scale)
+        #: The gaze *network*. Spelled out because "gaze" now names this
+        #: pipeline, and a pipeline cannot be its own part.
+        self.gaze_model = gaze_model
 
     def run(self, image: np.ndarray, *, conf: float = 0.5, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
@@ -132,7 +136,7 @@ class GazeEstimator(Pipeline):
                 return None
             crops.append(_rotate(crop, roll) if roll else crop)
 
-        model = self.model("gaze")
+        model = self.model(self.gaze_model)
         shapes = {name: shape for name, shape, _dtype in model.inputs}
         if _LEFT not in shapes or _RIGHT not in shapes:
             return None
