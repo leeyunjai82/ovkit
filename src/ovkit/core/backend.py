@@ -133,6 +133,15 @@ class Backend:
             return np.repeat(arr, 3, axis=1)
         return arr
 
+    @property
+    def actual_device(self) -> str:
+        """The device inference actually runs on (AUTO resolves to a real one)."""
+        try:
+            devices = self.compiled.get_property("EXECUTION_DEVICES")
+            return ",".join(devices) if devices else self.device
+        except Exception:
+            return self.device
+
     def output_signatures(self) -> list[tuple[str, tuple[int, ...]]]:
         """Return ``(name, shape)`` for each output (``-1`` for dynamic dims)."""
         sigs: list[tuple[str, tuple[int, ...]]] = []
