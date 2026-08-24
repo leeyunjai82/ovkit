@@ -16,6 +16,7 @@ pip install -r examples/requirements.txt # fastapi / uvicorn (web demos only)
 | [`classify.py`](classify.py) | `classify` | top-5 classes |
 | [`ocr.py`](ocr.py) | `text_recognition` | decoded text |
 | [`super_resolution.py`](super_resolution.py) | `super_resolution` | upscaled image |
+| [`background_matting.py`](background_matting.py) | `background_matting_mobilenetv2` | cut the subject out (needs frame + empty-scene photo) |
 
 ```bash
 python examples/detect.py photo.jpg      # each is ~15 lines — read the source
