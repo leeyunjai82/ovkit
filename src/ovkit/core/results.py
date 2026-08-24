@@ -429,7 +429,7 @@ class Results:
         if self.masks is not None and len(self.masks):
             parts.append(self._mask_summary(max_items))
 
-        if self.keypoints is not None:
+        if self.keypoints is not None and not self.text:
             n, k = self.keypoints.data.shape[0], self.keypoints.data.shape[1]
             parts.append(f"{n} instance(s), {k} keypoints")
 

@@ -48,6 +48,12 @@ KO_CAPS: dict[str, str] = {
     "누구지": "face_match",
     "가르치기": "teach",
     "내가가르치기": "teach",
+    "개수세기": "count",
+    "거북목": "posture",
+    "거북목알림": "posture",
+    "운동횟수": "exercise",
+    "출석체크": "attendance",
+    "출석": "attendance",
     # single-model aliases (registry)
     "물체찾기": "detect",
     "이건뭐야": "classify",

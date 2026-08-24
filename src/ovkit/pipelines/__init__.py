@@ -25,6 +25,7 @@ from typing import Any
 from .analyze import FaceAnalyzer, PersonAnalyzer, VehicleAnalyzer
 from .attention import AttentionAnalyzer
 from .base import Pipeline
+from .classroom import Attendance, Counter, PostureCoach, RepCounter
 from .gaze import GazeEstimator
 from .plates import PlateReader
 from .privacy import Anonymizer
@@ -57,6 +58,11 @@ PIPELINES: dict[str, type[Pipeline]] = {
     "anonymize": Anonymizer,
     # make your own
     "teach": Teach,
+    # classroom
+    "count": Counter,
+    "posture": PostureCoach,
+    "exercise": RepCounter,
+    "attendance": Attendance,
 }
 
 #: Friendlier spellings people reach for first.
@@ -166,4 +172,8 @@ __all__ = [
     "PlateReader",
     "SceneReport",
     "Teach",
+    "Attendance",
+    "Counter",
+    "PostureCoach",
+    "RepCounter",
 ]

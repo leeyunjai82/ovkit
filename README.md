@@ -93,6 +93,11 @@ camera index).
 | `attention` | `1 person looking at: laptop` | gaze + object detection (ray-cast into the boxes) |
 | `anonymize` | the picture with every face pixelated | face (and plate) detection + redaction |
 | `face_match` | `('yunjai', 0.81)` — who this is | embedding + cosine matching against your gallery |
+| `count` | `pencil 3 · cup 1` (optionally one kind only) | detection + per-kind tally |
+| `posture` | `neck 32° — sit up (6s)` | pose + neck angle **over time** |
+| `exercise` | `squat x 12 (down)` | pose + joint-angle hysteresis (squat, push-up) |
+| `attendance` | `present 24/26` + `roll.csv` | face detection + roster matching |
+| `teach` | your own classes, from example photos | embedding + cosine k-NN (5 modes) |
 
 ```python
 from ovkit import Model, list_pipelines
