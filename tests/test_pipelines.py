@@ -600,3 +600,110 @@ def test_scene_report_counts_people_through_the_face_pipeline():
     )
     # people are described by the face pipeline, not counted twice as objects
     assert pipe.run(IMG).summary() == "1 person (1 happy)"
+
+
+# -- a pipeline is never its own part ---------------------------------------
+
+
+def test_no_pipeline_asks_for_a_sub_model_that_is_a_capability():
+    """`Model("gaze")` is the pipeline, so the pipeline must name the network.
+
+    The gaze pipeline used to call self.model("gaze") and get *itself* back,
+    failing with "'GazeEstimator' object has no attribute 'inputs'".
+    """
+    import re
+    from pathlib import Path
+
+    package = Path(__import__("ovkit").__file__).parent / "pipelines"
+    offenders = []
+    for source in package.glob("*.py"):
+        for name in re.findall(r'self\.model\(\s*"([^"]+)"\s*\)', source.read_text()):
+            if is_pipeline(name):
+                offenders.append(f"{source.name}: self.model({name!r})")
+    assert not offenders, "a pipeline cannot be built out of itself: " + "; ".join(offenders)
+
+
+def test_no_pipeline_defaults_to_a_capability_name():
+    """Constructor defaults name networks too — same trap, one level up."""
+    import inspect
+
+    offenders = []
+    for name, cls in PIPELINES.items():
+        for param in inspect.signature(cls.__init__).parameters.values():
+            value = param.default
+            if isinstance(value, str) and is_pipeline(value):
+                offenders.append(f"{name}.{param.name}={value!r}")
+    assert not offenders, "capability used as a sub-model: " + "; ".join(offenders)
+
+
+def test_gaze_pipeline_points_at_the_gaze_network():
+    pipe = Model("gaze")
+    assert pipe.gaze_model == "gaze_estimation_adas_0002"
+    assert not is_pipeline(pipe.gaze_model)
+
+
+def test_pipeline_sub_models_are_built_as_plain_networks(monkeypatch):
+    """Pipeline.model() must bypass the capability dispatch in Model.__new__."""
+    from ovkit.core.model import Model as CoreModel
+    from ovkit.pipelines.base import Pipeline
+
+    built: list[str] = []
+    monkeypatch.setattr(CoreModel, "network", classmethod(lambda cls, n, **kw: built.append(n)))
+    pipe = Pipeline()
+    pipe.model("gaze")  # the colliding name
+    assert built == ["gaze"]  # went through network(), not Model()
+
+
+def test_the_multi_input_error_names_the_model_and_the_capability():
+    """The message itself used to crash: Model has no .name attribute."""
+    from ovkit.core.errors import OVKitError
+    from ovkit.core.model import Model as CoreModel
+    from ovkit.core.registry import resolve
+
+    class _Dim:
+        def __init__(self, value):
+            self.value = value
+
+        is_static = True
+
+        def get_length(self):
+            return self.value
+
+    class _Input:
+        def __init__(self, name, shape):
+            self.name = name
+            self.shape = shape
+
+        def get_any_name(self):
+            return self.name
+
+        def get_partial_shape(self):
+            return [_Dim(d) for d in self.shape]
+
+        def get_element_type(self):
+            return "f32"
+
+    class _Backend:
+        """Three inputs, one of which is not an image — the gaze signature."""
+
+        def __init__(self):
+            self.inputs = [
+                _Input("left_eye_image", (1, 3, 60, 60)),
+                _Input("right_eye_image", (1, 3, 60, 60)),
+                _Input("head_pose_angles", (1, 3)),
+            ]
+            self.compiled = self
+
+    model = object.__new__(CoreModel)
+    model.device = "AUTO"
+    model._entry = resolve("gaze_estimation_adas_0002")
+    model._backends = {"AUTO": _Backend()}
+    model._task_override = None
+    model.ir_path = "/tmp/gaze.xml"
+
+    with pytest.raises(OVKitError) as excinfo:
+        CoreModel.predict(model, np.zeros((10, 10, 3), np.uint8))
+    message = str(excinfo.value)
+    assert "gaze_estimation_adas_0002 needs 3 separate inputs" in message
+    assert "left_eye_image" in message
+    assert "Model('gaze') builds those inputs for you." in message

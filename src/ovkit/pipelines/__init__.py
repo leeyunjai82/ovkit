@@ -108,6 +108,32 @@ def build_pipeline(name: str, device: str = "AUTO", **kwargs: Any) -> Pipeline:
     return PIPELINES[key](device=device, **kwargs)
 
 
+def capability_using(network: str) -> str | None:
+    """Which capability drives this network, if one does.
+
+    A multi-input model like ``gaze_estimation_adas_0002`` cannot be run from a
+    picture — but a pipeline builds its inputs. Looking that up here lets the
+    error say so instead of leaving the caller stuck.
+    """
+    import inspect
+
+    from ..core.registry import resolve
+
+    for name, cls in PIPELINES.items():
+        for param in inspect.signature(cls.__init__).parameters.values():
+            default = param.default
+            if not isinstance(default, str):
+                continue
+            if default == network:
+                return name
+            # Pipelines name their parts by friendly alias ("face_detection");
+            # the error reports the canonical model, so compare both.
+            entry = resolve(default)
+            if entry is not None and entry.name == network:
+                return name
+    return None
+
+
 def list_pipelines() -> dict[str, str]:
     """Return ``{name: description}`` for every composed pipeline."""
     return {name: cls.description for name, cls in sorted(PIPELINES.items())}
@@ -115,6 +141,7 @@ def list_pipelines() -> dict[str, str]:
 
 __all__ = [
     "build_pipeline",
+    "capability_using",
     "is_pipeline",
     "resolve_name",
     "list_pipelines",
