@@ -17,7 +17,8 @@ ovkit은 permissive 라이선스의 OpenVINO 모델을 미러에서 다량 제�
 | `pedestrian_detection` | `person_detection_0202` | 보행자 검출 (주행) |
 | `vehicle_detection` | `vehicle_detection_0200` | 차량 검출 |
 | `text_detection` | `text_detection_0004` | 텍스트 영역 검출 |
-| `segment` | `road_segmentation_adas_0001` | 시맨틱 분할 |
+| `segment` | `pspnet_pytorch` | 시맨틱 분할 (일반 장면) |
+| `road_segmentation` | `road_segmentation_adas_0001` | 도로/차선 분할 (주행) |
 | `instance_segmentation` | `instance_segmentation_person_0007` | 인스턴스 마스크 |
 | `pose` | `human_pose_estimation_0007` | 사람 키포인트 |
 | `face_landmarks` | `landmarks_regression_retail_0009` | 5점 얼굴 랜드마크 |
@@ -28,7 +29,7 @@ ovkit은 permissive 라이선스의 OpenVINO 모델을 미러에서 다량 제�
 | `face_reid` | `face_reidentification_retail_0095` | 얼굴 임베딩 |
 | `person_attributes` | `person_attributes_recognition_crossroad_0234` | 복장/속성 |
 | `vehicle_attributes` | `vehicle_attributes_recognition_barrier_0042` | 차종 + 색 |
-| `classify` | `resnet50_binary_0001` | 이미지 분류 |
+| `classify` | `nfnet_f0` | 이미지 분류 (ImageNet) |
 | `image_retrieval` | `image_retrieval_0001` | 이미지 임베딩 |
 | `super_resolution` | `single_image_super_resolution_1033` | 3~4배 업스케일 |
 | `text_recognition` | `text_recognition_0014` | 잘린 텍스트 인식 |
@@ -37,6 +38,9 @@ ovkit은 permissive 라이선스의 OpenVINO 모델을 미러에서 다량 제�
 | `translation` | `machine_translation_nar_en_de_0002` | EN→DE 번역 |
 | `noise_suppression` | `noise_suppression_poconetlike_0001` | 음성 노이즈 제거 |
 | `time_series` | `time_series_forecasting_electricity_0001` | 시계열 예측 |
+| `sound_classification` | `aclnet` | 사운드 분류 (오디오 입력 — `model.infer()`) |
+| `style_transfer` | `fast_neural_style_mosaic_onnx` | 스타일 전이 (이미지 출력) |
+| `background_matting` | `background_matting_mobilenetv2` | 배경 분리 (프레임 + 빈 장면) |
 | `llm` | `qwen25_1_5b_instruct` | 챗 LLM (genai) |
 | `vlm` | `qwen3_vl_4b_instruct` | 비전-언어: 이미지+질문 -> 텍스트 |
 | `stt` | `whisper_base` | 음성→텍스트 (genai) |

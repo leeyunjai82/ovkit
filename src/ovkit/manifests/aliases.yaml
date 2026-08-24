@@ -17,8 +17,9 @@ vehicle_detection: {alias: vehicle_detection_0200}
 text_detection: {alias: text_detection_0004}
 
 # --- segmentation ---
-segment: {alias: road_segmentation_adas_0001}  # semantic (road/scene)
-semantic_segmentation: {alias: road_segmentation_adas_0001}
+segment: {alias: pspnet_pytorch}              # semantic, general scenes
+road_segmentation: {alias: road_segmentation_adas_0001}   # driving-specific
+semantic_segmentation: {alias: pspnet_pytorch}   # synonym of `segment`
 instance_segmentation: {alias: instance_segmentation_person_0007}
 
 # --- pose / landmarks / gaze ---
@@ -35,7 +36,7 @@ person_attributes: {alias: person_attributes_recognition_crossroad_0234}
 vehicle_attributes: {alias: vehicle_attributes_recognition_barrier_0042}
 
 # --- classify / embedding / super-resolution ---
-classify: {alias: resnet50_binary_0001}
+classify: {alias: nfnet_f0}                  # general ImageNet classifier
 image_retrieval: {alias: image_retrieval_0001}
 super_resolution: {alias: single_image_super_resolution_1033}
 
@@ -48,6 +49,11 @@ qa: {alias: bert_small_uncased_whole_word_masking_squad_0002}
 translation: {alias: machine_translation_nar_en_de_0002}
 noise_suppression: {alias: noise_suppression_poconetlike_0001}
 time_series: {alias: time_series_forecasting_electricity_0001}
+
+# --- capabilities from OMZ public ---
+sound_classification: {alias: aclnet}         # audio in — use model.infer()
+style_transfer: {alias: fast_neural_style_mosaic_onnx}
+background_matting: {alias: background_matting_mobilenetv2}  # needs frame + empty scene
 
 # --- GenAI (work out of the box) ---
 llm: {alias: qwen25_1_5b_instruct}   # Qwen2.5 1.5B — better than TinyLlama at the same size
