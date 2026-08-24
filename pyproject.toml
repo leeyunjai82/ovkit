@@ -34,6 +34,7 @@ genai = ["openvino-genai", "optimum-intel"]
 anomaly = ["anomalib"]
 quant = ["nncf"]
 train = ["torch>=2.0", "torchvision>=0.15", "scipy", "onnx"]
+hand = ["mediapipe"]
 all = ["openvino-genai", "optimum-intel", "anomalib", "nncf", "torch>=2.0", "torchvision>=0.15", "scipy", "onnx"]
 dev = ["pytest>=7", "ruff", "black"]
 
