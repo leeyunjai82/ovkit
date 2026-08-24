@@ -113,6 +113,10 @@ class DetectAdapter(BaseAdapter):
                 boxes = self._decode_ssd(outputs, (h, w), conf=conf, max_det=max_det)
             elif fmt == "yolo_v2":
                 boxes = self._decode_yolo(outputs, (h, w), conf=conf, max_det=max_det)
+            elif fmt == "scores_boxes":
+                boxes = self._decode_scores_boxes(outputs, (h, w), conf=conf, max_det=max_det)
+                names = self.names or {0: "object"}
+                return Results(image, task=self.task, names=names, boxes=Boxes(boxes))
             elif fmt == "segm_boxes":
                 boxes = self._decode_segm_boxes(outputs, (h, w), conf=conf, max_det=max_det)
                 names = self.names or {0: "text"}
@@ -148,7 +152,63 @@ class DetectAdapter(BaseAdapter):
         # (segmentation maps route to SegmentAdapter, so this is unambiguous here).
         if len(shapes) == 1 and len(shapes[0]) == 4:
             return "yolo_v2"
+        # Anchor detectors that emit scores [.., N, 2] + boxes [.., N, 4] already
+        # in corner form (ultra-lightweight face detection). Structurally this
+        # looks like DETR, but DETR predicts many classes and cxcywh centres, so
+        # decoding one as the other yields garbage boxes and no filtering.
+        if len(shapes) == 2:
+            n_scores = next((s for s in shapes if len(s) >= 2 and s[-1] == 2), None)
+            n_boxes = next((s for s in shapes if len(s) >= 2 and s[-1] == 4), None)
+            if n_scores is not None and n_boxes is not None and n_scores[-2] == n_boxes[-2]:
+                return "scores_boxes"
         return "detr"
+
+    # -- anchor detectors: scores [N, 2] + corner boxes [N, 4] --------------
+
+    @staticmethod
+    def _decode_scores_boxes(
+        outputs: dict[str, np.ndarray], orig_hw: tuple[int, int], *, conf: float, max_det: int
+    ) -> np.ndarray:
+        """Decode per-anchor scores + normalized boxes (ultra-light face nets).
+
+        These models emit every anchor (thousands of them), so filtering by
+        score and running NMS is mandatory — without it the caller just gets
+        ``max_det`` overlapping boxes. Coordinates are normally corners
+        (``x1, y1, x2, y2``), but the layout is verified from the data rather
+        than assumed, so a centre-form model decodes correctly too.
+        """
+        scores_arr = boxes_arr = None
+        for v in outputs.values():
+            a = np.asarray(v)
+            if a.ndim >= 2 and a.shape[-1] == 2:
+                scores_arr = a.reshape(-1, 2)
+            elif a.ndim >= 2 and a.shape[-1] == 4:
+                boxes_arr = a.reshape(-1, 4)
+        if scores_arr is None or boxes_arr is None or len(scores_arr) != len(boxes_arr):
+            return np.zeros((0, 6), dtype=np.float32)
+
+        scores = scores_arr[:, 1].astype(np.float32)  # [background, object]
+        keep = scores >= conf
+        scores, coords = scores[keep], boxes_arr[keep].astype(np.float32)
+        if len(scores) == 0:
+            return np.zeros((0, 6), dtype=np.float32)
+
+        # Corner or centre form? Corners satisfy x2 > x1 for (almost) every row.
+        if float(np.mean((coords[:, 2] > coords[:, 0]) & (coords[:, 3] > coords[:, 1]))) < 0.9:
+            cx, cy, bw, bh = coords[:, 0], coords[:, 1], coords[:, 2], coords[:, 3]
+            coords = np.stack([cx - bw / 2, cy - bh / 2, cx + bw / 2, cy + bh / 2], axis=1)
+
+        h, w = orig_hw
+        xyxy = coords * np.array([w, h, w, h], dtype=np.float32)
+        xyxy[:, 0::2] = xyxy[:, 0::2].clip(0, w)
+        xyxy[:, 1::2] = xyxy[:, 1::2].clip(0, h)
+
+        idx = _nms(xyxy, scores, max_det=max_det)
+        if not idx:
+            return np.zeros((0, 6), dtype=np.float32)
+        return np.concatenate(
+            [xyxy[idx], scores[idx, None], np.zeros((len(idx), 1), np.float32)], axis=1
+        ).astype(np.float32)
 
     # -- segmentation-logit text detectors (PixelLink-style) ----------------
 
