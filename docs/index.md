@@ -74,6 +74,12 @@ Model("track")(0)                                  # webcam, ids stable across f
 | `track` | a stable id per object across frames | detection + IoU association |
 | `gaze` | where a face is looking | detection + landmarks + head pose + gaze |
 | `face_match` | who this is, from your own gallery | embedding + cosine matching |
+| `scene` | one sentence about the whole picture | detection + segmentation + faces |
+| `read_plate` | number plates, and the car each is on | plate detection + OCR + vehicle attributes |
+| `drowsiness` | eyes shut too long, or a nodding head | face + landmarks + eye state + head pose, over time |
+| `gesture` | hand gestures from motion | sign-language model over a rolling 8-frame clip |
+| `attention` | which object a person is looking at | gaze + object detection |
+| `anonymize` | the picture with faces (and plates) removed | detection + redaction |
 
 ## What it does
 

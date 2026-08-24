@@ -282,8 +282,8 @@ def test_matching_without_a_gallery_explains_itself():
 @pytest.mark.parametrize(
     "vector,expected",
     [
-        ([0.5, 0.02, -0.8], "looking left"),
-        ([-0.5, 0.02, -0.8], "looking right"),
+        ([0.5, 0.02, -0.8], "looking right"),
+        ([-0.5, 0.02, -0.8], "looking left"),
         ([0.02, 0.5, -0.8], "looking up"),
         ([0.02, -0.5, -0.8], "looking down"),
         ([0.01, 0.01, -1.0], "looking at the camera"),
@@ -291,3 +291,312 @@ def test_matching_without_a_gallery_explains_itself():
 )
 def test_gaze_vectors_are_described_in_words(vector, expected):
     assert describe_gaze(np.array(vector, np.float32)) == expected
+
+
+# -- number plates ----------------------------------------------------------
+
+
+def test_read_plate_pairs_each_plate_with_the_car_it_is_on():
+    from ovkit.pipelines.plates import PlateReader
+
+    rows = [
+        [0, 0, 200, 200, 0.9, 1],  # a lorry
+        [50, 50, 150, 150, 0.9, 1],  # a car parked in front of it
+        [80, 120, 120, 140, 0.9, 2],  # the car's plate, inside both boxes
+    ]
+    pipe = PlateReader()
+    _install(
+        pipe,
+        license_plate=_Fake(
+            lambda img: Results(
+                img, task="detect", names={1: "vehicle", 2: "license plate"}, boxes=_boxes(rows)
+            )
+        ),
+        text_recognition=_attribute("12GA3456"),
+        vehicle_attributes=_attribute("type: car (0.98) · color: black (0.83)"),
+    )
+    r = pipe.run(IMG)
+    # the plate goes to the smaller enclosing vehicle, not the lorry behind it
+    assert r.labels[1] == "black car — 12GA3456"
+    assert r.labels[0] == "black car"
+    assert r.labels[2] == "12GA3456"
+    assert r.text.startswith("2 vehicles: ")
+
+
+def test_read_plate_without_a_readable_plate_still_describes_the_car():
+    from ovkit.pipelines.plates import PlateReader
+
+    pipe = PlateReader()
+    _install(
+        pipe,
+        license_plate=_Fake(
+            lambda img: Results(img, task="detect", boxes=_boxes([[0, 0, 100, 100, 0.9, 1]]))
+        ),
+        vehicle_attributes=_attribute("type: van (0.9) · color: white (0.7)"),
+    )
+    assert pipe.run(IMG).labels == ["white van"]
+
+
+# -- drowsiness -------------------------------------------------------------
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+def _eye_state(closed: bool, score: float = 0.9):
+    scores = [1 - score, score] if closed else [score, 1 - score]
+
+    def build(img):
+        from ovkit.core.results import Probs
+
+        return Results(img, task="classify", names={0: "open", 1: "closed"}, probs=Probs(scores))
+
+    return _Fake(build)
+
+
+def _landmarks_at(points):
+    def build(img):
+        r = Results(img, task="face")
+        r.keypoints = Keypoints(np.array([[[x, y, 1.0] for x, y in points]], np.float32))
+        return r
+
+    return _Fake(build)
+
+
+def _drowsiness(closed: bool, clock):
+    from ovkit.pipelines.temporal import DrowsinessMonitor
+
+    pipe = DrowsinessMonitor(seconds=1.0, clock=clock)
+    _install(
+        pipe,
+        face_detection=_face_detector([[0, 0, 200, 200, 0.99, 0]]),
+        face_landmarks=_landmarks_at([(60, 80), (140, 80)]),
+        open_closed_eye_0001=_eye_state(closed),
+        head_pose=_Fake(lambda img: Results(img, task="face", tensors={"angle_p_fc": [[0.0]]})),
+    )
+    return pipe
+
+
+def test_a_blink_is_not_drowsiness():
+    clock = _Clock()
+    pipe = _drowsiness(closed=True, clock=clock)
+    assert "blink" in pipe.run(IMG).summary()
+
+
+def test_eyes_shut_for_longer_than_the_threshold_is_drowsiness():
+    clock = _Clock()
+    pipe = _drowsiness(closed=True, clock=clock)
+    pipe.run(IMG)
+    clock.now = 1.5
+    assert "EYES CLOSED 1.5s" in pipe.run(IMG).summary()
+
+
+def test_opening_the_eyes_clears_the_timer():
+    from ovkit.pipelines.temporal import DrowsinessMonitor
+
+    clock = _Clock()
+    pipe = DrowsinessMonitor(seconds=1.0, clock=clock)
+    _install(
+        pipe,
+        face_detection=_face_detector([[0, 0, 200, 200, 0.99, 0]]),
+        face_landmarks=_landmarks_at([(60, 80), (140, 80)]),
+        open_closed_eye_0001=_eye_state(True),
+        head_pose=_Fake(lambda img: Results(img, task="face", tensors={"angle_p_fc": [[0.0]]})),
+    )
+    pipe.run(IMG)
+    clock.now = 0.5
+    pipe._models["open_closed_eye_0001"] = _eye_state(False)
+    assert pipe.run(IMG).summary().startswith("awake")
+    clock.now = 3.0
+    pipe._models["open_closed_eye_0001"] = _eye_state(True)
+    assert "blink" in pipe.run(IMG).summary()  # timer restarted, not 3s of closure
+
+
+def test_a_nodding_head_counts_as_drowsy():
+    from ovkit.pipelines.temporal import DrowsinessMonitor
+
+    pipe = DrowsinessMonitor(seconds=1.0, clock=_Clock())
+    _install(
+        pipe,
+        face_detection=_face_detector([[0, 0, 200, 200, 0.99, 0]]),
+        face_landmarks=_landmarks_at([(60, 80), (140, 80)]),
+        open_closed_eye_0001=_eye_state(False),
+        head_pose=_Fake(lambda img: Results(img, task="face", tensors={"angle_p_fc": [[-35.0]]})),
+    )
+    assert "nodding" in pipe.run(IMG).summary()
+
+
+def test_no_face_means_no_verdict():
+    clock = _Clock()
+    pipe = _drowsiness(closed=True, clock=clock)
+    pipe._models["face_detection"] = _face_detector(np.zeros((0, 6), np.float32))
+    assert "cannot tell" in pipe.run(IMG).summary()
+
+
+# -- gestures ---------------------------------------------------------------
+
+
+class _ClipModel:
+    """A clip model: [1, 3, 8, 224, 224] in, 12 logits out."""
+
+    inputs = [("input", (1, 3, 8, 224, 224), "f32")]
+
+    def __init__(self):
+        self.seen = []
+
+    def infer(self, feed):
+        arr = feed["input"]
+        self.seen.append(arr.shape)
+        logits = np.zeros((1, 12), np.float32)
+        logits[0, 6] = 8.0  # 'thumb up'
+        return {"output": logits}
+
+
+def test_gesture_waits_for_a_whole_clip_before_answering():
+    from ovkit.pipelines.temporal import GestureRecognizer
+
+    pipe = GestureRecognizer()
+    clip = _ClipModel()
+    _install(pipe, common_sign_language_0002=clip)
+
+    for i in range(1, 8):
+        assert pipe.run(IMG).summary() == f"collecting frames ({i}/8)"
+    assert not clip.seen  # the model is not asked to classify a photograph
+
+    r = pipe.run(IMG)
+    assert clip.seen == [(1, 3, 8, 224, 224)]
+    assert r.summary().startswith("thumb up ")
+
+
+def test_gesture_keeps_a_rolling_window_after_the_first_clip():
+    from ovkit.pipelines.temporal import GestureRecognizer
+
+    pipe = GestureRecognizer()
+    clip = _ClipModel()
+    _install(pipe, common_sign_language_0002=clip)
+    for _ in range(10):
+        pipe.run(IMG)
+    assert len(clip.seen) == 3  # frames 8, 9, 10 each classify the latest window
+    pipe.reset()
+    assert pipe.run(IMG).summary() == "collecting frames (1/8)"
+
+
+# -- attention --------------------------------------------------------------
+
+
+def test_gaze_ray_names_the_object_it_reaches():
+    from ovkit.pipelines.attention import AttentionAnalyzer
+
+    pipe = AttentionAnalyzer()
+    boxes = _boxes([[300, 80, 380, 160, 0.9, 63], [10, 10, 60, 60, 0.9, 0]])
+    looking_right = np.array([0.9, 0.0, -0.4], np.float32)
+    hit = pipe.first_hit(np.array([150.0, 120.0]), looking_right, boxes, (240, 420))
+    assert hit == 63  # the laptop to the right, not the box behind them
+
+
+def test_looking_away_from_everything_hits_nothing():
+    from ovkit.pipelines.attention import AttentionAnalyzer
+
+    pipe = AttentionAnalyzer()
+    boxes = _boxes([[300, 80, 380, 160, 0.9, 63]])
+    looking_left = np.array([-0.9, 0.0, -0.4], np.float32)
+    assert pipe.first_hit(np.array([150.0, 120.0]), looking_left, boxes, (240, 420)) is None
+
+
+# -- anonymising ------------------------------------------------------------
+
+
+def test_anonymize_destroys_the_face_and_leaves_the_rest_alone():
+    from ovkit.pipelines.privacy import Anonymizer
+
+    rng = np.random.default_rng(0)
+    image = rng.integers(0, 255, (200, 200, 3), dtype=np.uint8)
+    pipe = Anonymizer()
+    _install(pipe, face_detection=_face_detector([[20, 20, 100, 100, 0.99, 0]]))
+    r = pipe.run(image)
+
+    assert not np.array_equal(r.orig_img[20:100, 20:100], image[20:100, 20:100])
+    assert np.array_equal(r.orig_img[120:, 120:], image[120:, 120:])
+    assert np.array_equal(image, rng_unchanged := image)  # the input is not modified
+    assert rng_unchanged is image
+    assert r.summary() == "pixelated 1 face"
+
+
+def test_the_saved_image_is_the_redacted_one():
+    from ovkit.pipelines.privacy import Anonymizer
+
+    image = np.random.default_rng(1).integers(0, 255, (120, 120, 3), dtype=np.uint8)
+    pipe = Anonymizer()
+    _install(pipe, face_detection=_face_detector([[0, 0, 60, 60, 0.99, 0]]))
+    r = pipe.run(image)
+    # plot() must never hand back the original picture for this pipeline
+    assert not np.array_equal(r.plot()[0:60, 0:60], image[0:60, 0:60])
+
+
+def test_anonymize_says_when_there_was_nothing_to_hide():
+    from ovkit.pipelines.privacy import Anonymizer
+
+    pipe = Anonymizer()
+    _install(pipe, face_detection=_face_detector(np.zeros((0, 6), np.float32)))
+    assert "nothing to anonymise" in pipe.run(IMG).summary()
+
+
+def test_an_unknown_redaction_method_is_refused():
+    from ovkit.pipelines.privacy import Anonymizer
+
+    with pytest.raises(ValueError, match="pixelate"):
+        Anonymizer(method="swirl")
+
+
+# -- scene ------------------------------------------------------------------
+
+
+def test_scene_report_reads_as_a_sentence():
+    from ovkit.pipelines.scene import SceneReport
+
+    pipe = SceneReport(segment=False, faces=False)
+    _install(
+        pipe,
+        detect=_Fake(
+            lambda img: Results(
+                img,
+                task="detect",
+                names={0: "person", 63: "laptop", 41: "cup"},
+                boxes=_boxes(
+                    [
+                        [0, 0, 10, 10, 0.9, 63],
+                        [20, 0, 30, 10, 0.9, 41],
+                        [40, 0, 50, 10, 0.9, 41],
+                    ]
+                ),
+            )
+        ),
+    )
+    assert pipe.run(IMG).summary() == "2 cups and a laptop"
+
+
+def test_scene_report_counts_people_through_the_face_pipeline():
+    from ovkit.pipelines.scene import SceneReport
+
+    pipe = SceneReport(segment=False)
+    _install(
+        pipe,
+        detect=_Fake(
+            lambda img: Results(
+                img, task="detect", names={0: "person"}, boxes=_boxes([[0, 0, 10, 10, 0.9, 0]])
+            )
+        ),
+    )
+    _install(
+        pipe._faces,
+        face_detection=_face_detector([[0, 0, 50, 50, 0.9, 0]]),
+        age_gender=_attribute("age 31 · male 98%"),
+        emotion=_attribute("happy 92%"),
+    )
+    # people are described by the face pipeline, not counted twice as objects
+    assert pipe.run(IMG).summary() == "1 person (1 happy)"

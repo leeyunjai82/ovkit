@@ -1,4 +1,4 @@
-"""``ovkit`` command-line interface: ``run``, ``list``, ``info``, ``download``, ``devices``."""
+"""``ovkit`` command-line interface: ``gui``, ``run``, ``list``, ``info``, ``download``, ``devices``."""
 
 from __future__ import annotations
 
@@ -38,6 +38,19 @@ def _cmd_list(_: argparse.Namespace) -> int:
     print(f"models ({len(models)}):")
     for name, task, desc in models:
         print(f"  {name:44s} {task:18s} {desc}")
+    return 0
+
+
+def _cmd_capabilities(_: argparse.Namespace) -> int:
+    """What ``Model(name)`` can answer beyond a single network."""
+    from .pipelines import ALIASES, list_pipelines
+
+    print("capabilities — Model(name) chains the models the answer needs:\n")
+    for name, description in list_pipelines().items():
+        print(f"  {name:16s} {description}")
+    print("\naliases:")
+    for alias, target in sorted(ALIASES.items()):
+        print(f"  {alias:16s} -> {target}")
     return 0
 
 
@@ -112,14 +125,29 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_gui(args: argparse.Namespace) -> int:
+    """Open the desktop window: ``ovkit gui``."""
+    from .gui import main as gui_main
+
+    return gui_main(device=args.device, camera=args.camera)
+
+
 def main(argv: list[str] | None = None) -> int:
     """CLI entry point. Returns a process exit code."""
     parser = argparse.ArgumentParser(prog="ovkit", description="ovkit model utilities")
     parser.add_argument("--version", action="version", version=f"ovkit {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    p_gui = sub.add_parser("gui", help="open the desktop window (easiest way to try ovkit)")
+    p_gui.add_argument("--device", default="AUTO", help="AUTO | CPU | GPU | NPU")
+    p_gui.add_argument("--camera", type=int, default=0, help="camera index for the webcam button")
+    p_gui.set_defaults(func=_cmd_gui)
+
     p_list = sub.add_parser("list", help="list registered models")
     p_list.set_defaults(func=_cmd_list)
+
+    p_caps = sub.add_parser("capabilities", help="list composed capabilities (Model(name))")
+    p_caps.set_defaults(func=_cmd_capabilities)
 
     p_info = sub.add_parser("info", help="show details for a model")
     p_info.add_argument("name")

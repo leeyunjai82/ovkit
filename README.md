@@ -39,7 +39,9 @@ print(r.summary())      # 2 faces: age 31 · male 98% · happy 92%, age 27 · fe
 Or without writing Python at all:
 
 ```bash
+ovkit gui                             # a window: pick a capability, point it at your webcam
 ovkit run detect image.jpg            # prints results, saves image_out.jpg
+ovkit capabilities                    # what Model(name) can answer
 ```
 
 ## Install
@@ -66,12 +68,18 @@ camera index).
 
 | `Model(...)` | Answers | Chains |
 | ------------ | ------- | ------ |
+| `scene` | `2 people (1 happy) · a laptop and a cup · floor 47%` | detection + segmentation + faces |
 | `face_analyze` | `2 faces: age 31 · male 98% · happy 92%, ...` | face detection + age/gender + emotion (+ head pose, landmarks) |
 | `person_analyze` | `3 people: male 0.98 · long pants 0.95 · bag 0.71, ...` | person detection + attributes |
 | `vehicle_analyze` | `2 vehicles: type: car (0.98) · color: black (0.83), ...` | vehicle detection + type/colour |
 | `read_text` | `'STOP AHEAD'` — every word, in reading order | text detection + text recognition |
+| `read_plate` | `2 vehicles: black car — 12GA3456, ...` | plate detection + text recognition + vehicle attributes |
 | `track` | `2x person (#1, #4)` — ids stable across frames | detection + IoU association |
-| `gaze` | `1 face: looking left and slightly up` | face detection + landmarks + head pose + gaze |
+| `drowsiness` | `EYES CLOSED 1.4s — drowsy` | face + landmarks + eye state + head pose, **over time** |
+| `gesture` | `thumb up 0.94` | sign-language model over a rolling 8-frame clip |
+| `gaze` | `1 face: looking right and slightly up` | face detection + landmarks + head pose + gaze |
+| `attention` | `1 person looking at: laptop` | gaze + object detection (ray-cast into the boxes) |
+| `anonymize` | the picture with every face pixelated | face (and plate) detection + redaction |
 | `face_match` | `('yunjai', 0.81)` — who this is | embedding + cosine matching against your gallery |
 
 ```python
@@ -83,7 +91,9 @@ Model("track")(0)                                   # webcam, ids kept across fr
 Model("face_analyze", attributes=("age_gender",))   # configure what runs
 ```
 
-Aliases: `ocr`, `faces`, `people`, `vehicle`, `tracking`, `reid`.
+Aliases: `ocr`, `anpr`, `blur`, `driver`, `describe`, `faces`, `people`, `vehicle`, `tracking`, `reid`.
+`ovkit capabilities` prints the list; **`ovkit gui` opens a window** where you can
+click through them against your webcam or a picture.
 
 ## Supported tasks
 
