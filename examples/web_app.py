@@ -349,12 +349,18 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
                         detail = "ran (raw tensors)"
                     detail += device_note
             except Exception as exc:
-                msg = " ".join(str(exc).split())
+                raw = str(exc)
+                msg = " ".join(raw.split())
                 full = f"{type(exc).__name__}: {msg}"
+                # OpenVINO nests errors ("Exception from core.cpp:135: Exception
+                # from plugin.cpp:59: <the actual cause>") — the last line is the
+                # only informative one, so lead with that instead of the header.
+                lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+                cause = lines[-1] if lines else msg
                 if "Failed to download" in msg or "primary source failed" in msg:
                     status, detail = "fail", "download failed"
                 else:
-                    status, detail = "warn", f"{type(exc).__name__}: {msg[:70]}"
+                    status, detail = "warn", f"{type(exc).__name__}: {cause[:90]}"
             counts[status] += 1
             yield "data: " + _json.dumps(
                 {
