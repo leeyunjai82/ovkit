@@ -314,14 +314,25 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
             entry = resolve(name)
             yield "data: " + _json.dumps({"type": "running", "name": name}) + "\n\n"
             t0 = _time.perf_counter()
-            status, detail = "ok", ""
+            status, detail, full = "ok", "", ""
+            device_note = ""
             try:
                 with _lock:
                     _models.clear()  # bound memory across the sweep
-                model = Model(name, device="AUTO")
-                n_inputs = len(model.inputs)  # forces compile
+                try:
+                    model = Model(name, device="AUTO")
+                    n_inputs = len(model.inputs)  # forces compile
+                except Exception:
+                    # AUTO can pick GPU/NPU, whose compilers reject models the
+                    # CPU plugin handles (dynamic shapes, exotic ops). Retry on
+                    # CPU so "works, but only on CPU" isn't reported as broken.
+                    with _lock:
+                        _models.clear()
+                    model = Model(name, device="CPU")
+                    n_inputs = len(model.inputs)
+                    device_note = " [CPU only — AUTO failed]"
                 if load_only or n_inputs > 1 or model_kind(name) != "image":
-                    detail = "loaded" + (" (multi-input)" if n_inputs > 1 else "")
+                    detail = "loaded" + (" (multi-input)" if n_inputs > 1 else "") + device_note
                 else:
                     r = model(img)[0]
                     if r.boxes is not None:
@@ -336,8 +347,10 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
                         detail = f"keypoints {tuple(r.keypoints.data.shape)}"
                     else:
                         detail = "ran (raw tensors)"
+                    detail += device_note
             except Exception as exc:
-                msg = str(exc)
+                msg = " ".join(str(exc).split())
+                full = f"{type(exc).__name__}: {msg}"
                 if "Failed to download" in msg or "primary source failed" in msg:
                     status, detail = "fail", "download failed"
                 else:
@@ -350,6 +363,7 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
                     "task": (entry.task if entry else "") or "",
                     "status": status,
                     "detail": detail,
+                    "full": full,
                     "ms": round((_time.perf_counter() - t0) * 1000),
                 }
             ) + "\n\n"
@@ -609,7 +623,8 @@ def index() -> str:
       if (d.type==='start') {{ total=d.total; refresh(); }}
       else if (d.type==='running') {{ setRow(d.name, '', 'run', '다운로드/컴파일 중...', ''); }}
       else if (d.type==='model') {{
-        done++; C[d.status]++; setRow(d.name, d.task, d.status, d.detail, d.ms+' ms'); refresh();
+        done++; C[d.status]++;
+        setRow(d.name, d.task, d.status, d.detail, d.ms+' ms', d.full); refresh();
       }}
       else if (d.type==='done') {{
         es.close(); es=null;
@@ -625,7 +640,7 @@ def index() -> str:
     $('n-ok').textContent='✓ '+C.ok; $('n-warn').textContent='⚠ '+C.warn; $('n-fail').textContent='✗ '+C.fail;
   }}
   const ICONS = {{ok:'✓ OK', warn:'⚠ 확인필요', fail:'✗ 실패', run:'… 진행중'}};
-  function setRow(name, task, status, detail, ms) {{
+  function setRow(name, task, status, detail, ms, full) {{
     let tr = document.getElementById('row-'+name);
     if (!tr) {{
       tr = document.createElement('tr'); tr.id='row-'+name;
@@ -637,6 +652,11 @@ def index() -> str:
     if (task) tr.children[2].textContent = task;
     tr.children[3].innerHTML = '<span class="chip '+status+'">'+ICONS[status]+'</span>';
     tr.children[4].textContent = detail; tr.children[5].textContent = ms;
+    if (full) {{                     // full error: hover for all of it, click to expand
+      tr.children[4].title = full;
+      tr.children[4].style.cursor = 'help';
+      tr.children[4].onclick = () => {{ tr.children[4].textContent = full; }};
+    }}
     tr.scrollIntoView({{block:'nearest'}});
   }}
 </script>
