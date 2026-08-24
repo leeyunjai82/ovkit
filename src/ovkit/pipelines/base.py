@@ -68,8 +68,13 @@ class Pipeline:
         return gen if stream else list(gen)
 
     def _stream(self, source: Any, **kwargs: Any) -> Iterator[Results]:
+        import time
+
         for image, path in _iter_sources(source):
+            start = time.perf_counter()
             result = self.run(image, **kwargs)
+            result.elapsed_ms = (time.perf_counter() - start) * 1000.0
+            result.device = result.device or self.device
             result.path = path
             yield result
 

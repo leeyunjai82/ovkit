@@ -24,16 +24,28 @@ ready models — with `AUTO`/`NPU`/`GPU` devices, async throughput, and INT8.
 ```python
 from ovkit import Model
 
-r = Model("detect")("image.jpg")[0]   # download -> convert -> cache -> run
-r.save("out.jpg")                     # boxes drawn; r.boxes.xyxy / .conf / .cls
+r = Model("detect", "image.jpg")      # download -> convert -> cache -> run
+print(r)                              # 2x person, car
+r.save("out.jpg")                     # the boxes drawn on the photo
+```
+
+One call fits every input — and Korean names work too:
+
+```python
+r = Model("얼굴분석", "group.jpg")      # == Model("face_analyze", ...)
+for row in r.found:                    # [{'name': '사람', 'name_en': 'person',
+    print(row["name"], row["pos"])     #   'score': 0.93, 'box': [...], 'pos': '왼쪽 위'}]
+
+for r in Model("track", 0):            # webcam / video / "mic" -> a stream
+    print(r, r.elapsed_ms, r.device)   # 2x person (#1, #4) 14.2 GPU
 ```
 
 The same call also runs whole **capabilities** — several models chained into one
 answer, so you never have to crop, chain and stitch by hand:
 
 ```python
-r = Model("face_analyze")("group.jpg")[0]
-print(r.summary())      # 2 faces: age 31 · male 98% · happy 92%, age 27 · female 95% · neutral 88%
+r = Model("face_analyze", "group.jpg")
+print(r)                # 2 faces: age 31 · male 98% · happy 92%, age 27 · female 95% · neutral 88%
 ```
 
 Or without writing Python at all:

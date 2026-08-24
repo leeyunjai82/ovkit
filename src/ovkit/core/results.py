@@ -247,9 +247,57 @@ class Results:
         #: ``(samples, sample_rate)`` for audio results; ``orig_img`` then holds
         #: the waveform, so plot/save work exactly as they do for a picture.
         self.audio: tuple[np.ndarray, int] | None = None
+        #: How long inference took and where it ran ("CPU"/"GPU"/"NPU"). On an
+        #: AI PC this pair is teaching material, so every result carries it.
+        self.elapsed_ms: float | None = None
+        self.device: str | None = None
         self.path = path
 
     # -- using the result ---------------------------------------------------
+
+    @property
+    def found(self) -> list[dict]:
+        """What was found, as friendly dictionaries.
+
+        Each row: ``{"name", "name_en", "score", "box", "pos"}`` — ``name`` in
+        the display language (``$OVKIT_LANG``), ``name_en`` the stable English
+        key (hyphenated, e.g. ``cell-phone``) that code compares against, and
+        ``pos`` a 9-grid position ("왼쪽 위") for students who have not met
+        coordinates yet. A classification result yields one row with no box.
+        """
+        from .i18n import display_name, name_key, position
+
+        h, w = self.orig_img.shape[:2]
+        rows: list[dict] = []
+        if self.boxes is not None:
+            for i, (x1, y1, x2, y2, conf, cls) in enumerate(self.boxes.data):
+                en = self.name_for(int(cls))
+                row = {
+                    "name": display_name(en),
+                    "name_en": name_key(en),
+                    "score": round(float(conf), 3),
+                    "box": [int(x1), int(y1), int(x2), int(y2)],
+                    "pos": position((x1 + x2) / 2, (y1 + y2) / 2, w, h),
+                }
+                if self.labels is not None and i < len(self.labels) and self.labels[i]:
+                    row["text"] = self.labels[i]
+                if self.track_ids is not None and i < len(self.track_ids):
+                    row["track_id"] = int(self.track_ids[i])
+                rows.append(row)
+            return rows
+        if self.probs is not None:
+            top = self.probs.top1
+            en = self.name_for(int(top))
+            rows.append(
+                {
+                    "name": display_name(en),
+                    "name_en": name_key(en),
+                    "score": round(float(self.probs.data[int(top)]), 3),
+                    "box": None,
+                    "pos": None,
+                }
+            )
+        return rows
 
     def label_for(self, i: int) -> str:
         """The label drawn for box ``i``: a pipeline's own, else ``name conf``."""
@@ -287,6 +335,10 @@ class Results:
         """Plain-Python view of the result — ready for ``json.dumps`` or a DB."""
         h, w = self.orig_img.shape[:2]
         out: dict = {"task": self.task, "width": w, "height": h, "summary": self.summary()}
+        if self.elapsed_ms is not None:
+            out["elapsed_ms"] = round(self.elapsed_ms, 1)
+        if self.device:
+            out["device"] = self.device
         if self.path:
             out["path"] = self.path
         if self.text:

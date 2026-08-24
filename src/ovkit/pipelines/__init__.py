@@ -83,7 +83,9 @@ ALIASES = {
 
 def resolve_name(name: str) -> str | None:
     """Return the canonical pipeline name for ``name``, or ``None``."""
-    key = str(name).strip().lower()
+    from ..core.i18n import canonical
+
+    key = canonical(str(name)).strip().lower()
     key = ALIASES.get(key, key)
     return key if key in PIPELINES else None
 

@@ -24,6 +24,7 @@ from .constants import class_names
 from .convert import to_ir
 from .download import fetch
 from .errors import ModelNotFoundError, OVKitError
+from .i18n import canonical, lang
 from .registry import ModelEntry, list_models, resolve
 from .results import Results
 from .tasks import detect_task
@@ -38,11 +39,18 @@ DEFAULT_AUDIO_SR = 16_000
 class Model:
     """An OpenVINO model with automatic resolution, task detection, and IO.
 
-    One name, one call — whether that name is a single network or a whole
-    capability::
+    One name, one call — and the input can come along in the same call::
 
-        Model("rtdetr_r50")("street.jpg")     # one network: boxes
-        Model("face_analyze")("group.jpg")    # detection + age + gender + emotion
+        r = Model("detect", "street.jpg")     # runs now -> one Results
+        r = Model("얼굴분석", "group.jpg")     # Korean names work too
+        for r in Model("track", 0):           # webcam/video -> a stream
+            ...
+        ai = Model("face_match")              # no input -> a reusable object
+
+    A photo, a sound file, or a piece of text answers with **one** result; a
+    webcam index, a video file, or "mic" answers with a stream to iterate; a
+    folder answers with a list. ``Model("face_analyze")("group.jpg")`` (build
+    first, call later) keeps working — the object form is the same thing.
 
     Capability names (``face_analyze``, ``read_text``, ``track``, ``gaze``, ...)
     build a :class:`~ovkit.pipelines.base.Pipeline` that chains the models the
@@ -67,20 +75,38 @@ class Model:
         ``Model("face_analyze", attributes=("age_gender",))``).
     """
 
-    def __new__(cls, model: str | Path = "", *args: Any, **kwargs: Any) -> Any:
-        """Return a composed pipeline when ``model`` names a capability.
+    #: Options that belong to a *call*, not to building the model/pipeline.
+    _RUN_OPTS = ("conf", "imgsz")
 
-        Dispatching here keeps ``Model`` the single thing to learn: a beginner
-        does not have to know whether "face_analyze" is one network or four.
+    def __new__(cls, model: str | Path = "", source: Any = None, /, **kwargs: Any) -> Any:
+        """Dispatch on the name, and run immediately when an input is given.
+
+        Keeping this in ``__new__`` makes ``Model`` the single thing to learn:
+        a beginner never has to know whether "face_analyze" is one network or
+        four, or that photos and webcams need different plumbing.
         """
-        if cls is Model and isinstance(model, str):
+        if cls is not Model:
+            return super().__new__(cls)
+        name: Any = canonical(model) if isinstance(model, str) else model
+
+        if isinstance(name, str):
             from ..pipelines import build_pipeline, is_pipeline
 
-            if is_pipeline(model):
-                device = kwargs.pop("device", None) or (args[1] if len(args) > 1 else "AUTO")
+            if is_pipeline(name):
+                device = kwargs.pop("device", None) or "AUTO"
                 kwargs.pop("task", None)
                 kwargs.pop("precision", None)
-                return build_pipeline(model, device=device, **kwargs)
+                run_opts = {k: kwargs.pop(k) for k in cls._RUN_OPTS if k in kwargs}
+                pipe = build_pipeline(name, device=device, **kwargs)
+                if source is not None:
+                    return _immediate(pipe, source, **run_opts)
+                return pipe
+
+        if source is not None:
+            run_opts = {k: kwargs.pop(k) for k in cls._RUN_OPTS if k in kwargs}
+            inst = super().__new__(cls)
+            inst.__init__(name, **kwargs)
+            return _immediate(inst, source, **run_opts)
         return super().__new__(cls)
 
     @classmethod
@@ -105,10 +131,13 @@ class Model:
     def __init__(
         self,
         model: str | Path,
+        source: Any = None,  # consumed by __new__; present here only for the signature
         task: str | None = None,
         device: str = "AUTO",
         precision: str | None = None,
     ) -> None:
+        if isinstance(model, str):
+            model = canonical(model)
         self.device = device
         self._task_override = task
         self._entry: ModelEntry | None = None
@@ -150,11 +179,9 @@ class Model:
             source = fetch(entry)
             return to_ir(source, entry.name, prec)
 
-        # 3) Unknown.
-        raise ModelNotFoundError(
-            f"'{model}' is neither an existing .xml/.onnx file nor a registered "
-            f"model. Registered models: {', '.join(list_models()) or '(none)'}."
-        )
+        # 3) Unknown. Suggest the closest real name — a typo in Korean or
+        # English should cost one glance, not a trip to the docs.
+        raise ModelNotFoundError(_unknown_name_message(str(model)))
 
     def _backend_for(self, device: str) -> Backend:
         if device not in self._backends:
@@ -345,8 +372,13 @@ class Model:
     def _predict_stream(
         self, adapter, backend: Backend, source: Any, *, conf: float, **kwargs: Any
     ) -> Iterator[Results]:
+        import time
+
         for image, path in _iter_sources(source):
+            start = time.perf_counter()
             res = adapter.run(backend, image, conf=conf, **kwargs)
+            res.elapsed_ms = (time.perf_counter() - start) * 1000.0
+            res.device = backend.actual_device
             res.path = path
             yield res
 
@@ -397,6 +429,54 @@ class Model:
 
 
 # --- source iteration ------------------------------------------------------
+
+
+def _unknown_name_message(name: str) -> str:
+    """A readable, suggestion-bearing message for an unknown model name."""
+    import difflib
+
+    from ..pipelines import PIPELINES
+    from .i18n import KO_CAPS
+
+    known = sorted(set(list_models()) | set(PIPELINES) | set(KO_CAPS))
+    close = difflib.get_close_matches(name, known, n=1, cutoff=0.5)
+    hint = ""
+    if close:
+        target = canonical(close[0])
+        shown = close[0] if close[0] == target else f"{close[0]}({target})"
+        hint = f" 혹시 '{shown}'?" if lang() == "ko" else f" Did you mean '{shown}'?"
+    if lang() == "ko":
+        return (
+            f"'{name}'은(는) 등록된 모델이나 기능이 아니에요.{hint}\n"
+            f"전체 목록: ovkit list 명령이나 list_models() / list_pipelines()"
+        )
+    return (
+        f"'{name}' is not a registered model or capability.{hint}\n"
+        f"See `ovkit list`, list_models(), or list_pipelines() for what exists."
+    )
+
+
+def _immediate(runner: Any, source: Any, **run_opts: Any) -> Any:
+    """Run ``Model(name, input)`` and shape the answer to the input.
+
+    A photo, a sound file, or an array answers with **one** ``Results`` — a
+    student three weeks into Python has not met list indexing yet. A folder
+    answers with a list (it visibly holds many). A webcam index, a video file
+    or ``"mic"`` answers with the lazy stream ``predict(stream=True)`` builds,
+    so nothing opens until iteration starts.
+    """
+    if isinstance(source, int):
+        return runner.predict(source, stream=True, **run_opts)
+    if isinstance(source, (str, Path)):
+        text = str(source)
+        if text == "mic" or Path(text).suffix.lower() in _VIDEO_EXT:
+            return runner.predict(source, stream=True, **run_opts)
+    out = runner.predict(source, **run_opts)
+    if isinstance(out, list):
+        if isinstance(source, (str, Path)) and Path(str(source)).is_dir():
+            return out
+        return out[0] if len(out) == 1 else out
+    return out
 
 
 def _all_image_inputs(backend: Any) -> bool:
