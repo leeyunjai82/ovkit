@@ -7,6 +7,7 @@ the pre/post-processing; the backend only moves tensors.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -48,6 +49,26 @@ class BaseAdapter:
     def preprocess_square(self, image: np.ndarray, rgb: bool = True) -> np.ndarray:
         """Resize to ``imgsz`` square, normalize, and return an NCHW float tensor."""
         return self.preprocess(image, (self.imgsz, self.imgsz), rgb=rgb)
+
+    @staticmethod
+    def labels_beside(model_path: str | None) -> dict[int, str] | None:
+        """Class names from a ``labels.txt`` next to the model, if present.
+
+        Keeping labels as data (one name per line, mirrored with the model)
+        avoids hardcoding a thousand ImageNet strings in the package and works
+        for any dataset a model was trained on.
+        """
+        if not model_path:
+            return None
+        path = Path(model_path).parent / "labels.txt"
+        if not path.is_file():
+            return None
+        try:
+            lines = [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines()]
+        except OSError:
+            return None
+        names = [ln for ln in lines if ln]
+        return {i: n for i, n in enumerate(names)} if names else None
 
     def model_input_hw(self, backend: Backend) -> tuple[int, int]:
         """Return the model's static spatial ``(h, w)`` (last two dims), or ``imgsz``.

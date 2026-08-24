@@ -89,6 +89,12 @@ class Model:
             self._pre = entry.preprocess
             self._post = entry.postprocess
             self._names = class_names(entry.postprocess.get("classes"))
+            # A descriptor vector and a class-logit vector are numerically
+            # indistinguishable, so take the model's own word for it: re-id and
+            # retrieval models say so in their name/description.
+            haystack = f"{entry.name} {entry.description or ''}".lower()
+            if any(k in haystack for k in ("embedding", "re-identification", "reid", "retrieval")):
+                self._post = {**self._post, "kind": "embedding"}
             prec = precision or entry.precision
             source = fetch(entry)
             return to_ir(source, entry.name, prec)
@@ -108,12 +114,17 @@ class Model:
         if self._adapter is None:
             manifest_task = self._entry.task if self._entry else None
             self.task = detect_task(backend, manifest_task, self._task_override)
+            from ..recognize.base import BaseAdapter
+
+            # A mirrored model can ship its own class names; without them a
+            # classifier can only answer "class_615", which is no answer.
+            names = self._names or BaseAdapter.labels_beside(str(self.ir_path))
             self._adapter = get_adapter(
                 self.task,
                 imgsz=self.imgsz,
                 preprocess=self._pre,
                 postprocess=self._post,
-                names=self._names or None,
+                names=names or None,
             )
         return self._adapter
 

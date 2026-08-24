@@ -33,7 +33,9 @@ def _require_genai() -> Any:
         import openvino_genai as ovg
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise ImportError(
-            "openvino-genai is required. Install it with: pip install 'ovkit[genai]'."
+            "openvino-genai is required for LLM / speech / vision-language models.\n"
+            'Install it with:  pip install "ovkit[genai]"\n'
+            "(checked before downloading, so nothing has been fetched yet)."
         ) from exc
     return ovg
 
@@ -96,6 +98,11 @@ def pipeline(name: str, device: str = _DEFAULT_DEVICE, **kwargs: Any) -> Any:
     Hugging Face; a local directory is used as-is (its pipeline type is then
     required via ``pipeline_type=...``).
     """
+    # Fail before downloading, not after: a genai model is gigabytes, and
+    # discovering the missing dependency at build time wasted the whole
+    # download.
+    _require_genai()
+
     entry = resolve(name)
     if entry is not None and entry.src == "genai":
         ptype = entry.extra.get("pipeline") or kwargs.pop("pipeline_type", None)

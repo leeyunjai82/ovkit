@@ -96,25 +96,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
         return 0
 
     for r in results:
-        parts = [f"task={r.task}"]
-        if r.text:
-            parts.append(f'text="{r.text}"')
+        print(r.summary())
         if r.boxes is not None:
-            parts.append(f"{len(r.boxes)} boxes")
             for x1, y1, x2, y2, c, cl in r.boxes.data[:20]:
                 print(
                     f"  {r.name_for(int(cl)):16s} {c:.2f} [{int(x1)},{int(y1)},{int(x2)},{int(y2)}]"
                 )
-        if r.probs is not None:
-            top = ", ".join(
-                f"{r.name_for(int(i))} {r.probs.data[int(i)]:.2f}" for i in r.probs.top5
-            )
-            parts.append(f"top-5: {top}")
-        if r.masks is not None:
-            parts.append(f"masks {tuple(r.masks.data.shape)}")
-        if r.keypoints is not None:
-            parts.append(f"keypoints {tuple(r.keypoints.data.shape)}")
-        print(" | ".join(parts))
 
     save = args.save
     if save is None and results and Path(str(args.source)).is_file():

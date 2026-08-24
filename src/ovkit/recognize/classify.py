@@ -37,6 +37,27 @@ _KNOWN_HEADS = {
 _LANDMARK_SIZES = frozenset({10, 70, 196})
 
 
+def _looks_like_embedding(scores: np.ndarray) -> bool:
+    """True for a descriptor vector rather than a class distribution.
+
+    Embeddings are unnormalized (they carry negatives and do not sum to one),
+    while classifier outputs are logits or probabilities over a class table.
+    """
+    if scores.size < 64:
+        return False
+    total = float(np.sum(scores))
+    return bool(np.any(scores < -0.01)) and not (0.99 <= total <= 1.01)
+
+
+def _looks_like_multilabel(scores: np.ndarray) -> bool:
+    """True for a small vector of independent sigmoids (attribute heads)."""
+    if not 2 <= scores.size <= 16:
+        return False
+    if float(scores.min()) < 0.0 or float(scores.max()) > 1.0:
+        return False
+    return float(np.sum(scores)) > 1.05  # a distribution would sum to ~1
+
+
 class ClassifyAdapter(BaseAdapter):
     """Adapter for image classification."""
 
@@ -74,11 +95,37 @@ class ClassifyAdapter(BaseAdapter):
 
             return Results(image, task=self.task, names=self.names, keypoints=Keypoints(kpts[None]))
 
+        # Re-identification / retrieval models are registered as "classify"
+        # because they emit one vector, but that vector is a descriptor, not a
+        # distribution — "top1 class_190" is meaningless for them.
+        if self.post.get("kind") == "embedding" or (
+            self.post.get("classes") is None and _looks_like_embedding(scores)
+        ):
+            r = Results(image, task=self.task, names=self.names, tensors=outputs)
+            r.text = f"{scores.size}-d embedding (compare with cosine similarity)"
+            return r
+
+        # Attribute heads emit independent sigmoids, not a distribution: every
+        # attribute above the threshold is "on", so a single top-1 hides most
+        # of the answer.
+        if self.post.get("classes") is None and _looks_like_multilabel(scores):
+            labels = self.names or class_names(self.post.get("attributes"), len(scores))
+            hits = np.where(scores >= 0.5)[0]
+            order = hits[np.argsort(scores[hits])[::-1]][:5]
+            on = [f"{labels.get(int(i), f'attr_{i}')} {scores[i]:.2f}" for i in order]
+            r = Results(image, task=self.task, names=labels, probs=Probs(scores))
+            more = f" (+{len(hits) - len(order)} more)" if len(hits) > len(order) else ""
+            r.text = (" · ".join(on) + more) if on else "no attribute above 0.5"
+            return r
+
         if self.post.get("softmax", True):
             scores = _softmax(scores)
 
         names = self.names or class_names(self.post.get("classes"), len(scores))
-        return Results(image, task=self.task, names=names, probs=Probs(scores))
+        r = Results(image, task=self.task, names=names, probs=Probs(scores))
+        top = int(np.argmax(scores))
+        r.text = f"{names.get(top, f'class_{top}')} {float(scores[top]):.2f}"
+        return r
 
     def _multi_head(
         self, image: np.ndarray, arrs: dict[str, np.ndarray], outputs: dict[str, Any]
