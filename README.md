@@ -28,6 +28,14 @@ r = Model("detect")("image.jpg")[0]   # download -> convert -> cache -> run
 r.save("out.jpg")                     # boxes drawn; r.boxes.xyxy / .conf / .cls
 ```
 
+The same call also runs whole **capabilities** — several models chained into one
+answer, so you never have to crop, chain and stitch by hand:
+
+```python
+r = Model("face_analyze")("group.jpg")[0]
+print(r.summary())      # 2 faces: age 31 · male 98% · happy 92%, age 27 · female 95% · neutral 88%
+```
+
 Or without writing Python at all:
 
 ```bash
@@ -49,9 +57,37 @@ python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\act
 pip install -e ".[dev]"
 ```
 
+## Capabilities
+
+A capability name gives you the answer, not the plumbing. Each one chains a
+detector with the models that describe what it found — same `Model(...)` call,
+same `Results`, and it takes the same sources (path, ndarray, folder, video,
+camera index).
+
+| `Model(...)` | Answers | Chains |
+| ------------ | ------- | ------ |
+| `face_analyze` | `2 faces: age 31 · male 98% · happy 92%, ...` | face detection + age/gender + emotion (+ head pose, landmarks) |
+| `person_analyze` | `3 people: male 0.98 · long pants 0.95 · bag 0.71, ...` | person detection + attributes |
+| `vehicle_analyze` | `2 vehicles: type: car (0.98) · color: black (0.83), ...` | vehicle detection + type/colour |
+| `read_text` | `'STOP AHEAD'` — every word, in reading order | text detection + text recognition |
+| `track` | `2x person (#1, #4)` — ids stable across frames | detection + IoU association |
+| `gaze` | `1 face: looking left and slightly up` | face detection + landmarks + head pose + gaze |
+| `face_match` | `('yunjai', 0.81)` — who this is | embedding + cosine matching against your gallery |
+
+```python
+from ovkit import Model, list_pipelines
+
+list_pipelines()                                    # every capability, described
+Model("read_text")("sign.jpg")[0].text              # 'STOP AHEAD'
+Model("track")(0)                                   # webcam, ids kept across frames
+Model("face_analyze", attributes=("age_gender",))   # configure what runs
+```
+
+Aliases: `ocr`, `faces`, `people`, `vehicle`, `tracking`, `reid`.
+
 ## Supported tasks
 
-Every task below runs end-to-end through the same 3 lines — swap the alias:
+Every single-model task below runs end-to-end through the same 3 lines — swap the alias:
 
 | Task | Alias | Output | Example |
 | ---- | ----- | ------ | ------- |
@@ -61,6 +97,7 @@ Every task below runs end-to-end through the same 3 lines — swap the alias:
 | Pose / landmarks | `pose`, `face_landmarks` | `r.keypoints` | [pose.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/pose.py) |
 | Face analysis | `age_gender`, `emotion`, `head_pose`, `face_reid` | `r.text` (e.g. `"age 31 · male 98%"`) | [face_analysis.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/face_analysis.py) |
 | OCR | `text_recognition` | `r.text` | [ocr.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/ocr.py) |
+| Tracking / matching | `track`, `face_match` | `r.track_ids` · `(label, score)` | [track.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/track.py) / [face_match.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/face_match.py) |
 | Super-resolution | `super_resolution` | upscaled image via `r.plot()` | [super_resolution.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/super_resolution.py) |
 | LLM / STT (GenAI) | `llm`, `stt` | generated text | [llm.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/llm.py) / [stt.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/stt.py) |
 | NLP / audio / time series | `qa`, `translation`, `noise_suppression`, `time_series` | tensors via `model.infer()` | [denoise_audio.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/denoise_audio.py) |
@@ -129,7 +166,10 @@ control for any model: `model.infer({name: tensor})` with `model.inputs`.
 | `r.boxes` | `xyxy`, `xywh`, `conf`, `cls` |
 | `r.masks` / `r.keypoints` / `r.probs` | masks · `[x,y,conf]` · `top1`/`top5` |
 | `r.text` | decoded text (OCR, face attributes) |
+| `r.labels` / `r.track_ids` | per-box label a pipeline wrote · per-box track id |
 | `r.tensors` | raw `{name: ndarray}` |
+| `r.summary()` | the whole result as one readable line |
+| `r.crop(i)` / `r.to_dict()` / `r.to_json()` | cut a box out · plain Python · JSON |
 | `r.plot()` / `r.save(path)` | annotated image (or the model's output image) |
 
 </details>

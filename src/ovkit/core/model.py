@@ -31,16 +31,29 @@ from .tasks import detect_task
 _IMAGE_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 _VIDEO_EXT = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".m4v"}
 _AUDIO_EXT = {".wav", ".flac", ".ogg", ".mp3", ".m4a"}
+#: Sample rate the OMZ audio models are trained at.
+DEFAULT_AUDIO_SR = 16_000
 
 
 class Model:
     """An OpenVINO model with automatic resolution, task detection, and IO.
 
+    One name, one call — whether that name is a single network or a whole
+    capability::
+
+        Model("rtdetr_r50")("street.jpg")     # one network: boxes
+        Model("face_analyze")("group.jpg")    # detection + age + gender + emotion
+
+    Capability names (``face_analyze``, ``read_text``, ``track``, ``gaze``, ...)
+    build a :class:`~ovkit.pipelines.base.Pipeline` that chains the models the
+    answer needs. They behave exactly like a model: same sources, same
+    :class:`~ovkit.Results`. :func:`ovkit.list_pipelines` lists them.
+
     Parameters
     ----------
     model:
-        A registered model name (``"rtdetr_r50"``), or a path to an IR ``.xml``
-        or an ``.onnx`` file.
+        A registered model name (``"rtdetr_r50"``), a capability name
+        (``"face_analyze"``), or a path to an IR ``.xml`` / ``.onnx`` file.
     task:
         Override task auto-detection (``"detect"``/``"classify"``/...).
     device:
@@ -49,7 +62,26 @@ class Model:
     precision:
         Target IR precision for conversion (defaults to the manifest value, or
         ``fp16``).
+    **kwargs:
+        Passed to the pipeline when ``model`` names a capability (for example
+        ``Model("face_analyze", attributes=("age_gender",))``).
     """
+
+    def __new__(cls, model: str | Path = "", *args: Any, **kwargs: Any) -> Any:
+        """Return a composed pipeline when ``model`` names a capability.
+
+        Dispatching here keeps ``Model`` the single thing to learn: a beginner
+        does not have to know whether "face_analyze" is one network or four.
+        """
+        if cls is Model and isinstance(model, str):
+            from ..pipelines import build_pipeline, is_pipeline
+
+            if is_pipeline(model):
+                device = kwargs.pop("device", None) or (args[1] if len(args) > 1 else "AUTO")
+                kwargs.pop("task", None)
+                kwargs.pop("precision", None)
+                return build_pipeline(model, device=device, **kwargs)
+        return super().__new__(cls)
 
     def __init__(
         self,
@@ -173,16 +205,22 @@ class Model:
     ) -> list[Results] | Iterator[Results]:
         """Run prediction on ``source``.
 
-        The input type is auto-detected: an **image** (path / ``ndarray`` /
-        folder / video / camera ``int``) runs the vision pipeline and returns
-        :class:`Results`; a **non-image** input (a ``.npy`` tensor, a ``.wav``
-        audio file, or a raw non-image ``ndarray``) is fed to the model directly
-        and the raw ``{name: ndarray}`` outputs are returned. ``stream=True``
-        returns a generator for image sources.
+        The input type is auto-detected. An **image** (path / ``ndarray`` /
+        folder / video / camera ``int``) runs the vision pipeline. An **audio**
+        file on a sound model is read, resampled, framed and decoded into
+        :class:`Results` like any other task. Anything else (a ``.npy`` tensor,
+        a raw non-image ``ndarray``) is fed to the model directly and the raw
+        ``{name: ndarray}`` outputs are returned. ``stream=True`` returns a
+        generator for image sources.
         """
         dev = device or self.device
 
-        # Non-image input -> run the model directly, return raw outputs.
+        # Audio in, on a model that takes audio -> a decoded result, not tensors.
+        audio = self._maybe_audio_input(source)
+        if audio is not None:
+            return [self._predict_audio(*audio, device=dev)]
+
+        # Other non-image input -> run the model directly, return raw outputs.
         raw = self._maybe_raw_input(source)
         if raw is not None:
             return self.infer(raw, device=dev)
@@ -219,6 +257,34 @@ class Model:
             if ext in _AUDIO_EXT:
                 return self._load_audio(source)
         return None
+
+    #: Tasks driven by audio rather than an image.
+    AUDIO_TASKS = frozenset({"sound_classification", "noise_suppression"})
+
+    def _maybe_audio_input(self, source: Any) -> tuple[np.ndarray, int] | None:
+        """Return ``(samples, sample_rate)`` when this is audio for a sound model."""
+        task = (self._entry.task if self._entry else None) or self._task_override
+        if task not in self.AUDIO_TASKS:
+            return None
+        if isinstance(source, tuple) and len(source) == 2:  # (samples, sample_rate)
+            samples, sr = source
+            return np.asarray(samples, np.float32).reshape(-1), int(sr)
+        if isinstance(source, (str, Path)) and Path(source).suffix.lower() in _AUDIO_EXT:
+            from ..audio import read_audio
+
+            return read_audio(source, target_sr=DEFAULT_AUDIO_SR)
+        return None
+
+    def _predict_audio(self, audio: np.ndarray, sr: int, *, device: str) -> Results:
+        """Decode an audio clip with the adapter for this model's task."""
+        from ..recognize.audio import Denoiser, SoundClassifier
+
+        task = (self._entry.task if self._entry else None) or self._task_override
+        if task == "noise_suppression":
+            return Denoiser().run(self, audio, sr)
+        post = self._entry.postprocess if self._entry else {}
+        classifier = SoundClassifier(classes=post.get("classes"), names=self._names or None)
+        return classifier.run(self._backend_for(device), audio, sr)
 
     def _load_audio(self, path: str | Path) -> np.ndarray:
         """Load a ``.wav`` into a float32 tensor shaped to the model's input."""

@@ -235,7 +235,92 @@ class Results:
         self.tensors = tensors
         #: Decoded text for OCR/text-recognition tasks (otherwise ``None``).
         self.text: str | None = None
+        #: One label per box, when a pipeline knows something the class id does
+        #: not (the word an OCR pipeline read, a face's age and emotion). Takes
+        #: the place of ``name conf`` in :meth:`plot` and :meth:`summary`.
+        self.labels: list[str] | None = None
+        #: One track id per box, set by :class:`~ovkit.pipelines.tracking.Tracker`.
+        self.track_ids: list[int] | None = None
+        #: ``(N, 4)`` arrows ``[x1, y1, x2, y2]`` to draw — a direction a number
+        #: cannot show (where a face is looking, which way something moved).
+        self.arrows: np.ndarray | None = None
+        #: ``(samples, sample_rate)`` for audio results; ``orig_img`` then holds
+        #: the waveform, so plot/save work exactly as they do for a picture.
+        self.audio: tuple[np.ndarray, int] | None = None
         self.path = path
+
+    # -- using the result ---------------------------------------------------
+
+    def label_for(self, i: int) -> str:
+        """The label drawn for box ``i``: a pipeline's own, else ``name conf``."""
+        if self.labels is not None and i < len(self.labels):
+            text = self.labels[i]
+        else:
+            *_xyxy, conf, cls = self.boxes.data[i]
+            text = f"{self.name_for(int(cls))} {conf:.2f}"
+        if self.track_ids is not None and i < len(self.track_ids):
+            text = f"#{self.track_ids[i]} {text}"
+        return text
+
+    def crop(self, i: int | None = None, pad: float = 0.0) -> np.ndarray | list[np.ndarray]:
+        """Cut box ``i`` out of the image (all boxes when ``i`` is ``None``).
+
+        ``pad`` grows the box by a fraction of its size — face attribute models
+        want a little context around the detection.
+        """
+        if self.boxes is None or not len(self.boxes):
+            return [] if i is None else np.zeros((0, 0, 3), self.orig_img.dtype)
+        if i is None:
+            return [self.crop(k, pad) for k in range(len(self.boxes))]
+        h, w = self.orig_img.shape[:2]
+        x1, y1, x2, y2 = self.boxes.xyxy[i]
+        if pad:
+            dx, dy = (x2 - x1) * pad, (y2 - y1) * pad
+            x1, y1, x2, y2 = x1 - dx, y1 - dy, x2 + dx, y2 + dy
+        x1, y1 = max(0, int(round(x1))), max(0, int(round(y1)))
+        x2, y2 = min(w, int(round(x2))), min(h, int(round(y2)))
+        if x2 <= x1 or y2 <= y1:
+            return np.zeros((0, 0, 3), self.orig_img.dtype)
+        return self.orig_img[y1:y2, x1:x2].copy()
+
+    def to_dict(self) -> dict:
+        """Plain-Python view of the result — ready for ``json.dumps`` or a DB."""
+        h, w = self.orig_img.shape[:2]
+        out: dict = {"task": self.task, "width": w, "height": h, "summary": self.summary()}
+        if self.path:
+            out["path"] = self.path
+        if self.text:
+            out["text"] = self.text
+        if self.boxes is not None:
+            out["boxes"] = [
+                {
+                    "label": self.name_for(int(cls)),
+                    "confidence": round(float(conf), 4),
+                    "xyxy": [round(float(v), 1) for v in (x1, y1, x2, y2)],
+                    **({"text": self.labels[i]} if self.labels and i < len(self.labels) else {}),
+                    **(
+                        {"track_id": int(self.track_ids[i])}
+                        if self.track_ids and i < len(self.track_ids)
+                        else {}
+                    ),
+                }
+                for i, (x1, y1, x2, y2, conf, cls) in enumerate(self.boxes.data)
+            ]
+        if self.probs is not None:
+            out["top5"] = [
+                {"label": self.name_for(int(k)), "confidence": round(float(self.probs.data[k]), 4)}
+                for k in self.probs.top5
+            ]
+        if self.keypoints is not None:
+            out["keypoints"] = self.keypoints.data.round(1).tolist()
+        return out
+
+    def to_json(self, **kwargs) -> str:
+        """The result as a JSON string (``**kwargs`` go to ``json.dumps``)."""
+        import json
+
+        kwargs.setdefault("ensure_ascii", False)
+        return json.dumps(self.to_dict(), **kwargs)
 
     def __len__(self) -> int:
         for obj in (self.boxes, self.masks, self.keypoints):
@@ -265,14 +350,23 @@ class Results:
         if self.text:
             parts.append(self.text)
 
-        if self.boxes is not None:
+        if self.boxes is not None and self.labels is not None:
+            # A pipeline already described each object; counting class ids on
+            # top of that would just repeat "face, face, face".
+            if not self.text:
+                parts.append(", ".join(self.labels[:max_items]) or "nothing found")
+        elif self.boxes is not None:
             counts: dict[str, int] = {}
             for *_xyxy, _conf, cls in self.boxes.data:
                 label = self.name_for(int(cls))
                 counts[label] = counts.get(label, 0) + 1
             if counts:
                 top = sorted(counts.items(), key=lambda kv: -kv[1])[:max_items]
-                parts.append(", ".join(f"{n}x {lbl}" if n > 1 else lbl for lbl, n in top))
+                summary = ", ".join(f"{n}x {lbl}" if n > 1 else lbl for lbl, n in top)
+                if self.track_ids:
+                    ids = ", ".join(f"#{i}" for i in self.track_ids[:max_items])
+                    summary += f" ({ids})"
+                parts.append(summary)
             else:
                 parts.append("nothing found")
 
@@ -354,11 +448,11 @@ class Results:
                     img = cv2.addWeighted(img, 0.5, overlay, 0.5, 0)
 
         if self.boxes is not None:
-            for x1, y1, x2, y2, conf, cls in self.boxes.data:
-                c = _color(int(cls))
+            for i, (x1, y1, x2, y2, _conf, cls) in enumerate(self.boxes.data):
+                c = _color(int(self.track_ids[i]) if self.track_ids else int(cls))
                 p1, p2 = (int(x1), int(y1)), (int(x2), int(y2))
                 cv2.rectangle(img, p1, p2, c, line_width)
-                label = f"{self.name_for(int(cls))} {conf:.2f}"
+                label = self.label_for(i)
                 (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, 1)
                 # Keep the label bar on-screen: below the box top when there is
                 # no room above it, and never running off the right edge.
@@ -381,6 +475,18 @@ class Results:
                 for x, y, kc in inst:
                     if kc > 0:
                         cv2.circle(img, (int(x), int(y)), 3, (0, 255, 0), -1)
+
+        if self.arrows is not None:
+            for x1, y1, x2, y2 in np.asarray(self.arrows).reshape(-1, 4):
+                cv2.arrowedLine(
+                    img,
+                    (int(x1), int(y1)),
+                    (int(x2), int(y2)),
+                    (0, 220, 255),
+                    max(2, line_width),
+                    cv2.LINE_AA,
+                    tipLength=0.25,
+                )
 
         # When the model's output IS an image (super-resolution, style transfer,
         # matting), show that image — it is the answer.
@@ -420,9 +526,21 @@ class Results:
         return None
 
     def save(self, path: str | Path) -> Path:
-        """Render with :meth:`plot` and write the result to ``path``."""
+        """Write the result to ``path``.
+
+        An audio result saved to ``.wav`` writes the audio; anything else
+        renders with :meth:`plot` and writes an image. Saving the denoised
+        signal is the point of running a denoiser, so it should not require
+        digging the array out by hand.
+        """
+        target = Path(path)
+        if self.audio is not None and target.suffix.lower() == ".wav":
+            from ..audio import write_wav
+
+            samples, sr = self.audio
+            return write_wav(target, samples, sr)
+
         from ..image.ops import imwrite
 
-        out = self.plot()
-        imwrite(path, out)
-        return Path(path)
+        imwrite(target, self.plot())
+        return target

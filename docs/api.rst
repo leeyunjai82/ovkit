@@ -25,6 +25,14 @@ Public API
 
 .. autofunction:: ovkit.list_models
 
+.. autofunction:: ovkit.list_pipelines
+
+Composed pipelines
+------------------
+
+.. automodule:: ovkit.pipelines
+   :members:
+
 Exceptions
 ----------
 
