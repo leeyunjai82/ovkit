@@ -104,6 +104,26 @@ Model("face_analyze", attributes=("age_gender",))   # configure what runs
 ```
 
 Aliases: `ocr`, `anpr`, `blur`, `driver`, `describe`, `faces`, `people`, `vehicle`, `tracking`, `reid`.
+
+## Train your own detector
+
+RT-DETR, trainable, Apache-2.0 end to end — an Ultralytics-style workflow with
+no AGPL code or weights anywhere (`pip install "ovkit[train]"`):
+
+```python
+from ovkit import RTDETR
+
+model = RTDETR("rtdetr-r18")                 # or RTDETR("best.pt") to resume
+model.train(data="data.yaml", epochs=100)    # the YOLO-format labels you already have
+model.val(data="data.yaml")                  # mAP50 / mAP50-95
+model.export(half=True)                      # -> IR + labels.txt
+
+r = model("bus.jpg", conf=0.5)               # ovkit Results: print(r), r.found, r.save()
+```
+
+The exported IR drops straight into `Model("path/to/rtdetr-r18.xml")` — the
+`labels.txt` written next to it means your classes answer by name. CLI:
+`ovkit train --data data.yaml`, `ovkit val`, `ovkit export`.
 `ovkit capabilities` prints the list; **`ovkit gui` opens a window** where you can
 click through them against your webcam or a picture.
 

@@ -397,7 +397,10 @@ class DetectAdapter(BaseAdapter):
         max_det: int,
     ) -> np.ndarray:
         logits, boxes = self._split_detr(outputs)
-        scores = _sigmoid(logits)
+        # An IR exported by ovkit's own trainer already emits sigmoided scores;
+        # sigmoiding twice would squash 0.9 down to 0.71 and break conf.
+        already_prob = float(logits.min()) >= 0.0 and float(logits.max()) <= 1.0
+        scores = logits if already_prob else _sigmoid(logits)
         cls = scores.argmax(axis=1)
         best = scores.max(axis=1)
 
