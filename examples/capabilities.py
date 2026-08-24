@@ -12,7 +12,12 @@ def main() -> None:
     print("Model(name) — a capability, not just a network:\n")
     for name, description in list_pipelines().items():
         print(f"  {name:16s} {description}")
-    print("\nAliases: ocr, faces, people, vehicle, tracking, reid")
+    from ovkit.pipelines import ALIASES
+
+    print("\nAliases:")
+    for alias, target in sorted(ALIASES.items()):
+        print(f"  {alias:16s} -> {target}")
+    print("\nOr click through them all:  ovkit gui")
     print("\nExample:")
     print("  from ovkit import Model")
     print('  r = Model("face_analyze")("group.jpg")[0]')

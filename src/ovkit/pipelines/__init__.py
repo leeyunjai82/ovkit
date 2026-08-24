@@ -23,26 +23,50 @@ from __future__ import annotations
 from typing import Any
 
 from .analyze import FaceAnalyzer, PersonAnalyzer, VehicleAnalyzer
+from .attention import AttentionAnalyzer
 from .base import Pipeline
 from .gaze import GazeEstimator
+from .plates import PlateReader
+from .privacy import Anonymizer
 from .reid import ReID
+from .scene import SceneReport
+from .temporal import DrowsinessMonitor, GestureRecognizer
 from .text import TextReader
 from .tracking import Tracker
 
 #: Every composed capability, by the name :func:`vis` accepts.
 PIPELINES: dict[str, type[Pipeline]] = {
+    # describe what is in the frame
     "face_analyze": FaceAnalyzer,
     "person_analyze": PersonAnalyzer,
     "vehicle_analyze": VehicleAnalyzer,
+    "scene": SceneReport,
+    # read something out of it
     "read_text": TextReader,
+    "read_plate": PlateReader,
+    # follow it over time
     "track": Tracker,
+    "gesture": GestureRecognizer,
+    "drowsiness": DrowsinessMonitor,
+    # where people are looking
     "gaze": GazeEstimator,
+    "attention": AttentionAnalyzer,
+    # identity: match it, or remove it
     "face_match": ReID,
+    "anonymize": Anonymizer,
 }
 
 #: Friendlier spellings people reach for first.
 ALIASES = {
     "ocr": "read_text",
+    "anpr": "read_plate",
+    "plate": "read_plate",
+    "blur": "anonymize",
+    "privacy": "anonymize",
+    "sign_language": "gesture",
+    "driver": "drowsiness",
+    "sleepy": "drowsiness",
+    "describe": "scene",
     "text": "read_text",
     "face": "face_analyze",
     "faces": "face_analyze",
@@ -103,4 +127,10 @@ __all__ = [
     "Tracker",
     "GazeEstimator",
     "ReID",
+    "AttentionAnalyzer",
+    "Anonymizer",
+    "DrowsinessMonitor",
+    "GestureRecognizer",
+    "PlateReader",
+    "SceneReport",
 ]

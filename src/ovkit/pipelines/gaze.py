@@ -164,10 +164,11 @@ class GazeEstimator(Pipeline):
 def describe_gaze(vector: np.ndarray, deadzone: float = 0.15) -> str:
     """Turn a gaze vector into words — the point of the pipeline.
 
-    ``x`` is positive towards the subject's left, ``y`` positive upwards.
+    Directions are as seen in the picture, matching the arrow :func:`gaze_arrows`
+    draws: ``x`` positive is towards the right of the frame, ``y`` positive is up.
     """
     x, y = float(vector[0]), float(vector[1])
-    horizontal = "left" if x > deadzone else "right" if x < -deadzone else ""
+    horizontal = "right" if x > deadzone else "left" if x < -deadzone else ""
     vertical = "up" if y > deadzone else "down" if y < -deadzone else ""
     if not horizontal and not vertical:
         return "looking at the camera"
