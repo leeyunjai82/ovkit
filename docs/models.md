@@ -19,7 +19,8 @@ that points at a well-tested default. `Model("face_detection")` just works.
 | `pedestrian_detection` | `person_detection_0202` | detect pedestrians (driving) |
 | `vehicle_detection` | `vehicle_detection_0200` | detect vehicles |
 | `text_detection` | `text_detection_0004` | detect text regions |
-| `segment` | `road_segmentation_adas_0001` | semantic segmentation |
+| `segment` | `pspnet_pytorch` | semantic segmentation (general scenes) |
+| `road_segmentation` | `road_segmentation_adas_0001` | road / lane segmentation (driving) |
 | `instance_segmentation` | `instance_segmentation_person_0007` | per-instance masks |
 | `pose` | `human_pose_estimation_0007` | human body keypoints |
 | `face_landmarks` | `landmarks_regression_retail_0009` | 5-point face landmarks |
@@ -30,7 +31,7 @@ that points at a well-tested default. `Model("face_detection")` just works.
 | `face_reid` | `face_reidentification_retail_0095` | face embedding |
 | `person_attributes` | `person_attributes_recognition_crossroad_0234` | clothing/attributes |
 | `vehicle_attributes` | `vehicle_attributes_recognition_barrier_0042` | type + color |
-| `classify` | `resnet50_binary_0001` | image classification |
+| `classify` | `nfnet_f0` | image classification (ImageNet) |
 | `image_retrieval` | `image_retrieval_0001` | image embedding |
 | `super_resolution` | `single_image_super_resolution_1033` | 3-4x upscaling |
 | `text_recognition` | `text_recognition_0014` | read cropped text |
@@ -39,6 +40,9 @@ that points at a well-tested default. `Model("face_detection")` just works.
 | `translation` | `machine_translation_nar_en_de_0002` | EN→DE translation |
 | `noise_suppression` | `noise_suppression_poconetlike_0001` | denoise speech |
 | `time_series` | `time_series_forecasting_electricity_0001` | forecasting |
+| `sound_classification` | `aclnet` | classify a sound clip (audio in — `model.infer()`) |
+| `style_transfer` | `fast_neural_style_mosaic_onnx` | stylize an image (image out) |
+| `background_matting` | `background_matting_mobilenetv2` | cut the subject out (frame + empty scene) |
 | `llm` | `qwen25_1_5b_instruct` | chat LLM (genai) |
 | `vlm` | `qwen3_vl_4b_instruct` | vision-language: image + question -> text |
 | `stt` | `whisper_base` | speech-to-text (genai) |
