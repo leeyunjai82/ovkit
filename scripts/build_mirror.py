@@ -719,10 +719,14 @@ def main(argv: list[str] | None = None) -> int:
     # Gather the candidate entries (manifest + extras), de-duplicated by name.
     selected: dict[str, ModelEntry] = {}
     names = args.models or list_models()
+    unresolved: list[str] = []
     for name in names:
         entry = resolve(name)  # also enforces the permissive-license policy
         if entry is None:
-            print(f"warning: '{name}' is not registered; skipping.", file=sys.stderr)
+            # Might still turn up in the OMZ enumeration below (public/intel
+            # models are not in the manifest until they are mirrored), so hold
+            # the warning until every source has been consulted.
+            unresolved.append(name)
             continue
         selected[entry.name] = entry
 
@@ -743,6 +747,10 @@ def main(argv: list[str] | None = None) -> int:
                 selected.setdefault(entry.name, entry)
         except Exception as exc:
             print(f"warning: OMZ enumeration failed: {exc}", file=sys.stderr)
+
+    for name in unresolved:
+        if name not in selected:
+            print(f"warning: '{name}' is not registered; skipping.", file=sys.stderr)
 
     entries = list(selected.values())
     if not entries:
