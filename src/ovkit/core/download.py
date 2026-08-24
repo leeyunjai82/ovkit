@@ -143,6 +143,18 @@ def _fetch_hf(entry: ModelEntry, dest_dir: Path) -> Path:
                             f"Got '{entry.filename}' from {entry.repo}, but its weights "
                             f"('{bin_name}') could not be downloaded: {bin_exc}"
                         ) from bin_exc
+                # Class names, when the mirror carries them, travel with the
+                # model so results read "kite 0.83" instead of "class_21".
+                labels_name = entry.filename.rsplit("/", 1)[0] + "/labels.txt"
+                try:
+                    hf_hub_download(
+                        repo_id=entry.repo,
+                        filename=labels_name,
+                        subfolder=entry.subfolder,
+                        local_dir=str(dest_dir),
+                    )
+                except Exception:
+                    pass  # optional: most models ship without a label list
             return Path(path)
         snap = snapshot_download(repo_id=entry.repo, local_dir=str(dest_dir))
         return Path(snap)

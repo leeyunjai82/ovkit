@@ -180,13 +180,72 @@ class Results:
 
     def __repr__(self) -> str:
         h, w = self.orig_img.shape[:2]
-        n = len(self)
-        return f"Results(task={self.task!r}, image={w}x{h}, items={n})"
+        return f"Results({self.task}, {w}x{h}: {self.summary()})"
 
     def name_for(self, cls_id: int) -> str:
         return self.names.get(int(cls_id), str(int(cls_id)))
 
     # -- visualization ------------------------------------------------------
+
+    def summary(self, max_items: int = 5) -> str:
+        """One human-readable line describing this result.
+
+        Every surface (CLI, web demo, ``print(results)``) renders through this,
+        so a model's answer reads the same everywhere — and reads as an answer
+        ("cat 0.92", "road 47% · car 8%") rather than as tensor shapes.
+        """
+        parts: list[str] = []
+        if self.text:
+            parts.append(self.text)
+
+        if self.boxes is not None:
+            counts: dict[str, int] = {}
+            for *_xyxy, _conf, cls in self.boxes.data:
+                label = self.name_for(int(cls))
+                counts[label] = counts.get(label, 0) + 1
+            if counts:
+                top = sorted(counts.items(), key=lambda kv: -kv[1])[:max_items]
+                parts.append(", ".join(f"{n}x {lbl}" if n > 1 else lbl for lbl, n in top))
+            else:
+                parts.append("nothing found")
+
+        if self.probs is not None and not self.text:
+            top = self.probs.top1
+            parts.append(f"{self.name_for(int(top))} {float(self.probs.data[int(top)]):.2f}")
+
+        if self.masks is not None and len(self.masks):
+            parts.append(self._mask_summary(max_items))
+
+        if self.keypoints is not None:
+            n, k = self.keypoints.data.shape[0], self.keypoints.data.shape[1]
+            parts.append(f"{n} instance(s), {k} keypoints")
+
+        if not parts and self.tensors:
+            img = self._image_output()
+            if img is not None:
+                parts.append(f"produced a {img.shape[1]}x{img.shape[0]} image")
+            else:
+                shapes = ", ".join(
+                    f"{n}{tuple(np.asarray(a).shape)}" for n, a in list(self.tensors.items())[:3]
+                )
+                parts.append(f"raw output: {shapes}")
+        return " · ".join(parts) if parts else "no result"
+
+    def _mask_summary(self, max_items: int = 5) -> str:
+        """Which classes the mask actually covers, as percentages."""
+        data = np.asarray(self.masks.data)
+        if data.ndim == 3 and data.shape[0] == 1:  # class map
+            flat = data[0].ravel()
+            ids, counts = np.unique(flat, return_counts=True)
+            order = np.argsort(counts)[::-1][:max_items]
+            total = float(flat.size)
+            shown = [
+                f"{self.name_for(int(ids[i]))} {counts[i] / total * 100:.0f}%"
+                for i in order
+                if counts[i] / total >= 0.01
+            ]
+            return " · ".join(shown) if shown else "no class above 1%"
+        return f"{len(self.masks)} mask(s)"
 
     def plot(self, line_width: int = 2, font_scale: float = 0.5) -> np.ndarray:
         """Render detections/keypoints onto a copy of the image and return it."""

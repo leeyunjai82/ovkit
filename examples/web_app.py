@@ -119,28 +119,18 @@ def wav_b64(audio: np.ndarray, sr: int) -> str:
 
 
 def summarize(r) -> str:
-    lines = [f"task: {r.task}"]
-    if getattr(r, "text", None):
-        lines.append(f'text: "{r.text}"')
-    if r.boxes is not None:
-        lines.append(f"{len(r.boxes)} detections")
+    """Human-readable result — ovkit renders it, the app just adds detail rows."""
+    lines = [r.summary()]
+    if r.boxes is not None and len(r.boxes):
         for x1, y1, x2, y2, c, cl in r.boxes.data[:25]:
             lines.append(
                 f"  {r.name_for(int(cl))} {c:.2f} [{int(x1)},{int(y1)},{int(x2)},{int(y2)}]"
             )
-    if r.probs is not None:
+    if r.probs is not None and len(r.probs.data) > 1:
         lines.append(
             "top-5: "
             + ", ".join(f"{r.name_for(int(i))} {r.probs.data[int(i)]:.2f}" for i in r.probs.top5)
         )
-    if r.masks is not None:
-        lines.append(f"masks {tuple(r.masks.data.shape)}")
-    if r.keypoints is not None:
-        lines.append(f"{len(r.keypoints)} instance(s), {r.keypoints.data.shape[1]} keypoints")
-    if r.tensors is not None and len(lines) == 1:
-        lines.append("raw outputs:")
-        for n, a in r.tensors.items():
-            lines.append(f"  {n}: {tuple(np.asarray(a).shape)}")
     return "\n".join(lines)
 
 
