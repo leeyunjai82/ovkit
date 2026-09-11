@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 
 from . import __version__
@@ -256,6 +257,16 @@ def main(argv: list[str] | None = None) -> int:
     except OVKitError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except BrokenPipeError:
+        # `ovkit list | head` closes the pipe under us. Python would otherwise
+        # print a traceback while flushing stdout at exit, which reads as a
+        # crash for what the user meant as "show me the first few".
+        with contextlib.suppress(OSError):
+            sys.stdout.close()
+        return 0
+    except KeyboardInterrupt:
+        print("\ncancelled.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":
