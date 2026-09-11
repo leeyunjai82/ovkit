@@ -99,6 +99,8 @@ camera index).
 | `exercise` | `squat x 12 (down)` | pose + joint-angle hysteresis (squat, push-up) |
 | `attendance` | `present 24/26` + `roll.csv` | face detection + roster matching |
 | `teach` | your own classes, from example photos | embedding + cosine k-NN (5 modes) |
+| `depth` | `nearest: bottom-left · 34% of the frame is close` + a colour map | Depth Anything V2 Small |
+| `remove_background` | the subject, saved as a transparent PNG | U2-Net |
 
 ```python
 from ovkit import Model, list_pipelines

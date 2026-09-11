@@ -36,6 +36,10 @@ face_reid: {alias: face_reidentification_retail_0095}
 person_attributes: {alias: person_attributes_recognition_crossroad_0234}
 vehicle_attributes: {alias: vehicle_attributes_recognition_barrier_0042}
 
+# --- depth / background ---
+depth: {alias: depth_anything_v2_small}   # how far away things are
+remove_background: {alias: u2net}         # cut the subject out of the scene
+
 # --- classify / embedding / super-resolution ---
 classify: {alias: nfnet_f0}                  # general ImageNet classifier
 image_retrieval: {alias: image_retrieval_0001}

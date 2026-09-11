@@ -46,6 +46,8 @@ def choices() -> list[Choice]:
         Choice("attention", "Attention", "Which object the person is looking at"),
         Choice("gaze", "Gaze", "Where a face is looking"),
         Choice("anonymize", "Blur faces", "Redact faces so the picture can be shared"),
+        Choice("remove_background", "Cut out", "Keep the subject, drop the background"),
+        Choice("depth", "Distance", "How far away everything is"),
         Choice("person_analyze", "People", "What each person wears or carries"),
         Choice("vehicle_analyze", "Vehicles", "Type and colour of each vehicle"),
         # A few single models, for when you want exactly one.
