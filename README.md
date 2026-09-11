@@ -138,15 +138,22 @@ no AGPL code or weights anywhere (`pip install "ovkit[train]"`):
 ```python
 from ovkit import RTDETR
 
-model = RTDETR("rtdetr-r18")                 # or RTDETR("best.pt") to resume
+model = RTDETR("rtdetr-r18")                 # COCO weights, downloaded on first use
 model.train(data="data.yaml", epochs=100)    # the YOLO-format labels you already have
-model.val(data="data.yaml")                  # mAP50 / mAP50-95
+model.val(data="data.yaml").box.map50        # mAP50 / mAP50-95
 model.export(half=True)                      # -> IR + labels.txt
-
-r = model("bus.jpg", conf=0.5)               # ovkit Results: print(r), r.found, r.save()
 ```
 
-The exported IR drops straight into `Model("path/to/rtdetr-r18.xml")` — the
+The three sizes are `rtdetr_r18` (20M, 46.4 COCO AP — what `detect` uses),
+`rtdetr_r34` (31M, 48.9) and `rtdetr_r50` (43M, 53.1). Running them needs
+nothing but ovkit; `ovkit[train]` adds PyTorch for fine-tuning:
+
+```python
+Model("detect", "street.jpg")      # r18 — keeps up with a webcam
+Model("rtdetr_r50", "street.jpg")  # when you want the accuracy instead
+```
+
+A fine-tuned model's exported IR drops straight into `Model("path/to/best.xml")` — the
 `labels.txt` written next to it means your classes answer by name. CLI:
 `ovkit train --data data.yaml`, `ovkit val`, `ovkit export`.
 

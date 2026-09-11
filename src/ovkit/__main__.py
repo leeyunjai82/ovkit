@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import sys
 
 from . import __version__
@@ -12,33 +13,60 @@ from .core.errors import OVKitError
 from .core.registry import list_models, resolve
 
 
-def _cmd_list(_: argparse.Namespace) -> int:
-    names = list_models()
-    if not names:
-        print("No models registered.")
-        return 0
-    aliases: list[tuple[str, str]] = []
-    models: list[tuple[str, str, str]] = []
+def _cmd_list(args: argparse.Namespace) -> int:
+    """What you can run, named the way you would type it.
+
+    A beginner deciding what to try needs the *names they can use*, not the
+    model zoo's catalogue numbers: ``detect``, not ``rtdetr_r50``. The raw
+    names are still there under ``--all``.
+    """
+    from .core.i18n import KO_CAPS
+    from .pipelines import list_pipelines
+
+    show_all = bool(getattr(args, "all", False))
+    korean = {target: ko for ko, target in KO_CAPS.items()}
+
+    caps = list_pipelines()
+    print(f"\ncapabilities — several models chained into one answer ({len(caps)}):")
+    for name, desc in caps.items():
+        print(f"  {name:21s} {korean.get(name, ''):10s} {_clip(desc, 52)}")
+
+    names = list_models(tier=None if show_all else "core")
+    friendly: list[tuple[str, str, str]] = []
+    raw: list[tuple[str, str, str]] = []
     for name in names:
         entry = resolve(name)
         if entry is None:
             continue
-        if entry.name != name:  # capability alias -> its target
-            aliases.append((name, entry.name))
+        # A capability of the same name shadows the alias — Model("gaze") is
+        # the pipeline — so listing the alias too would offer a dead end.
+        if entry.name != name and name in caps:
             continue
-        desc = entry.description or ""
-        if len(desc) > 60:
-            desc = desc[:57] + "..."
-        models.append((name, str(entry.task), desc))
-    if aliases:
-        print("aliases (capability -> model):")
-        for alias, target in aliases:
-            print(f"  {alias:24s} -> {target}")
-        print()
-    print(f"models ({len(models)}):")
-    for name, task, desc in models:
-        print(f"  {name:44s} {task:18s} {desc}")
+        row = (name, korean.get(name, ""), _clip(entry.description or str(entry.task), 52))
+        (friendly if entry.name != name else raw).append(row)
+
+    if friendly:
+        print(f"\nmodels — one network each ({len(friendly)}):")
+        for name, ko, desc in friendly:
+            print(f"  {name:21s} {ko:10s} {desc}")
+    if show_all and raw:
+        print(f"\nby their registry name ({len(raw)}):")
+        for name, _ko, desc in raw:
+            print(f"  {name:46s} {desc}")
+
+    if not show_all:
+        hidden = len(list_models(tier=None)) - len(list_models())
+        print(
+            f'\nRun one:  Model("detect", "photo.jpg")   ·   ovkit run detect photo.jpg'
+            f"\nEverything else ({hidden} archived zoo entries, plus registry names):"
+            f"  ovkit list --all"
+        )
     return 0
+
+
+def _clip(text: str, width: int) -> str:
+    text = " ".join(str(text).split())
+    return text if len(text) <= width else text[: width - 3] + "..."
 
 
 def _cmd_capabilities(_: argparse.Namespace) -> int:
@@ -171,6 +199,9 @@ def main(argv: list[str] | None = None) -> int:
     p_gui.set_defaults(func=_cmd_gui)
 
     p_list = sub.add_parser("list", help="list registered models")
+    p_list.add_argument(
+        "--all", action="store_true", help="include the archived Open Model Zoo entries"
+    )
     p_list.set_defaults(func=_cmd_list)
 
     p_caps = sub.add_parser("capabilities", help="list composed capabilities (Model(name))")
@@ -226,6 +257,16 @@ def main(argv: list[str] | None = None) -> int:
     except OVKitError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except BrokenPipeError:
+        # `ovkit list | head` closes the pipe under us. Python would otherwise
+        # print a traceback while flushing stdout at exit, which reads as a
+        # crash for what the user meant as "show me the first few".
+        with contextlib.suppress(OSError):
+            sys.stdout.close()
+        return 0
+    except KeyboardInterrupt:
+        print("\ncancelled.", file=sys.stderr)
+        return 130
 
 
 if __name__ == "__main__":

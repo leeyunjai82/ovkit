@@ -31,10 +31,23 @@ def test_model_is_wired_to_its_class_table(name, table):
 
 
 def test_generated_manifest_cannot_clobber_hand_written_metadata():
-    """omz.yaml is regenerated and carries no postprocess; merging is key-wise."""
+    """omz.yaml is regenerated and carries no postprocess; merging is key-wise.
+
+    face_detection_0205's source comes from the generated omz.yaml while its
+    class table comes from the hand-written labels.yaml — a whole-entry
+    replacement would drop one of them.
+    """
+    entry = registry.resolve("face_detection_0205")
+    assert entry.postprocess.get("classes") == "face"  # labels.yaml
+    assert entry.repo and entry.filename  # omz.yaml
+
+
+def test_a_later_manifest_overrides_the_source_but_keeps_the_fallback():
+    """rtdetr.yaml repoints r50 at the project mirror; omz.yaml's copy stays."""
     entry = registry.resolve("rtdetr_r50")
+    assert entry.repo == "leeyunjai/rtdetr"
     assert entry.postprocess == {"format": "detr", "classes": "coco80"}
-    assert entry.filename.endswith("detect/rtdetr_r50/model.xml")  # source still from omz.yaml
+    assert (entry.fallback or {}).get("repo") == "leeyunjai/ovkit-models"
 
 
 def test_class_tables_are_named_not_numbered():

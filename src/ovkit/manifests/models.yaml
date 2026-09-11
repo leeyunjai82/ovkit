@@ -21,27 +21,20 @@
 # ---------------------------------------------------------------------------
 
 # --- detect ---------------------------------------------------------------
-# RT-DETR (Baidu/PaddleDetection), Apache-2.0. Served from the ovkit mirror as
-# OpenVINO IR; falls back to the upstream ONNX if the mirror is unreachable.
-# DETR-style decode (no NMS).
-rtdetr_r50:
-  src: hf
-  repo: leeyunjai/ovkit-models
-  filename: detect/rtdetr_r50/model.xml
-  task: detect
-  description: RT-DETR (ResNet-50) real-time DETR detector, COCO-80, NMS-free.
-  precision: fp16
-  license: apache-2.0
-  imgsz: 640
-  preprocess:
-    layout: NCHW
-    scale: 255.0          # uint8 -> [0,1]
-    mean: [0.0, 0.0, 0.0]
-    std: [1.0, 1.0, 1.0]
-  postprocess:
-    format: detr          # outputs: logits [N,Q,C], boxes [N,Q,4] (cxcywh, norm)
-    classes: coco80
-  fallback:
-    src: hf
-    repo: onnx-community/rtdetr_r50vd
-    filename: onnx/model.onnx
+# RT-DETR now lives in rtdetr.yaml, served from the project that trains it
+# (github.com/leeyunjai82/rtdetr). Nothing else is defined here yet: every
+# other model comes from omz.yaml, which build_mirror.py generates, with its
+# labels and decode format wired up in labels.yaml.
+#
+# To add one by hand, copy this shape:
+#
+#   my_model:
+#     src: hf                      # hf | url | genai
+#     repo: some-org/some-repo     # hf: where it lives
+#     filename: path/model.xml     # hf: which file (the .bin rides along)
+#     task: detect                 # detect | classify | segment | pose | face | ...
+#     description: One line, shown by `ovkit list`.
+#     license: apache-2.0          # MUST be permissive — see core/constants.py
+#     imgsz: 640
+#     preprocess: {scale: 255.0}   # what the model expects at its input
+#     postprocess: {format: detr, classes: coco80}

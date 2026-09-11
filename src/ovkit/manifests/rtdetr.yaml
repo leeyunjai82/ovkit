@@ -1,0 +1,73 @@
+# RT-DETR detectors, served from the rtdetr project's own mirror.
+# ---------------------------------------------------------------------------
+# Detection is the one model family ovkit's users also *train*, so the weights
+# come from the project that trains them (github.com/leeyunjai82/rtdetr,
+# Apache-2.0 code and weights) rather than a copy that drifts. The package is
+# not a dependency of ovkit: these are plain IR downloads, and `labels.txt`
+# rides along with each so boxes answer "kite 0.83", not "class_21".
+#
+# Install `rtdetr[train]` (or `ovkit[train]`) only to fine-tune one on your own
+# data; running them needs nothing but ovkit.
+#
+#   name          params   COCO AP   use
+#   rtdetr_r18      20M      46.4    live video, laptops — the `detect` default
+#   rtdetr_r34      31M      48.9    a step up when r18 misses small objects
+#   rtdetr_r50      43M      53.1    stills and accuracy work
+#
+# r50 keeps the ovkit-mirror copy that omz.yaml already registered as its
+# fallback, so it still resolves if the rtdetr mirror is unreachable.
+# ---------------------------------------------------------------------------
+
+rtdetr_r18:
+  src: hf
+  repo: leeyunjai/rtdetr
+  filename: rtdetr-r18/rtdetr-r18.xml
+  task: detect
+  description: RT-DETR R18 — COCO-80, NMS-free. Fastest; the detect default.
+  precision: fp16
+  license: apache-2.0
+  imgsz: 640
+  preprocess:
+    layout: NCHW
+    scale: 255.0
+    mean: [0.0, 0.0, 0.0]
+    std: [1.0, 1.0, 1.0]
+  postprocess:
+    format: detr
+    classes: coco80
+
+rtdetr_r34:
+  src: hf
+  repo: leeyunjai/rtdetr
+  filename: rtdetr-r34/rtdetr-r34.xml
+  task: detect
+  description: RT-DETR R34 — COCO-80, NMS-free. Between r18 and r50.
+  precision: fp16
+  license: apache-2.0
+  imgsz: 640
+  preprocess:
+    layout: NCHW
+    scale: 255.0
+    mean: [0.0, 0.0, 0.0]
+    std: [1.0, 1.0, 1.0]
+  postprocess:
+    format: detr
+    classes: coco80
+
+rtdetr_r50:
+  src: hf
+  repo: leeyunjai/rtdetr
+  filename: rtdetr-r50/rtdetr-r50.xml
+  task: detect
+  description: RT-DETR R50 — COCO-80, NMS-free. Most accurate of the three.
+  precision: fp16
+  license: apache-2.0
+  imgsz: 640
+  preprocess:
+    layout: NCHW
+    scale: 255.0
+    mean: [0.0, 0.0, 0.0]
+    std: [1.0, 1.0, 1.0]
+  postprocess:
+    format: detr
+    classes: coco80

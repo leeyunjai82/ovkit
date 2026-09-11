@@ -1,0 +1,83 @@
+# Open Model Zoo entries kept for compatibility, out of the way by default.
+# ---------------------------------------------------------------------------
+# ovkit is a tool for using OpenVINO, not a catalogue of everything Intel ever
+# published. These models still load — `Model("weld_porosity_detection_0001")`
+# works exactly as before, and `ovkit list --all` lists them — but they are not
+# what someone deciding what to try should have to scroll past.
+#
+# Each entry says why it left the front page. Three reasons recur:
+#   unusable  — cannot be driven from an image/audio file at all; the caller
+#               has to build tokenised or framed tensors by hand
+#   dated     — a 2018-2019 demo that a model in the core set now beats
+#   niche     — works, but for a domain ovkit's users do not have
+#
+# Promoting one back is a one-line edit: delete its block here.
+# ---------------------------------------------------------------------------
+
+# --- unusable from a file: no tokenizer, no framing ------------------------
+bert_small_uncased_whole_word_masking_squad_0002:
+  tier: zoo            # unusable — needs WordPiece tokens built by hand
+machine_translation_nar_de_en_0002:
+  tier: zoo            # unusable — no tokenizer ships with ovkit
+machine_translation_nar_en_de_0002:
+  tier: zoo            # unusable — no tokenizer ships with ovkit
+machine_translation_nar_en_ru_0002:
+  tier: zoo            # unusable — no tokenizer ships with ovkit
+machine_translation_nar_ru_en_0002:
+  tier: zoo            # unusable — no tokenizer ships with ovkit
+time_series_forecasting_electricity_0001:
+  tier: zoo            # unusable — electricity-demand tensors, no image path
+
+# --- dated: something in the core set does this better ---------------------
+yolo_v3_onnx:
+  tier: zoo            # dated — rtdetr_r50 is newer, NMS-free and trainable
+yolo_v3_tiny_onnx:
+  tier: zoo            # dated — same, and far less accurate
+resnet50_binary_0001:
+  tier: zoo            # dated — 2019 ImageNet; classify already has one
+ultra_lightweight_face_detection_slim_320:
+  tier: zoo            # dated — face_detection_0205 is more accurate
+person_vehicle_bike_detection_2000:
+  tier: zoo            # dated — detect covers person/car/bike from COCO-80
+background_matting_mobilenetv2:
+  tier: zoo            # dated — needs a separate empty-scene frame to work
+
+# --- niche: a domain ovkit's users do not have -----------------------------
+weld_porosity_detection_0001:
+  tier: zoo            # niche — welding QA
+product_detection_0001:
+  tier: zoo            # niche — 12 US grocery brands
+road_segmentation_adas_0001:
+  tier: zoo            # niche — driver-assistance road/curb/lane
+vehicle_reid_0001:
+  tier: zoo            # niche — matching the same car across cameras
+handwritten_simplified_chinese_recognition_0001:
+  tier: zoo            # niche — simplified-Chinese handwriting
+aclnet:
+  tier: zoo            # niche — 53 environmental sounds, low accuracy
+
+# --- GenAI: one per job on the front page, the size ladder behind it --------
+# `llm`, `stt` and `vlm` point at a sensible default each. The other sizes are
+# real choices — a 7B chat model, a large Whisper — but a size ladder is what
+# you go looking for once the default is too small, not what you should have to
+# choose between on day one.
+tinyllama_chat:
+  tier: zoo            # superseded — qwen25_1_5b_instruct is better at the same size
+deepseek_r1_distill_qwen_1_5b:
+  tier: zoo            # ladder — reasoning-style variant of the default size
+phi35_mini_instruct:
+  tier: zoo            # ladder — 3.8B
+mistral_7b_instruct:
+  tier: zoo            # ladder — 7B
+qwen25_7b_instruct:
+  tier: zoo            # ladder — 7B
+whisper_tiny:
+  tier: zoo            # ladder — smaller/faster than the whisper_base default
+whisper_small:
+  tier: zoo            # ladder — larger than the default
+whisper_large_v3_turbo:
+  tier: zoo            # ladder — most accurate, ~1.6 GB
+internvl2_1b:
+  tier: zoo            # ladder — lighter VLM than the qwen3_vl_4b default
+qwen25_vl_7b_instruct:
+  tier: zoo            # ladder — heavier VLM than the default

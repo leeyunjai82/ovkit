@@ -33,9 +33,9 @@ dependencies = [
 genai = ["openvino-genai", "optimum-intel"]
 anomaly = ["anomalib"]
 quant = ["nncf"]
-train = ["rtdetr[train]>=0.1"]
+train = ["rtdetr[train]>=0.6"]
 hand = ["mediapipe"]
-all = ["openvino-genai", "optimum-intel", "anomalib", "nncf", "mediapipe", "rtdetr[train]>=0.1"]
+all = ["openvino-genai", "optimum-intel", "anomalib", "nncf", "mediapipe", "rtdetr[train]>=0.6"]
 dev = ["pytest>=7", "ruff", "black"]
 
 [project.urls]
