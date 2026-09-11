@@ -127,8 +127,8 @@ def test_zoo_models_are_still_callable_through_Model():
 def test_the_detection_ladder_is_registered_and_labelled(name):
     entry = resolve(name)
     assert entry is not None, f"{name} missing"
-    assert entry.repo == "leeyunjai/rtdetr", "weights come from the project that trains them"
-    assert entry.filename == f"{name.replace('_', '-')}/{name.replace('_', '-')}.xml"
+    assert entry.repo == "leeyunjai/ovkit-models", "one mirror for everything"
+    assert entry.filename == f"detect/{name}/model.xml"
     # COCO names, or every box answers "class_21"
     assert entry.postprocess.get("classes") == "coco80"
     assert entry.postprocess.get("format") == "detr"
@@ -138,3 +138,59 @@ def test_the_detection_ladder_is_registered_and_labelled(name):
 def test_detect_defaults_to_the_one_that_keeps_up_with_a_webcam():
     """r50 benchmarks at ~2 FPS on CPU; a classroom default cannot be that."""
     assert resolve("detect").name == "rtdetr_r18"
+
+
+# -- one mirror -------------------------------------------------------------
+
+
+def _primary_source(entry) -> str:
+    return entry.repo or entry.url or ""
+
+
+def test_every_model_is_served_from_the_one_mirror():
+    """ovkit downloads from one repository, so a school keeps one copy alive."""
+    from ovkit.core import registry
+
+    raw = registry._load_raw()
+    strays = []
+    for name in sorted(raw):
+        if "alias" in raw[name]:
+            continue
+        entry = resolve(name)
+        if entry is None:
+            continue
+        if "leeyunjai/ovkit-models" not in _primary_source(entry):
+            strays.append((name, _primary_source(entry)))
+    assert not strays, f"models served from somewhere else: {strays}"
+
+
+def test_nothing_is_served_straight_out_of_the_agpl_repo():
+    """edge-lab is tagged agpl-3.0; its Apache models are copied, not linked."""
+    from ovkit.core import registry
+
+    for name in registry.list_models(tier=None):
+        entry = resolve(name)
+        if entry is None:
+            continue
+        both = f"{_primary_source(entry)} {(entry.fallback or {}).get('repo', '')}"
+        assert "edge-lab" not in both, f"{name} reads from edge-lab"
+
+
+def test_models_that_originate_elsewhere_keep_their_home_as_fallback():
+    for name in ("rtdetr_r18", "rtdetr_r34", "rtdetr_r50"):
+        entry = resolve(name)
+        assert (entry.fallback or {}).get("repo") == "leeyunjai/rtdetr"
+
+
+def test_the_sync_script_covers_every_model_it_should():
+    """A manifest pointing at a mirror path nobody copies there is a dead link."""
+    import sys
+    from pathlib import Path as _Path
+
+    sys.path.insert(0, str(_Path(__import__("ovkit").__file__).parents[2] / "scripts"))
+    import sync_mirror
+
+    copied = {dest for dest, _what, _lic in sync_mirror.FILES.values()}
+    for name in ("rtdetr_r18", "rtdetr_r34", "rtdetr_r50", "depth_anything_v2_small", "u2net"):
+        entry = resolve(name)
+        assert entry.filename in copied, f"{name} -> {entry.filename} is never synced"

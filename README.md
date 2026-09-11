@@ -172,8 +172,9 @@ model.export(half=True)                      # -> IR + labels.txt
 ```
 
 The three sizes are `rtdetr_r18` (20M, 46.4 COCO AP — what `detect` uses),
-`rtdetr_r34` (31M, 48.9) and `rtdetr_r50` (43M, 53.1). Running them needs
-nothing but ovkit; `ovkit[train]` adds PyTorch for fine-tuning:
+`rtdetr_r34` (31M, 48.9) and `rtdetr_r50` (43M, 53.1), mirrored like every
+other model. Running them needs nothing but ovkit; `ovkit[train]` adds PyTorch
+for fine-tuning:
 
 ```python
 Model("detect", "street.jpg")      # r18 — keeps up with a webcam

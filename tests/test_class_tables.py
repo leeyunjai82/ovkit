@@ -42,12 +42,13 @@ def test_generated_manifest_cannot_clobber_hand_written_metadata():
     assert entry.repo and entry.filename  # omz.yaml
 
 
-def test_a_later_manifest_overrides_the_source_but_keeps_the_fallback():
-    """rtdetr.yaml repoints r50 at the project mirror; omz.yaml's copy stays."""
+def test_a_later_manifest_overrides_both_the_source_and_the_fallback():
+    """rtdetr.yaml owns r50 outright: the mirror to read, and where it came from."""
     entry = registry.resolve("rtdetr_r50")
-    assert entry.repo == "leeyunjai/rtdetr"
+    assert entry.repo == "leeyunjai/ovkit-models"
+    assert entry.filename == "detect/rtdetr_r50/model.xml"
     assert entry.postprocess == {"format": "detr", "classes": "coco80"}
-    assert (entry.fallback or {}).get("repo") == "leeyunjai/ovkit-models"
+    assert (entry.fallback or {}).get("repo") == "leeyunjai/rtdetr"
 
 
 def test_class_tables_are_named_not_numbered():
