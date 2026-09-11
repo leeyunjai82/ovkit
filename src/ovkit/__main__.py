@@ -134,7 +134,7 @@ def _cmd_gui(args: argparse.Namespace) -> int:
 
 def _cmd_train(args: argparse.Namespace) -> int:
     """Train RT-DETR on YOLO-format data: ``ovkit train --data data.yaml``."""
-    from .rtdetr import RTDETR
+    from ovkit import RTDETR
 
     model = RTDETR(args.model, device=args.device)
     best = model.train(
@@ -145,14 +145,14 @@ def _cmd_train(args: argparse.Namespace) -> int:
 
 
 def _cmd_val(args: argparse.Namespace) -> int:
-    from .rtdetr import RTDETR
+    from ovkit import RTDETR
 
     RTDETR(args.model, device=args.device).val(data=args.data, imgsz=args.imgsz)
     return 0
 
 
 def _cmd_export(args: argparse.Namespace) -> int:
-    from .rtdetr import RTDETR
+    from ovkit import RTDETR
 
     out = RTDETR(args.model).export(imgsz=args.imgsz, half=args.half, out_dir=args.out)
     print(f"exported: {out} (+ labels.txt)")

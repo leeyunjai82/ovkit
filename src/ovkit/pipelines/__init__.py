@@ -23,6 +23,7 @@ from __future__ import annotations
 from typing import Any
 
 from .analyze import FaceAnalyzer, PersonAnalyzer, VehicleAnalyzer
+from .anomaly import AnomalyModel
 from .attention import AttentionAnalyzer
 from .base import Pipeline
 from .classroom import Attendance, Counter, PostureCoach, RepCounter
@@ -36,7 +37,7 @@ from .temporal import DrowsinessMonitor, GestureRecognizer
 from .text import TextReader
 from .tracking import Tracker
 
-#: Every composed capability, by the name :func:`vis` accepts.
+#: Every composed capability, by the name ``Model()`` accepts.
 PIPELINES: dict[str, type[Pipeline]] = {
     # describe what is in the frame
     "face_analyze": FaceAnalyzer,
@@ -58,6 +59,8 @@ PIPELINES: dict[str, type[Pipeline]] = {
     "anonymize": Anonymizer,
     # make your own
     "teach": Teach,
+    # your own model
+    "anomaly": AnomalyModel,
     # classroom
     "count": Counter,
     "posture": PostureCoach,
@@ -172,6 +175,7 @@ __all__ = [
     "PlateReader",
     "SceneReport",
     "Teach",
+    "AnomalyModel",
     "Attendance",
     "Counter",
     "PostureCoach",

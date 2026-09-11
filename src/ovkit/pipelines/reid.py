@@ -3,7 +3,7 @@
 An embedding model turns a crop into a vector; on its own that is 256 numbers
 and no answer. Matching is what makes it useful::
 
-    ids = vis("face_match")
+    ids = Model("face_match")
     ids.add("yunjai", "photos/yunjai.jpg")
     ids.add("dana", "photos/dana.jpg")
     ids.who("frame.jpg")          # ('yunjai', 0.81)
@@ -19,6 +19,7 @@ from typing import Any
 import numpy as np
 
 from ..core.errors import OVKitError
+from ..core.maths import unit
 from ..image.ops import imread
 from .base import Pipeline
 
@@ -29,8 +30,8 @@ class ReID(Pipeline):
     Parameters
     ----------
     embedder:
-        Registered embedding model: ``face_reid`` (faces), ``person_reid`` or
-        ``vehicle_reid_0001`` (whole bodies / cars), ``image_retrieval`` (scenes).
+        Registered embedding model: ``face_reid`` (faces), ``vehicle_reid_0001``
+        (whole cars), or ``image_retrieval`` (whole scenes).
     threshold:
         Below this similarity :meth:`who` answers ``None`` instead of naming the
         closest gallery entry — without it every stranger gets somebody's name.
@@ -120,8 +121,6 @@ class ReID(Pipeline):
         return result
 
 
-def normalize(vector: np.ndarray) -> np.ndarray:
-    """Scale to unit length so a dot product is a cosine similarity."""
-    arr = np.asarray(vector, np.float32).reshape(-1)
-    norm = float(np.linalg.norm(arr))
-    return arr / norm if norm > 1e-9 else arr
+#: Kept as a name here because gallery code and tests import it from this
+#: module; the implementation lives in :mod:`ovkit.core.maths`.
+normalize = unit

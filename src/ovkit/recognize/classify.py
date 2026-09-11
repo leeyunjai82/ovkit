@@ -17,15 +17,9 @@ import numpy as np
 
 from ..core.backend import Backend
 from ..core.constants import class_names
+from ..core.maths import softmax
 from ..core.results import Probs, Results
 from .base import BaseAdapter
-
-
-def _softmax(x: np.ndarray) -> np.ndarray:
-    x = x - np.max(x)
-    e = np.exp(x)
-    return e / np.sum(e)
-
 
 #: Default class tables for well-known multi-head output names, used when the
 #: manifest does not name them explicitly (``postprocess.heads``).
@@ -117,7 +111,7 @@ class ClassifyAdapter(BaseAdapter):
             return r
 
         if self.post.get("softmax", True):
-            scores = _softmax(scores)
+            scores = softmax(scores)
 
         names = self.names or class_names(self.post.get("classes"), len(scores))
         r = Results(image, task=self.task, names=names, probs=Probs(scores))

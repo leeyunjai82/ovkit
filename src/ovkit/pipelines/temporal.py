@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 
 from ..core.constants import class_names
+from ..core.maths import softmax
 from ..core.results import Boxes, Probs, Results
 from .base import Pipeline, detections
 from .gaze import _square_crop
@@ -197,7 +198,7 @@ class GestureRecognizer(Pipeline):
         stacked = np.stack(list(self._buffer))
         feed = np.ascontiguousarray(np.transpose(stacked, (1, 0, 2, 3))[None], np.float32)
         outputs = model.infer({model.inputs[0][0]: feed})
-        scores = _softmax(np.asarray(next(iter(outputs.values()))).reshape(-1).astype(np.float32))
+        scores = softmax(np.asarray(next(iter(outputs.values()))).reshape(-1).astype(np.float32))
 
         names = class_names(self.classes, scores.size)
         top = int(np.argmax(scores))
@@ -219,8 +220,3 @@ def _resize_bgr(image: np.ndarray, height: int, width: int) -> np.ndarray:
 
     resized = cv2.resize(image, (width, height)).astype(np.float32)
     return np.transpose(resized, (2, 0, 1))  # HWC -> CHW
-
-
-def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - np.max(x))
-    return e / np.sum(e)

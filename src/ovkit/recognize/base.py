@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from ..core.backend import Backend
+from ..core.errors import multi_input_message
 from ..core.results import Results
 
 
@@ -85,11 +86,7 @@ class BaseAdapter:
                     names.append(inp.get_any_name())
                 except RuntimeError:
                     names.append("?")
-            raise ValueError(
-                f"This model needs {len(backend.inputs)} separate inputs "
-                f"({', '.join(names)}), so one image cannot drive it. "
-                f"Feed them yourself with model.infer({{...}})."
-            )
+            raise ValueError(multi_input_message("This model", names))
         shape = backend.input_shape  # full shape, -1 for dynamic dims
         # NHWC (TF-converted OMZ models): channels last -> spatial dims are 1, 2.
         if len(shape) == 4 and shape[-1] in (1, 3) and shape[1] not in (1, 3):

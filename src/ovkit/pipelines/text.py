@@ -2,7 +2,7 @@
 
 Two models, one call::
 
-    vis("read_text")("sign.jpg")[0].text     # 'STOP AHEAD'
+    Model("read_text")("sign.jpg")[0].text     # 'STOP AHEAD'
 
 A text detector returns boxes but no words; a text recogniser reads one cropped
 word but cannot find it. This joins them and puts each word on its own box.
@@ -21,8 +21,8 @@ from .base import Pipeline, detections
 class TextReader(Pipeline):
     """Text detection + text recognition.
 
-    >>> from ovkit import vis
-    >>> r = vis("read_text")("receipt.jpg")[0]
+    >>> from ovkit import Model
+    >>> r = Model("read_text")("receipt.jpg")[0]
     >>> r.text                     # every word, reading order (top to bottom)
     >>> r.labels                   # the word on each box
     >>> r.save("read.jpg")         # boxes labelled with what they say

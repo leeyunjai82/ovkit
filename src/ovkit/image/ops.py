@@ -85,15 +85,3 @@ def zoom(img: np.ndarray, factor: float) -> np.ndarray:
     return cv2.resize(
         img, (max(1, int(w * factor)), max(1, int(h * factor))), interpolation=cv2.INTER_LINEAR
     )
-
-
-def to_nchw(img: np.ndarray, scale: float = 1.0) -> np.ndarray:
-    """Convert HWC ``uint8`` to a batched ``float32`` NCHW tensor.
-
-    ``scale`` divides pixel values (e.g. ``255.0`` to map to ``[0, 1]``).
-    """
-    arr = img.astype(np.float32)
-    if scale and scale != 1.0:
-        arr = arr / scale
-    arr = np.transpose(arr, (2, 0, 1))  # HWC -> CHW
-    return arr[None]  # add batch dim

@@ -4,10 +4,10 @@ Anomaly models are trained per production line, so ovkit serves no weights for
 them — you point this at the ``.xml`` anomalib exported and get the same
 :class:`~ovkit.Results` every other ovkit call returns::
 
-    from ovkit.solutions import AnomalyModel
+    from ovkit import Model
 
-    model = AnomalyModel("patchcore/weights/openvino/model.xml")
-    r = model("part_0142.png")[0]
+    model = Model("anomaly", model_path="patchcore/weights/openvino/model.xml")
+    r = model("part_0142.png")
     print(r.summary())        # 'anomaly 0.87 (threshold 0.50)'
     r.save("defect.jpg")      # the heat map over the part
 
@@ -23,7 +23,7 @@ import numpy as np
 
 from ..core.errors import OVKitError
 from ..core.results import Masks, Results
-from ..pipelines.base import Pipeline
+from .base import Pipeline
 
 
 class AnomalyModel(Pipeline):
@@ -47,12 +47,18 @@ class AnomalyModel(Pipeline):
 
     def __init__(
         self,
-        model_path: str | Path,
         device: str = "AUTO",
+        model_path: str | Path | None = None,
         metadata: str | Path | None = None,
         threshold: float | None = None,
     ) -> None:
         super().__init__(device)
+        if model_path is None:
+            raise OVKitError(
+                "Anomaly detection runs your own model: "
+                'Model("anomaly", model_path="patchcore/weights/openvino/model.xml"). '
+                "ovkit ships no anomaly weights — they are trained on your normal samples."
+            )
         self.model_path = Path(model_path)
         if not self.model_path.exists():
             raise OVKitError(f"Anomaly model not found: {self.model_path}")

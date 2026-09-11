@@ -19,15 +19,11 @@ import numpy as np
 from ..audio import waveform
 from ..core.backend import Backend
 from ..core.constants import class_names
+from ..core.maths import softmax
 from ..core.results import Probs, Results
 
 #: What OMZ audio models are trained at, when the IR does not say.
 DEFAULT_SR = 16_000
-
-
-def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - np.max(x))
-    return e / np.sum(e)
 
 
 def window_length(backend: Backend, fallback: int = DEFAULT_SR) -> int:
@@ -68,7 +64,7 @@ class SoundClassifier:
         for chunk in frames(audio, length):
             feed = chunk.reshape([d if d and d > 0 else 1 for d in shape] or [1, 1, 1, length])
             raw = np.asarray(next(iter(backend.infer(feed).values()))).reshape(-1)
-            probs = _softmax(raw.astype(np.float32))
+            probs = softmax(raw.astype(np.float32))
             scores = probs if scores is None else scores + probs
         scores = (scores / max(1, len(frames(audio, length)))).astype(np.float32)
 

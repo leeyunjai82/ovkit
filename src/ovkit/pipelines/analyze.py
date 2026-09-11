@@ -3,7 +3,7 @@
 Each one is the same shape — find the objects, crop each, ask a few small
 models about it, and put the answers on the box:
 
-    vis("face_analyze")(frame)   ->  "2 faces: male 31 · happy 0.92, ..."
+    Model("face_analyze")(frame)   ->  "2 faces: male 31 · happy 0.92, ..."
 
 Doing it by hand means a detector, a crop per object, one model per attribute
 and the code to join it all up. That is what these classes hold.
@@ -85,8 +85,8 @@ class _DetectAndDescribe(Pipeline):
 class FaceAnalyzer(_DetectAndDescribe):
     """Faces plus age, gender and emotion — the usual "who is in frame" answer.
 
-        >>> from ovkit import vis
-        >>> for r in vis("face_analyze")("group.jpg"):
+        >>> from ovkit import Model
+        >>> for r in Model("face_analyze")("group.jpg"):
         ...     print(r.summary())     # 2 faces: age 31 · male 98% · happy 92%, ...
         ...     r.save("faces.jpg")
 
@@ -132,8 +132,8 @@ class FaceAnalyzer(_DetectAndDescribe):
 class PersonAnalyzer(_DetectAndDescribe):
     """People plus what they are wearing or carrying.
 
-    >>> from ovkit import vis
-    >>> vis("person_analyze")("street.jpg")[0].summary()
+    >>> from ovkit import Model
+    >>> Model("person_analyze")("street.jpg")[0].summary()
     '3 persons: male 0.98 · long pants 0.95 · bag 0.71, ...'
     """
 
@@ -152,8 +152,8 @@ class PersonAnalyzer(_DetectAndDescribe):
 class VehicleAnalyzer(_DetectAndDescribe):
     """Vehicles plus their type and colour.
 
-    >>> from ovkit import vis
-    >>> vis("vehicle_analyze")("parking.jpg")[0].summary()
+    >>> from ovkit import Model
+    >>> Model("vehicle_analyze")("parking.jpg")[0].summary()
     '2 vehicles: type: car (0.98) · color: black (0.83), ...'
     """
 

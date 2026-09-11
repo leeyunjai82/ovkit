@@ -4,8 +4,9 @@
 
 # ovkit
 
-**OpenVINO inference in 3 lines.** One `Model` class, clean `Results`, 30+
-ready models — with `AUTO`/`NPU`/`GPU` devices, async throughput, and INT8.
+**OpenVINO inference in one line.** One `Model` class, clean `Results`, and 19
+composed capabilities over 56 ready models — with `AUTO`/`NPU`/`GPU` devices,
+async throughput, INT8, and your own detector trainable in the same package.
 
 [![CI](https://github.com/leeyunjai82/ovkit/actions/workflows/ci.yml/badge.svg)](https://github.com/leeyunjai82/ovkit/actions/workflows/ci.yml)
 [![Docs](https://img.shields.io/badge/docs-github.io-0a7d8c)](https://leeyunjai82.github.io/ovkit/)
@@ -148,8 +149,6 @@ r = model("bus.jpg", conf=0.5)               # ovkit Results: print(r), r.found,
 The exported IR drops straight into `Model("path/to/rtdetr-r18.xml")` — the
 `labels.txt` written next to it means your classes answer by name. CLI:
 `ovkit train --data data.yaml`, `ovkit val`, `ovkit export`.
-`ovkit capabilities` prints the list; **`ovkit gui` opens a window** where you can
-click through them against your webcam or a picture.
 
 ## Supported tasks
 
@@ -168,7 +167,7 @@ Every single-model task below runs end-to-end through the same 3 lines — swap 
 | LLM / STT (GenAI) | `llm`, `stt` | generated text | [llm.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/llm.py) / [stt.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/stt.py) |
 | NLP / audio / time series | `qa`, `translation`, `noise_suppression`, `time_series` | tensors via `model.infer()` | [denoise_audio.py](https://github.com/leeyunjai82/ovkit/blob/main/examples/denoise_audio.py) |
 
-The registry exposes **one well-tested model per capability (35 total)**; the
+The registry exposes **one well-tested model per capability (43 OpenVINO IR + 13 GenAI)**; the
 [HF mirror](https://huggingface.co/leeyunjai/ovkit-models) hosts the full
 Apache-2.0 OMZ set (other tiers, `int8`, `sparse` variants) — surfacing a
 variant is a one-line edit ([catalog](https://leeyunjai82.github.io/ovkit/models.html)).
@@ -260,7 +259,7 @@ ovkit devices                               # available OpenVINO devices
 ```python
 from ovkit.genai import pipeline
 
-llm = pipeline("llm")                        # tinyllama_chat from the mirror
+llm = pipeline("llm")                        # qwen25_1_5b_instruct from the mirror
 print(llm.generate("Explain OpenVINO in one sentence.", max_new_tokens=64))
 
 stt = pipeline("stt")                        # whisper_base

@@ -398,15 +398,18 @@ class Results:
         so a model's answer reads the same everywhere — and reads as an answer
         ("cat 0.92", "road 47% · car 8%") rather than as tensor shapes.
         """
-        parts: list[str] = []
+        # When a decoder or pipeline has already written the answer in words,
+        # that is the answer. Appending the field summaries below would repeat
+        # it at best and contradict it at worst — a gaze result saying "no face
+        # with usable eyes found" would go on to report "2x face".
         if self.text:
-            parts.append(self.text)
+            return self.text
 
+        parts: list[str] = []
         if self.boxes is not None and self.labels is not None:
             # A pipeline already described each object; counting class ids on
             # top of that would just repeat "face, face, face".
-            if not self.text:
-                parts.append(", ".join(self.labels[:max_items]) or "nothing found")
+            parts.append(", ".join(self.labels[:max_items]) or "nothing found")
         elif self.boxes is not None:
             counts: dict[str, int] = {}
             for *_xyxy, _conf, cls in self.boxes.data:
@@ -422,14 +425,14 @@ class Results:
             else:
                 parts.append("nothing found")
 
-        if self.probs is not None and not self.text:
+        if self.probs is not None:
             top = self.probs.top1
             parts.append(f"{self.name_for(int(top))} {float(self.probs.data[int(top)]):.2f}")
 
         if self.masks is not None and len(self.masks):
             parts.append(self._mask_summary(max_items))
 
-        if self.keypoints is not None and not self.text:
+        if self.keypoints is not None:
             n, k = self.keypoints.data.shape[0], self.keypoints.data.shape[1]
             parts.append(f"{n} instance(s), {k} keypoints")
 
