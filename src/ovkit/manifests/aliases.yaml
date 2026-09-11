@@ -9,7 +9,8 @@
 # ---------------------------------------------------------------------------
 
 # --- detection ---
-detect: {alias: rtdetr_r50}  # general objects (COCO-80)
+detect: {alias: rtdetr_r18}  # general objects (COCO-80) — fastest of the three;
+                             # rtdetr_r34 / rtdetr_r50 trade speed for accuracy
 face_detection: {alias: face_detection_0205}
 person_detection: {alias: person_detection_0202}
 pedestrian_detection: {alias: person_detection_0202}

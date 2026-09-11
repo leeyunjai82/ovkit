@@ -118,3 +118,23 @@ def test_zoo_models_are_still_callable_through_Model():
         pytest.fail("a zoo model should still be resolvable by name")
     except Exception:
         pass  # download/compile is fine to fail here; resolution is the point
+
+
+# -- the RT-DETR ladder -----------------------------------------------------
+
+
+@pytest.mark.parametrize("name", ["rtdetr_r18", "rtdetr_r34", "rtdetr_r50"])
+def test_the_detection_ladder_is_registered_and_labelled(name):
+    entry = resolve(name)
+    assert entry is not None, f"{name} missing"
+    assert entry.repo == "leeyunjai/rtdetr", "weights come from the project that trains them"
+    assert entry.filename == f"{name.replace('_', '-')}/{name.replace('_', '-')}.xml"
+    # COCO names, or every box answers "class_21"
+    assert entry.postprocess.get("classes") == "coco80"
+    assert entry.postprocess.get("format") == "detr"
+    assert tier_of(name) == "core"
+
+
+def test_detect_defaults_to_the_one_that_keeps_up_with_a_webcam():
+    """r50 benchmarks at ~2 FPS on CPU; a classroom default cannot be that."""
+    assert resolve("detect").name == "rtdetr_r18"
