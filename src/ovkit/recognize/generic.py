@@ -18,6 +18,7 @@ import numpy as np
 
 from ..core.backend import Backend
 from ..core.constants import class_names
+from ..core.maths import softmax
 from ..core.results import Probs, Results
 from .base import BaseAdapter
 
@@ -59,7 +60,7 @@ class GenericAdapter(BaseAdapter):
             scores = np.asarray(next(iter(outputs.values()))).reshape(-1).astype(np.float32)
             if 2 <= scores.size <= len(names):
                 if self.post.get("softmax", True):
-                    scores = _softmax(scores)
+                    scores = softmax(scores)
                 r = Results(
                     image, task=self.task, names=names, probs=Probs(scores), tensors=outputs
                 )
@@ -91,11 +92,6 @@ class GenericAdapter(BaseAdapter):
                 arr = arr.mean(axis=1, keepdims=True).astype(np.float32)
             feeds[inp.get_any_name()] = arr
         return feeds
-
-
-def _softmax(x: np.ndarray) -> np.ndarray:
-    e = np.exp(x - np.max(x))
-    return e / np.sum(e)
 
 
 def _fit_to_shape(chw: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:

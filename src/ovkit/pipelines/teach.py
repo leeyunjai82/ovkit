@@ -36,6 +36,7 @@ import numpy as np
 
 from ..core.errors import OVKitError
 from ..core.i18n import lang
+from ..core.maths import unit
 from ..core.results import Probs, Results
 from .base import Pipeline
 
@@ -284,7 +285,7 @@ class Teach(Pipeline):
             "upper": lambda img: self._embed_pose(img, upper=True),
             "body": lambda img: self._embed_pose(img, upper=False),
         }[self.mode](image)
-        return _unit(feature)
+        return unit(feature)
 
     def _embed_photo(self, image: np.ndarray) -> np.ndarray:
         return self._image_vector(image)
@@ -303,7 +304,7 @@ class Teach(Pipeline):
             raise OVKitError(_msg("사진에서 얼굴을 못 찾았어요.", "no face in this image."))
         largest = int(np.argmax([(b[2] - b[0]) * (b[3] - b[1]) for b in boxes.xyxy]))
         crop = found[0].crop(largest, pad=0.15)
-        vector = _unit(self._image_vector(crop))
+        vector = unit(self._image_vector(crop))
         emotion = self.model("emotion")(crop)
         probs = (
             np.asarray(emotion[0].probs.data, np.float32)
@@ -373,12 +374,6 @@ class Teach(Pipeline):
         from ..image.ops import imread
 
         return imread(str(source))
-
-
-def _unit(vector: np.ndarray) -> np.ndarray:
-    vector = np.asarray(vector, np.float32).reshape(-1)
-    norm = float(np.linalg.norm(vector))
-    return vector / norm if norm > 1e-9 else vector
 
 
 def _normalize_points(points: np.ndarray) -> np.ndarray:

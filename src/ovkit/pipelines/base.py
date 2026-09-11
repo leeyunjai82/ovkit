@@ -28,7 +28,7 @@ class Pipeline:
     model caching and lazy loading come from here.
     """
 
-    #: Name this pipeline is registered under (``vis("face_analyze")``).
+    #: Name this pipeline is registered under (``Model("face_analyze")``).
     name: str = "pipeline"
     #: One-line description, shown by :func:`ovkit.list_pipelines`.
     description: str = ""
@@ -84,11 +84,6 @@ class Pipeline:
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name={self.name!r}, device={self.device!r})"
-
-
-def first_line(result: Results) -> str:
-    """The one-line answer a sub-model gave, for building a per-object label."""
-    return result.summary()
 
 
 def detections(model: Model, image: np.ndarray, conf: float) -> Results:

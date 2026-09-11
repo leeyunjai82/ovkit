@@ -23,7 +23,7 @@ from .backend import Backend
 from .constants import class_names
 from .convert import to_ir
 from .download import fetch
-from .errors import ModelNotFoundError, OVKitError
+from .errors import ModelNotFoundError, OVKitError, multi_input_message
 from .i18n import canonical, lang
 from .registry import ModelEntry, list_models, resolve
 from .results import Results
@@ -276,22 +276,10 @@ class Model:
         # takes the image + a pre-upscaled copy — the adapter feeds both). Anything
         # else (gaze: eye crops + head-pose angles) can't be driven by one image.
         if len(backend.inputs) > 1 and not _all_image_inputs(backend):
-            from ..pipelines import capability_using
-
-            names = ", ".join(n for n, _s, _d in self.inputs)
             # Model has no .name: a model can be a bare path, so identify it by
             # its manifest entry when there is one and by the file otherwise.
             entry_name = self._entry.name if self._entry else Path(self.ir_path).stem
-            capability = capability_using(entry_name)
-            hint = (
-                f"Model({capability!r}) builds those inputs for you."
-                if capability
-                else "Feed them yourself with model.infer({...}) — see model.inputs."
-            )
-            raise OVKitError(
-                f"{entry_name} needs {len(backend.inputs)} separate inputs ({names}), "
-                f"so one image cannot drive it. {hint}"
-            )
+            raise OVKitError(multi_input_message(entry_name, [n for n, _s, _d in self.inputs]))
         adapter = self._ensure_adapter(backend)
         if imgsz is not None:
             adapter.imgsz = imgsz

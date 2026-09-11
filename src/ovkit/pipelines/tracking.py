@@ -1,6 +1,6 @@
 """Object tracking: give every detected object a stable id across frames.
 
-    tracker = vis("track")
+    tracker = Model("track")
     for frame in video:
         r = tracker(frame)[0]
         print(r.summary())    # 2x person (#1, #4)

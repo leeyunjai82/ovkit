@@ -47,10 +47,22 @@ def test_every_pipeline_has_a_description():
     assert all(desc.strip() for desc in listed.values())
 
 
-@pytest.mark.parametrize("name", sorted(PIPELINES))
+#: anomaly is the one capability that cannot be built without the caller's own
+#: model file — ovkit ships no anomaly weights.
+NEEDS_OWN_MODEL = {"anomaly"}
+
+
+@pytest.mark.parametrize("name", sorted(set(PIPELINES) - NEEDS_OWN_MODEL))
 def test_model_builds_each_capability_by_name(name):
     assert is_pipeline(name)
     assert isinstance(Model(name), PIPELINES[name])
+
+
+def test_anomaly_without_a_model_path_says_it_needs_yours():
+    from ovkit.core.errors import OVKitError
+
+    with pytest.raises(OVKitError, match="your own model"):
+        Model("anomaly")
 
 
 def test_model_still_rejects_an_unknown_name():

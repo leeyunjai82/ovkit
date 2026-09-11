@@ -1,6 +1,6 @@
 """Gaze estimation — where the person is looking.
 
-    vis("gaze")(frame)[0].summary()      # 'looking left and slightly up'
+    Model("gaze")(frame)[0].summary()      # 'looking left and slightly up'
 
 The gaze model alone cannot be run on a picture: it takes two eye crops and the
 head pose angles, not an image. Producing those means a face detector, a
@@ -32,8 +32,8 @@ _LEFT, _RIGHT, _ANGLES = "left_eye_image", "right_eye_image", "head_pose_angles"
 class GazeEstimator(Pipeline):
     """Face detection + landmarks + head pose + gaze, in one call.
 
-        >>> from ovkit import vis
-        >>> r = vis("gaze")("portrait.jpg")[0]
+        >>> from ovkit import Model
+        >>> r = Model("gaze")("portrait.jpg")[0]
         >>> r.summary()          # '1 face: looking left and slightly up'
         >>> r.tensors["gaze"]    # (N, 3) unit vectors, one per face
         >>> r.save("gaze.jpg")   # an arrow drawn from each eye

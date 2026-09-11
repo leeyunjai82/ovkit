@@ -74,6 +74,11 @@ Model("track")(0)                                  # webcam, ids stable across f
 | `track` | a stable id per object across frames | detection + IoU association |
 | `gaze` | where a face is looking | detection + landmarks + head pose + gaze |
 | `face_match` | who this is, from your own gallery | embedding + cosine matching |
+| `count` | how many of each thing is in view | detection + per-kind tally |
+| `posture` | a warning when the neck stays bent | pose + neck angle over time |
+| `exercise` | squat / push-up repetitions | pose + joint-angle hysteresis |
+| `attendance` | who is present, as a CSV roll | face detection + roster matching |
+| `teach` | your own classes, from example photos | embedding + cosine k-NN (5 modes) |
 | `scene` | one sentence about the whole picture | detection + segmentation + faces |
 | `read_plate` | number plates, and the car each is on | plate detection + OCR + vehicle attributes |
 | `drowsiness` | eyes shut too long, or a nodding head | face + landmarks + eye state + head pose, over time |

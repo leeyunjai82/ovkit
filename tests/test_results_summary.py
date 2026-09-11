@@ -58,3 +58,34 @@ def test_image_output_is_described_as_an_image():
 def test_repr_uses_the_summary():
     r = Results(IMG, task="classify", names={0: "cat"}, probs=Probs(np.array([1.0], np.float32)))
     assert "cat 1.00" in repr(r)
+
+
+# -- text is the answer, on its own ------------------------------------------
+
+
+def test_text_is_not_followed_by_a_contradicting_box_count():
+    """A pipeline saying "no face found" must not then report 2 faces."""
+    boxes = Boxes(np.array([[0, 0, 10, 10, 0.9, 0], [20, 0, 30, 10, 0.9, 0]], np.float32))
+    r = Results(IMG, task="gaze", names={0: "face"}, boxes=boxes)
+    r.text = "no face with usable eyes found"
+    assert r.summary() == "no face with usable eyes found"
+
+
+def test_text_is_not_followed_by_a_mask_percentage():
+    masks = Masks(np.ones((1, 100, 200), np.uint8))
+    r = Results(IMG, task="anomaly", names={0: "normal", 1: "anomaly"}, masks=masks)
+    r.text = "anomaly 0.87 (threshold 0.50)"
+    assert r.summary() == "anomaly 0.87 (threshold 0.50)"
+
+
+def test_text_wins_over_probs_and_keypoints_too():
+    r = Results(IMG, task="classify", names={0: "cat", 1: "dog"}, probs=Probs([0.1, 0.9]))
+    r.keypoints = Keypoints(np.zeros((1, 5, 3), np.float32))
+    r.text = "dog 0.90"
+    assert r.summary() == "dog 0.90"
+
+
+def test_without_text_the_fields_still_describe_themselves():
+    boxes = Boxes(np.array([[0, 0, 10, 10, 0.9, 0]], np.float32))
+    r = Results(IMG, task="detect", names={0: "person"}, boxes=boxes)
+    assert r.summary() == "person"

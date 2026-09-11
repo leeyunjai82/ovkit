@@ -33,7 +33,7 @@ print(r.boxes.xyxy, r.boxes.xywh, r.boxes.conf, r.boxes.cls)
 r.save("det.jpg")
 
 # Classification -> probs
-r = Model("resnet_18")("cat.jpg")[0]
+r = Model("classify")("cat.jpg")[0]
 print("top1:", r.name_for(r.probs.top1))
 print("top5:", [r.name_for(int(i)) for i in r.probs.top5])
 
@@ -43,19 +43,19 @@ print(r.masks.data.shape)
 cv2.imwrite("seg.jpg", r.plot())          # colorized overlay
 
 # Instance segmentation -> boxes + per-instance masks (N, H, W)
-r = Model("instance_segmentation_security_0002")("people.jpg")[0]
+r = Model("instance_segmentation_person_0007")("people.jpg")[0]
 print(len(r.boxes), r.masks.data.shape)
 
 # Pose -> keypoints (N, K, 3) = [x, y, conf]
-r = Model("human_pose_estimation_0001")("person.jpg")[0]
+r = Model("human_pose_estimation_0007")("person.jpg")[0]
 print(r.keypoints.xy, r.keypoints.conf)
 
 # OCR -> decoded text
-r = Model("text_recognition_0012")("word.png")[0]
+r = Model("text_recognition_0014")("word.png")[0]
 print(r.text)
 
 # Generic (super-res, embeddings, action, ...) -> raw output tensors
-r = Model("single_image_super_resolution_1032")("small.png")[0]
+r = Model("single_image_super_resolution_1033")("small.png")[0]
 for name, arr in r.tensors.items():
     print(name, arr.shape, arr.dtype)
 ```

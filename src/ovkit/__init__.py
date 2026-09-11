@@ -43,10 +43,21 @@ from .pipelines import Pipeline, list_pipelines
 __version__ = "0.3.0"
 
 
-def __getattr__(name: str):  # lazy: keeps `import ovkit` free of the train stack
-    if name == "RTDETR":
-        from .rtdetr import RTDETR
+def __getattr__(name: str):
+    """``ovkit.RTDETR`` re-exports the standalone ``rtdetr`` package.
 
+    Training lives in its own project (Apache-2.0 RT-DETR with an
+    Ultralytics-style API); ovkit re-exports it so a trained detector and the
+    capabilities sit behind one import. ``pip install "ovkit[train]"``.
+    """
+    if name == "RTDETR":
+        try:
+            from rtdetr import RTDETR
+        except ImportError as exc:
+            raise ImportError(
+                'Training needs the rtdetr package:  pip install "ovkit[train]"\n'
+                'Its exported IR runs here either way: Model("your-model.xml").'
+            ) from exc
         return RTDETR
     raise AttributeError(f"module 'ovkit' has no attribute {name!r}")
 

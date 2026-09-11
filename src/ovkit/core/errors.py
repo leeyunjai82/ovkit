@@ -41,3 +41,24 @@ class TaskDetectionError(OVKitError):
 
 class LicenseError(OVKitError):
     """A model carries a non-permissive license and may not be registered."""
+
+
+def multi_input_message(model_name: str, input_names: list[str]) -> str:
+    """The message for a model fed one image when it needs several inputs.
+
+    Written once because it was drifting into three near-identical copies, and
+    because the useful half — naming the capability that builds those inputs —
+    only existed in one of them.
+    """
+    from ..pipelines import capability_using
+
+    capability = capability_using(model_name)
+    hint = (
+        f"Model({capability!r}) builds those inputs for you."
+        if capability
+        else "Feed them yourself with model.infer({...}) — see model.inputs."
+    )
+    return (
+        f"{model_name} needs {len(input_names)} separate inputs "
+        f"({', '.join(input_names)}), so one image cannot drive it. {hint}"
+    )
