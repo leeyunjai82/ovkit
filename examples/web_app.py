@@ -385,7 +385,7 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
 def index() -> str:
     by_task: dict[str, list[str]] = {}
     kinds: dict[str, str] = {}
-    for name in list_models():
+    for name in list_models():  # curated tier only
         try:
             entry = resolve(name)
         except Exception:

@@ -1,5 +1,10 @@
 # Model catalog
 
+> The tables below are a snapshot. `ovkit list` prints the current curated set
+> and `ovkit list --all` adds the archived Open Model Zoo entries, which still
+> load by name.
+
+
 ovkit serves a large set of permissively-licensed OpenVINO models from its
 mirror. Many are the **same capability in several variants** (different
 accuracy/speed, input resolution, INT8 quantization, or pruning), so this page

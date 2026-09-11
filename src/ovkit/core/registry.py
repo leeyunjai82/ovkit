@@ -45,6 +45,10 @@ class ModelEntry:
     sha256: str | None = None
     imgsz: int | None = None
     license_url: str | None = None
+    #: ``"core"`` for the curated set ovkit puts in front of you, ``"zoo"`` for
+    #: the rest of the Open Model Zoo — still loadable by name, just not in the
+    #: way of someone deciding what to try first.
+    tier: str = "core"
     fallback: dict[str, Any] | None = None
     preprocess: dict[str, Any] = field(default_factory=dict)
     postprocess: dict[str, Any] = field(default_factory=dict)
@@ -65,6 +69,7 @@ class ModelEntry:
             "sha256",
             "imgsz",
             "license_url",
+            "tier",
             "fallback",
             "preprocess",
             "postprocess",
@@ -139,9 +144,35 @@ def reload() -> None:
     _load_raw.cache_clear()
 
 
-def list_models() -> list[str]:
-    """Return all registered model names, sorted."""
-    return sorted(_load_raw().keys())
+def list_models(tier: str | None = "core") -> list[str]:
+    """Registered model names, sorted — the curated set by default.
+
+    ``tier=None`` returns everything, including the Open Model Zoo entries kept
+    for compatibility. Those still load by name; they are simply not what a
+    beginner should have to scroll past.
+    """
+    raw = _load_raw()
+    if tier is None:
+        return sorted(raw)
+    return sorted(n for n in raw if tier_of(n) == tier)
+
+
+def tier_of(name: str, _seen: set[str] | None = None) -> str:
+    """``"core"`` or ``"zoo"`` for a registered name (``"core"`` if unknown).
+
+    An alias inherits its target's tier: hiding a model but leaving its
+    friendly name on the front page would only move the dead end.
+    """
+    spec = _load_raw().get(name)
+    if spec is None:
+        return "core"
+    target = spec.get("alias")
+    if target:
+        seen = _seen or set()
+        if target in seen:
+            return "core"
+        return tier_of(target, seen | {name})
+    return str(spec.get("tier", "core"))
 
 
 def resolve(name: str, _seen: set[str] | None = None) -> ModelEntry | None:
