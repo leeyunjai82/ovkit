@@ -24,6 +24,7 @@ whatever describes what was found. :func:`list_pipelines` shows them all.
 
 from __future__ import annotations
 
+from . import hub
 from .core.errors import (
     ConversionError,
     DownloadError,
@@ -64,6 +65,7 @@ def __getattr__(name: str):
 
 __all__ = [
     "Model",
+    "hub",
     "RTDETR",
     "Pipeline",
     "list_pipelines",

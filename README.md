@@ -130,6 +130,31 @@ for r in ai.predict(0, stream=True): ...  # webcam over YOUR classes
 Korean method names work too: `배우기`, `맞혀봐`, `점수`, `저장`. Collect
 examples with the webcam: `from ovkit.pipelines.teach import collect; collect("가위", 30)`.
 
+## Any model on the Hugging Face Hub
+
+The Open Model Zoo is an archive; the models people want are on the Hub.
+`optimum-intel` converts almost any of them to OpenVINO IR, so ovkit does not
+have to mirror a model to serve it:
+
+```bash
+pip install "ovkit[hf]"                      # the converter — needed once
+ovkit pull google/vit-base-patch16-224
+```
+
+```python
+Model("google/vit-base-patch16-224", "photo.jpg")   # tabby 0.94
+```
+
+Converting is the heavy half and happens once; what lands in the cache is a
+plain OpenVINO model, so **running it afterwards needs nothing but ovkit** — a
+classroom machine can be handed the cache and never see PyTorch. The pull also
+writes the model's own class names and the normalisation its image processor
+declares, so results read as answers and not as confident nonsense.
+
+Tasks: image classification, zero-shot (CLIP) classification, feature
+extraction. Detection and segmentation come from the registry instead
+(`detect`, `segment`) — optimum-intel does not export those.
+
 ## Train your own detector
 
 RT-DETR, trainable, Apache-2.0 end to end — an Ultralytics-style workflow with

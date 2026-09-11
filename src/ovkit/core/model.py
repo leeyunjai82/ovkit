@@ -150,6 +150,10 @@ class Model:
     # -- construction helpers ----------------------------------------------
 
     def _resolve(self, model: str | Path, precision: str | None) -> Path:
+        from ..hub import ir_path as hub_ir_path
+        from ..hub import is_hub_id, not_pulled_message
+        from ..hub import sidecar as hub_sidecar
+
         # 1) An existing local file (IR or ONNX) is used directly.
         p = Path(model)
         if p.exists() and p.suffix in {".xml", ".onnx"}:
@@ -179,7 +183,20 @@ class Model:
             source = fetch(entry)
             return to_ir(source, entry.name, prec)
 
-        # 3) Unknown. Suggest the closest real name — a typo in Korean or
+        # 3) A Hugging Face id, converted earlier by `ovkit pull`. What sits in
+        # the cache is plain OpenVINO IR, so running it needs no optimum-intel.
+        if is_hub_id(str(model)):
+            xml = hub_ir_path(str(model))
+            if xml is None:
+                raise ModelNotFoundError(not_pulled_message(str(model)))
+            meta = hub_sidecar(str(model))
+            self.imgsz = 640
+            self._pre = dict(meta.get("preprocess") or {})
+            self._post = dict(meta.get("postprocess") or {})
+            self._task_override = self._task_override or meta.get("task")
+            return xml
+
+        # 4) Unknown. Suggest the closest real name — a typo in Korean or
         # English should cost one glance, not a trip to the docs.
         raise ModelNotFoundError(_unknown_name_message(str(model)))
 

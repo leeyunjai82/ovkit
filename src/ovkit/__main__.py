@@ -1,4 +1,4 @@
-"""``ovkit`` CLI: ``gui``, ``run``, ``train``, ``val``, ``export``, ``list``, ``info``, ``download``, ``devices``."""
+"""``ovkit`` CLI: ``gui``, ``run``, ``pull``, ``train``, ``val``, ``export``, ``list``, ``info``, ``download``, ``devices``."""
 
 from __future__ import annotations
 
@@ -54,12 +54,21 @@ def _cmd_list(args: argparse.Namespace) -> int:
         for name, _ko, desc in raw:
             print(f"  {name:46s} {desc}")
 
+    from .hub import pulled_models
+
+    pulled = pulled_models()
+    if pulled:
+        print(f"\npulled from Hugging Face ({len(pulled)}):")
+        for name in pulled:
+            print(f"  {name}")
+
     if not show_all:
         hidden = len(list_models(tier=None)) - len(list_models())
         print(
             f'\nRun one:  Model("detect", "photo.jpg")   ·   ovkit run detect photo.jpg'
             f"\nEverything else ({hidden} archived zoo entries, plus registry names):"
             f"  ovkit list --all"
+            f"\nAnything on the Hub:  ovkit pull <owner/model>"
         )
     return 0
 
@@ -160,6 +169,14 @@ def _cmd_gui(args: argparse.Namespace) -> int:
     return gui_main(device=args.device, camera=args.camera)
 
 
+def _cmd_pull(args: argparse.Namespace) -> int:
+    """Convert a Hugging Face model to IR: ``ovkit pull google/vit-base...``."""
+    from .hub import pull
+
+    pull(args.model_id, task=args.task)
+    return 0
+
+
 def _cmd_train(args: argparse.Namespace) -> int:
     """Train RT-DETR on YOLO-format data: ``ovkit train --data data.yaml``."""
     from ovkit import RTDETR
@@ -239,6 +256,15 @@ def main(argv: list[str] | None = None) -> int:
     p_exp.add_argument("--half", action="store_true", help="FP16 IR")
     p_exp.add_argument("--out", default=".", help="output directory")
     p_exp.set_defaults(func=_cmd_export)
+
+    p_pull = sub.add_parser(
+        "pull", help="convert a Hugging Face model to OpenVINO IR (needs ovkit[hf])"
+    )
+    p_pull.add_argument("model_id", help="a Hub id, e.g. google/vit-base-patch16-224")
+    p_pull.add_argument(
+        "--task", default=None, help="override the task read from the model's config"
+    )
+    p_pull.set_defaults(func=_cmd_pull)
 
     p_dev = sub.add_parser("devices", help="list OpenVINO devices")
     p_dev.set_defaults(func=_cmd_devices)
