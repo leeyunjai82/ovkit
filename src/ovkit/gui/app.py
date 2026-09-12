@@ -202,7 +202,10 @@ class App:
     def _pick(self, choice: Any) -> None:
         for name, button in self.buttons.items():
             button.configure(bg=_LINE if name == choice.name else _PANEL)
-        self.status.configure(text=choice.hint)
+        # The window is a way in, not a destination: show the line that does
+        # the same thing, so clicking teaches typing.
+        typed = choice.korean_name or choice.name
+        self.status.configure(text=f'{choice.hint}     ·     Model("{typed}", "사진.jpg")')
         self.controller.select(choice.name)
 
     def _toggle_webcam(self) -> None:

@@ -23,37 +23,142 @@ class Choice:
     """One entry in the GUI's list of things ovkit can do."""
 
     name: str  #: what Model() is called with
-    label: str  #: what the button says
+    label: str  #: what the button says, in the display language
     hint: str  #: one line under the picture
+    korean_name: str = ""  #: the Korean name Model() also accepts, if there is one
+
+
+#: ``name -> (한국어 버튼, 한국어 설명, English button, English hint)``.
+#:
+#: The buttons used to be English only, in a package whose display language
+#: defaults to Korean and whose whole point is that a student can type
+#: ``Model("얼굴분석")``. Someone who opens the window first met "Describe /
+#: Faces / Objects" — the one place where the Korean was missing was the place
+#: a beginner starts.
+_CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
+    # Capabilities first: they answer a question rather than emit a tensor.
+    (
+        "scene",
+        "장면 설명",
+        "사진 한 장을 한 문장으로",
+        "Describe",
+        "One sentence about the whole picture",
+    ),
+    (
+        "face_analyze",
+        "얼굴 분석",
+        "얼굴마다 나이·성별·표정",
+        "Faces",
+        "Age, gender and emotion for every face",
+    ),
+    (
+        "detect",
+        "물체 찾기",
+        "사진 속 물건 찾기 (COCO 80종)",
+        "Objects",
+        "Find the objects in the picture (COCO-80)",
+    ),
+    ("count", "개수 세기", "무엇이 몇 개인지 세기", "Count", "How many of each kind"),
+    ("read_text", "글자 읽기", "글자를 찾아서 읽기", "Read text", "Find text and read it"),
+    (
+        "read_plate",
+        "번호판 읽기",
+        "번호판을 읽고 차를 설명",
+        "Plates",
+        "Read number plates, describe the car",
+    ),
+    (
+        "track",
+        "따라가기",
+        "프레임이 바뀌어도 같은 번호",
+        "Track",
+        "Objects keep an id from frame to frame",
+    ),
+    (
+        "drowsiness",
+        "졸음 감지",
+        "눈이 감긴 채로 있으면 알림 (웹캠)",
+        "Drowsy?",
+        "Warn when the eyes stay shut (webcam)",
+    ),
+    (
+        "posture",
+        "거북목 알림",
+        "목 각도를 보고 알림 (웹캠)",
+        "Posture",
+        "Watch the neck angle (webcam)",
+    ),
+    (
+        "exercise",
+        "운동 횟수",
+        "스쿼트·팔굽혀펴기 세기 (웹캠)",
+        "Exercise",
+        "Count squats and push-ups (webcam)",
+    ),
+    (
+        "gesture",
+        "동작 알아보기",
+        "움직임으로 손동작 알아보기 (웹캠)",
+        "Gesture",
+        "Hand gestures from motion (webcam)",
+    ),
+    (
+        "attention",
+        "뭘 보나",
+        "사람이 무엇을 보고 있는지",
+        "Attention",
+        "Which object the person is looking at",
+    ),
+    ("gaze", "시선", "얼굴이 어디를 보는지", "Gaze", "Where a face is looking"),
+    (
+        "anonymize",
+        "모자이크",
+        "얼굴을 가려서 공유할 수 있게",
+        "Blur faces",
+        "Redact faces so the picture can be shared",
+    ),
+    (
+        "remove_background",
+        "배경 지우기",
+        "피사체만 남기기",
+        "Cut out",
+        "Keep the subject, drop the background",
+    ),
+    ("depth", "거리 재기", "무엇이 얼마나 가까운지", "Distance", "How far away everything is"),
+    (
+        "person_analyze",
+        "사람 분석",
+        "무엇을 입고 들었는지",
+        "People",
+        "What each person wears or carries",
+    ),
+    ("vehicle_analyze", "차량 분석", "차 종류와 색", "Vehicles", "Type and colour of each vehicle"),
+    # A few single models, for when you want exactly one.
+    ("pose", "자세", "사람마다 관절 위치", "Pose", "Body keypoints for every person"),
+    ("segment", "영역 나누기", "픽셀마다 이름 붙이기", "Segment", "Label every pixel"),
+    ("classify", "이건 뭐야", "이 사진은 무엇인가", "Classify", "What is this a picture of?"),
+)
 
 
 def choices() -> list[Choice]:
     """The short, opinionated list a beginner should start from.
 
     Not every registered model — the point of the GUI is to answer a question,
-    so it offers capabilities first and a handful of single models after.
+    so it offers capabilities first and a handful of single models after. The
+    labels follow the display language.
     """
+    from ..core.i18n import KO_CAPS, lang
+
+    korean = {target: name for name, target in KO_CAPS.items()}
+    in_korean = lang() == "ko"
     return [
-        # Capabilities first: they answer a question rather than emit a tensor.
-        Choice("scene", "Describe", "One sentence about the whole picture"),
-        Choice("face_analyze", "Faces", "Age, gender and emotion for every face"),
-        Choice("detect", "Objects", "Find the objects in the picture (COCO-80)"),
-        Choice("read_text", "Read text", "Find text and read it"),
-        Choice("read_plate", "Plates", "Read number plates, describe the car"),
-        Choice("track", "Track", "Objects keep an id from frame to frame"),
-        Choice("drowsiness", "Drowsy?", "Warn when the eyes stay shut (needs a webcam)"),
-        Choice("gesture", "Gesture", "Hand gestures from motion (needs a webcam)"),
-        Choice("attention", "Attention", "Which object the person is looking at"),
-        Choice("gaze", "Gaze", "Where a face is looking"),
-        Choice("anonymize", "Blur faces", "Redact faces so the picture can be shared"),
-        Choice("remove_background", "Cut out", "Keep the subject, drop the background"),
-        Choice("depth", "Distance", "How far away everything is"),
-        Choice("person_analyze", "People", "What each person wears or carries"),
-        Choice("vehicle_analyze", "Vehicles", "Type and colour of each vehicle"),
-        # A few single models, for when you want exactly one.
-        Choice("pose", "Pose", "Body keypoints for every person"),
-        Choice("segment", "Segment", "Label every pixel"),
-        Choice("classify", "Classify", "What is this a picture of?"),
+        Choice(
+            name=name,
+            label=ko_label if in_korean else en_label,
+            hint=ko_hint if in_korean else en_hint,
+            korean_name=korean.get(name, ""),
+        )
+        for name, ko_label, ko_hint, en_label, en_hint in _CHOICES
     ]
 
 
