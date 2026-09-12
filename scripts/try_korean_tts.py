@@ -45,12 +45,28 @@ def main() -> int:
     findings: list[str] = []
 
     step(1, "melotts 설치")
-    code = run([sys.executable, "-m", "pip", "install", "--quiet", "melotts"])
-    if code != 0:
-        findings.append("pip install melotts 실패 — 이 경로는 여기서 끝납니다.")
+    # PyPI first, because that is what a teacher would type. It fails: the
+    # sdist's setup.py reads a requirements.txt the sdist does not contain.
+    # The project's own README installs from git, so that is attempt two.
+    sources = [
+        ("PyPI (pip install melotts)", "melotts"),
+        ("git (README가 안내하는 방법)", "git+https://github.com/myshell-ai/MeloTTS.git"),
+    ]
+    installed = ""
+    already = run([sys.executable, "-c", "import melo"]) == 0
+    if already:
+        installed = "이미 설치되어 있음 (앞선 시도의 결과)"
+    for label, target in [] if already else sources:
+        print(f"\n-- {label}")
+        if run([sys.executable, "-m", "pip", "install", "--quiet", target]) == 0:
+            installed = label
+            break
+        findings.append(f"설치 실패: {label}")
+    if not installed:
+        findings.append("어느 방법으로도 설치되지 않습니다 — 이 경로는 여기서 끝납니다.")
         print("\n".join(findings))
         return 1
-    findings.append("melotts 설치 OK")
+    findings.append(f"설치 OK — {installed}")
 
     step(2, "한국어 체크포인트 로드")
     try:
@@ -127,11 +143,13 @@ def main() -> int:
         for port in ir.outputs:
             print(f"  output {port.any_name:12s} {port.partial_shape}")
         findings.append("OpenVINO 변환 OK")
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        findings.append(
-            "ONNX export 실패 — VITS의 동적 길이/확률적 길이예측 때문일 가능성이 큽니다."
-        )
+        # Not a guess. The first version of this line blamed VITS's dynamic
+        # lengths; the real failure was a missing pip package, and the guess
+        # would have sent the next person to rewrite the export instead of
+        # typing `pip install onnxscript`.
+        findings.append(f"ONNX export 실패 — {type(exc).__name__}: {str(exc)[:200]}")
 
     print("\n\n=== 정리 " + "=" * 50)
     for line in findings:
