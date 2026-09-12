@@ -73,3 +73,18 @@ def test_empty_manifests_never_prune_the_whole_mirror(audit, monkeypatch, capsys
     status, orphans = audit.audit()
     assert status == 2 and orphans == []
     assert "refusing" in capsys.readouterr().err
+
+
+def test_report_separates_dead_models_from_leftovers(audit, capsys):
+    """Two piles, two decisions: a model that goes, versus a file beside one that stays."""
+    files = {"detect/live/model.xml", "detect/live/model.bin"}
+    orphans = [
+        ("detect/live/original-name.xml", 40_000),  # leftover beside a served model
+        ("detect/gone/model.xml", 1_000),
+        ("detect/gone/model.bin", 9_000_000),
+    ]
+    audit._report(orphans, files)
+    out = capsys.readouterr().out
+    assert "still serves" in out and "original-name.xml" in out
+    assert "no manifest mentions" in out and "detect/gone/" in out
+    assert "detect/live/" not in out.split("no manifest mentions")[1]

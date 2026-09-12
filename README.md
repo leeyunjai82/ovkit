@@ -339,6 +339,19 @@ python scripts/sync_mirror.py --upload   # copy just that
 
 It lists the target first and copies only what is absent, so re-running is safe.
 
+The traffic goes the other way too. A mirror only ever added to fills up with
+models that left the lineup and weights uploaded under an old path — and it is
+the thing a school clones whole:
+
+```bash
+python scripts/audit_mirror.py           # what no manifest references
+python scripts/audit_mirror.py --prune   # delete just that
+```
+
+A model's `README.md`, `LICENSE` and `labels.txt` stay as long as the model
+does, and go with it when it leaves. Deletions are ordinary Hub commits, so
+the history still has them.
+
 ## Adding a model
 
 Models are data, not code — one manifest entry

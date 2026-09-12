@@ -128,33 +128,65 @@ def _human(size: int) -> str:
 
 
 
-def _report(orphans: list[tuple[str, int]]) -> None:
-    """Print the orphans folder by folder — one model per line, not one file.
+def _report(orphans: list[tuple[str, int]], files: set[str]) -> None:
+    """Print the orphans as two piles, because they are two different decisions.
 
     A mirror this size lists six hundred files; nobody reads six hundred lines
-    before deciding what to delete. The unit that matters is the model folder.
+    before deciding what to delete. And the two piles are not alike:
+
+    *Whole models* — nothing in the folder is in a manifest, so ovkit cannot
+    load them at all. Deleting one removes a model from the mirror for good
+    (the Hub keeps history, but nothing in ovkit points at it either way).
+
+    *Leftovers* — the folder holds a model ovkit still serves, and these files
+    sit next to it unused: the weights under their original Open Model Zoo
+    name, kept when the mirror standardised on ``model.xml``. Nothing reads
+    them, and they are pure duplication.
     """
-    folders: dict[str, tuple[int, int]] = {}
+    live = _folders(files)
+    dead: dict[str, tuple[int, int]] = {}
+    leftover: dict[str, list[tuple[str, int]]] = {}
+
     for path, size in orphans:
         folder = path.rsplit("/", 1)[0] if "/" in path else "(root)"
-        count, total = folders.get(folder, (0, 0))
-        folders[folder] = (count + 1, total + size)
+        if folder in live:
+            leftover.setdefault(folder, []).append((path, size))
+        else:
+            count, total = dead.get(folder, (0, 0))
+            dead[folder] = (count + 1, total + size)
 
-    ordered = sorted(folders.items(), key=lambda kv: (-kv[1][1], kv[0]))
-    print(f"{len(orphans)} file(s) in {len(folders)} folder(s) nothing references.\n")
-    for folder, (count, total) in ordered:
-        print(f"  {_human(total):>10}  {folder}/  ({count} file{'s' if count > 1 else ''})")
+    if leftover:
+        total = sum(size for rows in leftover.values() for _, size in rows)
+        count = sum(len(rows) for rows in leftover.values())
+        print(f"Beside models ovkit still serves — {count} unused file(s), {_human(total)}:\n")
+        names: dict[str, int] = {}
+        for rows in leftover.values():
+            for path, size in rows:
+                names[Path(path).name] = names.get(Path(path).name, 0) + 1
+        for name, seen in sorted(names.items(), key=lambda kv: -kv[1])[:12]:
+            print(f"  x{seen:<4} {name}")
+        print("\n  (the model itself stays; only these extra files go)\n")
 
-    by_top: dict[str, tuple[int, int]] = {}
-    for folder, (count, total) in folders.items():
-        top = folder.split("/", 1)[0]
-        seen, bytes_ = by_top.get(top, (0, 0))
-        by_top[top] = (seen + count, bytes_ + total)
-    print("\nby task:")
-    for top, (count, total) in sorted(by_top.items(), key=lambda kv: -kv[1][1]):
-        print(f"  {_human(total):>10}  {top:<32} {count} file(s)")
+    if dead:
+        total = sum(size for _, size in dead.values())
+        print(f"Models no manifest mentions — {len(dead)} folder(s), {_human(total)}:\n")
+        ordered = sorted(dead.items(), key=lambda kv: (-kv[1][1], kv[0]))
+        for folder, (count, size) in ordered[:40]:
+            print(f"  {_human(size):>10}  {folder}/  ({count} file{'s' if count > 1 else ''})")
+        if len(ordered) > 40:
+            rest = sum(size for _, (_, size) in ordered[40:])
+            print(f"  ... and {len(ordered) - 40} more folder(s), {_human(rest)}")
 
-    print(f"\n{_human(sum(size for _, size in orphans))} would be freed.")
+        by_top: dict[str, tuple[int, int]] = {}
+        for folder, (count, size) in dead.items():
+            top = folder.split("/", 1)[0]
+            seen, bytes_ = by_top.get(top, (0, 0))
+            by_top[top] = (seen + 1, bytes_ + size)
+        print("\n  by task:")
+        for top, (seen, size) in sorted(by_top.items(), key=lambda kv: -kv[1][1]):
+            print(f"    {_human(size):>10}  {top:<32} {seen} model(s)")
+
+    print(f"\n{_human(sum(size for _, size in orphans))} in total would be freed.")
     print("Read the list, then re-run with --prune to delete them.")
 
 
@@ -197,7 +229,7 @@ def audit() -> tuple[int, list[tuple[str, int]]]:
     if not orphans:
         print("Nothing to delete — every file is referenced by a manifest.")
     else:
-        _report(orphans)
+        _report(orphans, files)
 
     if missing:
         print(f"\n{len(missing)} file(s) a manifest asks for but the mirror lacks:")
