@@ -64,8 +64,19 @@ class TextReader(Pipeline):
             words.append(self._read(crop))
 
         result = Results(image, task=self.name, names={0: "text"}, boxes=Boxes(boxes.data[order]))
-        result.labels = words
         result.text = " ".join(w for w in words if w)
+        if any(words):
+            result.labels = words
+        elif len(words):
+            # Finding eight words and reading none of them is not "nothing
+            # found" — that is what a blank wall looks like, and the two were
+            # indistinguishable. Leave the boxes to speak ("8x text") and say
+            # what happened once.
+            warnings.warn(
+                f"found {len(words)} text region(s) but '{self.recognizer}' read " f"none of them.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         return result
 
     def _read(self, crop: np.ndarray) -> str:

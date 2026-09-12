@@ -145,6 +145,9 @@ CASES: list[Case] = [
     # --- need something built first: a gallery, a roster, example folders ---
     Case("teach", "people", kind="setup"),
     Case("attendance", "face", kind="setup"),
+    # Not a capability: the experiment that separates "the model finds nothing"
+    # from "the pipeline never asked it".
+    Case("probe", "face", kind="setup", note="진단용 — 왜 파이프라인만 못 찾는가"),
     # `anomaly` needs an anomalib checkpoint and `pip install ovkit[anomaly]`;
     # there is nothing sensible to point it at here, so it is left out rather
     # than reported as passing.
@@ -208,7 +211,16 @@ def run_teach(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
 
     started = time.perf_counter()
     try:
-        keys = list(images)
+        # Two classes built from the same photo are not two classes: pointing
+        # both keys at one file made teach "wrong" when it was answering fine.
+        keys = [k for k, v in images.items() if v]
+        seen: dict[str, str] = {}
+        for key in list(keys):
+            resolved = str(images[key])
+            if resolved in seen.values():
+                keys.remove(key)
+            else:
+                seen[key] = resolved
         root = work / "teach"
         shutil.rmtree(root, ignore_errors=True)
         for key in keys[:2]:
@@ -253,7 +265,62 @@ def run_attendance(images: dict[str, Path], work: Path) -> tuple[str, str, float
         return "ERROR", f"{type(exc).__name__}: {str(exc)[:150]}", elapsed
 
 
-SETUP = {"teach": run_teach, "attendance": run_attendance}
+def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
+    """Why does a capability find nothing where its own detector finds something?
+
+    ``Model("face_detection")`` sees a face; ``Model("face_analyze")``, which
+    runs that same detector at the same confidence, reports "no face found".
+    Same for eight text regions that ``read_text`` reads none of. Guessing has
+    been wrong twice, so this asks the three questions that separate the
+    possible causes, in one process, and prints the answers.
+    """
+    import cv2
+
+    from ovkit import Model
+    from ovkit.pipelines.base import DEFAULT_CONF
+
+    started = time.perf_counter()
+    lines: list[str] = []
+    try:
+        face = cv2.imread(str(images["face"]))
+        text = cv2.imread(str(images["text"]))
+
+        # 1. the detector, called directly, on the array the pipeline would use
+        direct = Model("face_detection")(face, conf=DEFAULT_CONF)
+        n_direct = len(direct[0].boxes or []) if direct else 0
+        lines.append(f"face_detection(ndarray)={n_direct}")
+
+        # 2. the same detector, obtained the way the pipeline obtains it
+        pipe = Model("face_analyze")
+        via_pipe = pipe.model("face_detection")(face, conf=DEFAULT_CONF)
+        n_pipe = len(via_pipe[0].boxes or []) if via_pipe else 0
+        lines.append(f"pipeline's detector={n_pipe}")
+
+        # 3. and what the pipeline itself makes of the same array
+        n_analyze = len(pipe.run(face).boxes or [])
+        lines.append(f"face_analyze(ndarray)={n_analyze}")
+
+        # text: the boxes and the crops they produce
+        found = Model("text_detection")(text, conf=DEFAULT_CONF)
+        if found:
+            boxes = found[0].boxes
+            lines.append(f"text boxes={len(boxes or [])} of {text.shape[1]}x{text.shape[0]}")
+            for i in range(min(3, len(boxes or []))):
+                xyxy = [int(v) for v in boxes.xyxy[i]]
+                crop = found[0].crop(i)
+                lines.append(f"  box{i}={xyxy} crop={crop.shape if crop.size else 'EMPTY'}")
+            reader = Model("text_recognition")
+            first = found[0].crop(0)
+            if first.size:
+                out = reader(first)
+                lines.append(f"  recognised={(out[0].text if out else None)!r}")
+        return "OK", " · ".join(lines), (time.perf_counter() - started) * 1000
+    except Exception as exc:  # noqa: BLE001
+        detail = f"{type(exc).__name__}: {str(exc)[:120]}"
+        return "ERROR", " · ".join([*lines, detail]), (time.perf_counter() - started) * 1000
+
+
+SETUP = {"teach": run_teach, "attendance": run_attendance, "probe": run_probe}
 
 
 def run(case: Case, source: Path) -> tuple[str, str, float]:
