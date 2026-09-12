@@ -44,6 +44,8 @@ for r in Model("detect", "photos/"):     # 폴더 한 번에
 
 for r in Model("track", 0):              # 웹캠은 흐름으로
     print(r, r.elapsed_ms, r.device)     # 사람 2명 (#1, #4)  14.2  GPU
+    if not r.show("추적"):                # 창에 띄우고, q를 누르면 끝
+        break
 ```
 
 ### 돌려주는 것 — `Results`
@@ -55,6 +57,7 @@ for r in Model("track", 0):              # 웹캠은 흐름으로
 | `r.save(...)` | 그려서 저장. 배경 제거 결과면 투명 PNG로 |
 | `r.plot()` | 겹치지 않는 자막 한 줄이 얹힌 그림 |
 | `r.crop(i)` | i번째로 찾은 것만 잘라내기 |
+| `r.show()` | 창에 띄우기. 창을 못 열면 파일로 저장하고 이유를 말합니다. `q`/`Esc`면 `False` |
 | `r.to_dict()` / `r.to_json()` | 그대로 파일이나 서버로 |
 | `r.boxes` `r.masks` `r.keypoints` `r.probs` `r.text` `r.tensors` | 숫자가 필요할 때의 원본 값 |
 | `r.elapsed_ms` · `r.device` | 몇 ms 걸렸고 어디서 돌았는지 |

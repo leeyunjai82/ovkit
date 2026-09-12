@@ -45,6 +45,8 @@ for r in Model("detect", "photos/"):     # a whole folder
 
 for r in Model("track", 0):              # webcam, as a stream
     print(r, r.elapsed_ms, r.device)     # 2x person (#1, #4)  14.2  GPU
+    if not r.show("track"):               # a window; q ends the loop
+        break
 ```
 
 ### What it hands back — `Results`
@@ -56,6 +58,7 @@ for r in Model("track", 0):              # webcam, as a stream
 | `r.save(...)` | draw and write. A background-removal result saves as a transparent PNG |
 | `r.plot()` | the picture with one wrapped caption that never overlaps |
 | `r.crop(i)` | just the i-th thing it found |
+| `r.show()` | put it in a window; with no window support it saves frames and says why. `False` on `q`/`Esc` |
 | `r.to_dict()` / `r.to_json()` | straight to a file or a server |
 | `r.boxes` `r.masks` `r.keypoints` `r.probs` `r.text` `r.tensors` | the raw values, when you want numbers |
 | `r.elapsed_ms` · `r.device` | how long it took and where it ran |

@@ -39,6 +39,8 @@ for row in r.found:                    # [{'name': '사람', 'name_en': 'person'
 
 for r in Model("track", 0):            # webcam / video / "mic" -> a stream
     print(r, r.elapsed_ms, r.device)   # 2x person (#1, #4) 14.2 GPU
+    if not r.show("track"):            # a window; q or Esc ends the loop
+        break
 ```
 
 The same call also runs whole **capabilities** — several models chained into one
