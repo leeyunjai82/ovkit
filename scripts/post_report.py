@@ -46,7 +46,12 @@ def main() -> int:
 
     text = report.read_text(encoding="utf-8", errors="replace")
     if len(text) > LIMIT:
-        text = "... (앞부분 생략)\n" + text[-LIMIT:]
+        # Both ends matter: a run's findings are usually at the top (what a
+        # thing is) and at the bottom (what it adds up to). Keeping only the
+        # tail once cut away the very interfaces the report was run for.
+        head = text[: LIMIT * 2 // 3]
+        tail = text[-(LIMIT // 3) :]
+        text = f"{head}\n\n... (가운데 {len(text) - len(head) - len(tail):,}자 생략) ...\n\n{tail}"
     body = f"### {title} — `{sha[:7]}`\n\n```\n{text}\n```\n"
 
     request = urllib.request.Request(

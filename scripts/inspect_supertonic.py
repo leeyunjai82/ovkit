@@ -54,7 +54,15 @@ def _peek(value: object, depth: int = 0) -> str:
             lines.append(f"{pad}  {key} -> {_peek(value[key], depth + 1).strip()}")
         return "\n".join(lines)
     if isinstance(value, list):
-        sample = ", ".join(repr(v) for v in value[:6])
+        # A voice style is a few thousand floats. Printing six of them says
+        # nothing and printing all of them buried the graph interfaces under
+        # 300 KB of numbers.
+        if value and all(isinstance(v, (int, float)) for v in value):
+            return f"{pad}list[{len(value)}] of numbers"
+        if value and all(isinstance(v, list) for v in value):
+            inner = len(value[0])
+            return f"{pad}list[{len(value)}] x list[{inner}] of numbers"
+        sample = ", ".join(repr(v)[:40] for v in value[:6])
         return f"{pad}list[{len(value)}]: {sample}{' …' if len(value) > 6 else ''}"
     return f"{pad}{type(value).__name__}: {str(value)[:80]}"
 
