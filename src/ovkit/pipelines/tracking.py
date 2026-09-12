@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 from ..core.results import Boxes, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 
 def iou_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -72,7 +72,7 @@ class Tracker(Pipeline):
         self._tracks: list[dict[str, Any]] = []
         self._next_id = 1
 
-    def run(self, image: np.ndarray, *, conf: float = 0.25, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         ids = self.update(boxes.data)

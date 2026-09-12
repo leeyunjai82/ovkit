@@ -62,7 +62,14 @@ class SoundClassifier:
         shape = backend.input_shape
         scores = None
         for chunk in frames(audio, length):
-            feed = chunk.reshape([d if d and d > 0 else 1 for d in shape] or [1, 1, 1, length])
+            # The samples go in the last dimension. A model that declares it
+            # dynamic reports -1 there, and mapping that to 1 (as the other
+            # dynamic dims must be) asks numpy to fit 16,000 samples into one
+            # slot — which is how a clip used to raise "cannot reshape array of
+            # size 16000 into shape (1,1,1,1)". Let numpy size that axis.
+            dims = [d if d and d > 0 else 1 for d in shape] or [1, 1, 1, length]
+            dims[-1] = -1
+            feed = chunk.reshape(dims)
             raw = np.asarray(next(iter(backend.infer(feed).values()))).reshape(-1)
             probs = softmax(raw.astype(np.float32))
             scores = probs if scores is None else scores + probs

@@ -19,7 +19,7 @@ import numpy as np
 from ..core.constants import class_names
 from ..core.maths import softmax
 from ..core.results import Boxes, Probs, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 from .gaze import _square_crop
 
 #: open-closed-eye-0001 emits [open, closed].
@@ -65,7 +65,7 @@ class DrowsinessMonitor(Pipeline):
         """Forget the closure currently being timed."""
         self._closed_since: float | None = None
 
-    def run(self, image: np.ndarray, *, conf: float = 0.5, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         result = Results(image, task=self.name, names={0: "face"}, boxes=boxes)

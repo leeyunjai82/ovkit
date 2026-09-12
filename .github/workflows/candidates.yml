@@ -1,0 +1,30 @@
+name: Check candidates
+
+# Asks Hugging Face what a candidate model actually is — licence, size,
+# popularity — before anyone spends a day converting it.
+#
+# ovkit refuses non-permissive weights at load time, so a CC-BY-NC model is not
+# a candidate however good it is, and that is the easiest thing to be
+# confidently wrong about from memory. No token needed; the development
+# container cannot reach huggingface.co, which is why this lives here.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ids:
+        description: "Model ids to check (space separated; blank = the standing shortlist)"
+        type: string
+        default: ""
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pyyaml
+        run: python -m pip install --upgrade pip pyyaml
+      - name: Ask the Hub
+        run: python scripts/check_candidates.py ${{ inputs.ids }}

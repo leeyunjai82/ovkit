@@ -125,7 +125,14 @@ class Model:
         dispatch in :meth:`__new__` and always returns a plain model.
         """
         obj = object.__new__(cls)
-        obj.__init__(model, task, device, precision)  # type: ignore[misc]
+        # By keyword, deliberately: __init__'s second parameter is `source`,
+        # so passing these positionally handed `task` to `source`, `device` to
+        # `task` and `precision` to `device`. Every sub-model a pipeline loaded
+        # was built with task="AUTO", which no adapter claims, so it decoded
+        # through the generic adapter and came back with raw tensors and no
+        # boxes — and every capability that asks a detector for detections
+        # answered "nothing found" on a picture full of them.
+        obj.__init__(model, task=task, device=device, precision=precision)  # type: ignore[misc]
         return obj
 
     def __init__(

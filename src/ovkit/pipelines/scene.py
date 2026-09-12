@@ -11,13 +11,14 @@ cheapest way to see several models agree or disagree on the same frame.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
 
 from ..core.results import Boxes, Results
 from .analyze import FaceAnalyzer
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 
 class SceneReport(Pipeline):
@@ -43,13 +44,13 @@ class SceneReport(Pipeline):
         self.use_faces = faces
         self._faces = FaceAnalyzer(device=device) if faces else None
 
-    def run(self, image: np.ndarray, *, conf: float = 0.3, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         objects = detections(self.model(self.detector), image, conf)
         boxes = objects.boxes if objects.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         result = Results(image, task=self.name, names=objects.names, boxes=boxes)
 
         parts: list[str] = []
-        people = self._people(image) if self.use_faces else ""
+        people = self._people(image, conf) if self.use_faces else ""
         objects_line = self._objects(objects, skip_people=bool(people))
         if people:
             parts.append(people)
@@ -80,13 +81,22 @@ class SceneReport(Pipeline):
         ranked = sorted(counts.items(), key=lambda kv: -kv[1])[:4]
         return _join([f"{n} {label}s" if n > 1 else f"a {label}" for label, n in ranked])
 
-    def _people(self, image: np.ndarray) -> str:
+    def _people(self, image: np.ndarray, conf: float) -> str:
         """ "2 people (1 happy)" — the face pipeline, condensed."""
         if self._faces is None:
             return ""
         try:
-            faces = self._faces.run(image, conf=0.5)
-        except Exception:
+            faces = self._faces.run(image, conf=conf)
+        except Exception as exc:  # noqa: BLE001 - the rest of the scene still stands
+            # Quietly returning "" here once hid a NameError in this very
+            # method: the description simply had no people in it, and nothing
+            # said why.
+            warnings.warn(
+                f"the faces in this scene could not be described "
+                f"({type(exc).__name__}: {exc}).",
+                RuntimeWarning,
+                stacklevel=2,
+            )
             return ""
         n = len(faces.boxes) if faces.boxes is not None else 0
         if not n:

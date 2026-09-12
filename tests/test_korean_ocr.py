@@ -8,6 +8,8 @@ hand-built alphabet where the right answer is known.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -131,3 +133,58 @@ def test_the_space_token_decodes_to_a_space():
     symbols, blank = adapter._symbols()
     assert symbols == ["", "안", " ", "녕"] and blank == 0
     assert adapter._ctc_greedy(_logits([1, 2, 3], 4)) == "안 녕"
+
+
+def test_a_recogniser_that_cannot_read_says_so_once(monkeypatch):
+    """Eight empty strings and "nothing found" is what a broken reader looked like.
+
+    The crops kept failing for the same reason and every failure was swallowed,
+    so a picture full of words was reported exactly like a blank wall.
+    """
+    monkeypatch.setenv("OVKIT_LANG", "en")
+    reader = TextReader()
+
+    class _Broken:
+        def __call__(self, _crop):
+            raise RuntimeError("input shape mismatch")
+
+    monkeypatch.setattr(reader, "model", lambda name: _Broken())
+    crop = np.zeros((8, 8, 3), np.uint8)
+
+    with pytest.warns(RuntimeWarning, match="input shape mismatch"):
+        assert reader._read(crop) == ""
+    # the second crop fails the same way and stays quiet
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert reader._read(crop) == ""
+
+
+def test_finding_text_and_reading_none_is_not_nothing_found(monkeypatch):
+    """Eight boxes read as nothing looked exactly like a picture with no text."""
+    from ovkit.core.results import Boxes, Results
+
+    monkeypatch.setenv("OVKIT_LANG", "en")
+    reader = TextReader()
+
+    rows = np.array([[0, 0, 10, 10, 0.9, 0], [20, 20, 30, 30, 0.8, 0]], np.float32)
+
+    class _Silent:
+        def __call__(self, _crop):
+            out = Results(np.zeros((4, 4, 3), np.uint8), task="ocr")
+            out.text = ""
+            return [out]
+
+    def fake_model(name):
+        if name == "text_detection":
+            return lambda img, **kw: [
+                Results(img, task="detect", names={0: "text"}, boxes=Boxes(rows))
+            ]
+        return _Silent()
+
+    monkeypatch.setattr(reader, "model", fake_model)
+    with pytest.warns(RuntimeWarning, match="read none of them"):
+        result = reader.run(np.zeros((60, 60, 3), np.uint8))
+
+    assert result.text == ""
+    assert result.labels is None, "empty labels hid the boxes from the summary"
+    assert "2" in str(result), f"the boxes should still be reported: {result}"

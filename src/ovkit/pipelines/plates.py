@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 from ..core.results import Boxes, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 #: Class ids of the barrier detector (documented OMZ interface).
 VEHICLE, PLATE = 1, 2
@@ -49,7 +49,7 @@ class PlateReader(Pipeline):
         self.recognizer = recognizer
         self.attributes = attributes
 
-    def run(self, image: np.ndarray, *, conf: float = 0.4, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         cls = boxes.cls.astype(int) if len(boxes) else np.zeros(0, int)

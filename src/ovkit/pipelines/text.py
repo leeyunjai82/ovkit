@@ -17,7 +17,7 @@ import numpy as np
 
 from ..core.i18n import lang
 from ..core.results import Boxes, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 #: Recogniser per display language. The Latin model reads 0-9 a-z and nothing
 #: else, so a Korean sign came back empty until the Korean one existed.
@@ -49,8 +49,11 @@ class TextReader(Pipeline):
         #: ``None`` means "match the display language" — Korean text needs the
         #: Korean recogniser, and asking for one explicitly is the override.
         self.recognizer = recognizer or _RECOGNIZERS.get(lang(), _FALLBACK)
+        #: Whether a crop has already failed — so the reason is said once, not
+        #: once per word.
+        self._complained = False
 
-    def run(self, image: np.ndarray, *, conf: float = 0.3, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         order = self._reading_order(boxes)
@@ -61,8 +64,19 @@ class TextReader(Pipeline):
             words.append(self._read(crop))
 
         result = Results(image, task=self.name, names={0: "text"}, boxes=Boxes(boxes.data[order]))
-        result.labels = words
         result.text = " ".join(w for w in words if w)
+        if any(words):
+            result.labels = words
+        elif len(words):
+            # Finding eight words and reading none of them is not "nothing
+            # found" — that is what a blank wall looks like, and the two were
+            # indistinguishable. Leave the boxes to speak ("8x text") and say
+            # what happened once.
+            warnings.warn(
+                f"found {len(words)} text region(s) but '{self.recognizer}' read " f"none of them.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         return result
 
     def _read(self, crop: np.ndarray) -> str:
@@ -87,7 +101,19 @@ class TextReader(Pipeline):
             reader = self.model(self.recognizer)
         try:
             out = reader(crop)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - one bad crop must not stop the page
+            # Every crop failing the same way used to be indistinguishable from
+            # a picture with no readable words: eight empty strings and the
+            # cheerful summary "nothing found". Say it once, with the reason.
+            if not self._complained:
+                self._complained = True
+                warnings.warn(
+                    f"'{self.recognizer}' could not read a crop "
+                    f"({type(exc).__name__}: {exc}). Further crops are read the "
+                    f"same way and may fail too.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
             return ""
         return (out[0].text or "").strip() if out else ""
 

@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 
 from ..core.results import Boxes, Keypoints, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 #: The gaze model's own input names (documented OMZ interface).
 _LEFT, _RIGHT, _ANGLES = "left_eye_image", "right_eye_image", "head_pose_angles"
@@ -60,7 +60,7 @@ class GazeEstimator(Pipeline):
         #: pipeline, and a pipeline cannot be its own part.
         self.gaze_model = gaze_model
 
-    def run(self, image: np.ndarray, *, conf: float = 0.5, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
 

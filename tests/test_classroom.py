@@ -272,11 +272,37 @@ def test_roster_folder_layouts(monkeypatch, tmp_path):
     cv2.imwrite(str(tmp_path / "영희" / "a.png"), _frame(120))
 
     att = Attendance()
+    # Roster photos are now read through the face detector, so the gallery
+    # holds the same thing the register compares against.
+    att._models["face_detection"] = _face_detector([[10, 10, 40, 40, 0.9, 0]])
     seen = []
-    att.matcher.add = lambda name, path: seen.append(name)
+    att.matcher.add = lambda name, image: seen.append((name, image))
     loaded = att.load_roster(str(tmp_path))
     assert loaded == ["영희", "철수"] or loaded == ["철수", "영희"]
-    assert set(seen) == {"철수", "영희"}
+    assert {name for name, _ in seen} == {"철수", "영희"}
+
+
+def test_the_roster_is_embedded_from_the_face_not_the_whole_photo(monkeypatch, tmp_path):
+    """The register embeds a crop; a gallery of whole photos cannot match it.
+
+    With the gallery built from full pictures, a class photo of the one student
+    in the roster came back "출석 0/1" — the student was in the gallery and in
+    the frame, and the two embeddings were of different pictures.
+    """
+    import cv2
+
+    cv2.imwrite(str(tmp_path / "철수.png"), _frame(200))
+
+    att = Attendance()
+    att._models["face_detection"] = _face_detector([[20, 20, 60, 60, 0.9, 0]])
+    added: list = []
+    att.matcher.add = lambda name, image: added.append(image)
+    att.load_roster(str(tmp_path))
+
+    assert added, "nothing was added to the gallery"
+    crop = added[0]
+    assert hasattr(crop, "shape"), "a path was added, so the whole photo would be embedded"
+    assert crop.shape[0] < 200 and crop.shape[1] < 200, f"that is the whole photo: {crop.shape}"
 
 
 def test_korean_names_build_the_classroom_pipelines():

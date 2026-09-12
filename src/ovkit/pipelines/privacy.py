@@ -15,7 +15,7 @@ from typing import Any
 import numpy as np
 
 from ..core.results import Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 #: Class id of the plate in the barrier detector's output.
 PLATE = 2
@@ -58,7 +58,7 @@ class Anonymizer(Pipeline):
         self.method = method
         self.strength = float(strength)
 
-    def run(self, image: np.ndarray, *, conf: float = 0.4, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         regions: list[np.ndarray] = []
         faces = detections(self.model(self.detector), image, conf)
         if faces.boxes is not None and len(faces.boxes):
