@@ -30,8 +30,6 @@ import sys
 import urllib.error
 import urllib.request
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "src"))
-
 API = "https://huggingface.co/api/models/"
 
 #: What ovkit is shopping for, and why. Nothing here is chosen yet.
@@ -100,8 +98,26 @@ def size_of(info: dict) -> str:
     return f"{total} B"
 
 
+def _is_permissive():
+    """ovkit's licence policy, loaded without importing ovkit.
+
+    ``import ovkit.core.constants`` pulls the package in, and the package
+    pulls in numpy and OpenVINO — a licence lookup should not need either.
+    The module itself is pure stdlib, so it is loaded straight from the file.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "src" / "ovkit" / "core" / "constants.py"
+    spec = importlib.util.spec_from_file_location("ovkit_constants", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["ovkit_constants"] = module
+    spec.loader.exec_module(module)
+    return module.is_permissive
+
+
 def report(groups: dict[str, list[str]]) -> int:
-    from ovkit.core.constants import is_permissive
+    is_permissive = _is_permissive()
 
     blocked = 0
     for heading, ids in groups.items():
@@ -115,14 +131,22 @@ def report(groups: dict[str, list[str]]) -> int:
             licence = licence_of(info)
             ok = is_permissive(licence)
             blocked += 0 if ok else 1
-            mark = "OK" if ok else "거부"
+            # "미표기" and "거부" both end up blocked, but they are not the same
+            # finding: one is a licence ovkit will not accept, the other is a
+            # model card that never said. Reporting them as one hides which
+            # ones a maintainer could resolve by asking.
+            if ok:
+                mark, licence = "OK", licence
+            elif licence in {"?", "None", ""}:
+                mark, licence = "미표기", "(모델 카드에 없음)"
+            else:
+                mark = "거부"
             downloads = info.get("downloads") or 0
-            print(
-                f"  {mark:6s} {model_id:52s} {licence:22s} " f"{size_of(info):>8s}  ↓{downloads:,}"
-            )
+            print(f"  {mark:6s} {model_id:52s} {licence:22s} {size_of(info):>8s}  ↓{downloads:,}")
     print(
-        "\n'거부'는 ovkit의 라이선스 정책(PERMISSIVE_LICENSES)에서 불러오기 자체가"
-        "\n막힌다는 뜻입니다 — 성능과 무관하게 후보가 아닙니다."
+        "\n'거부'  ovkit 정책이 받지 않는 라이선스입니다 — 성능과 무관하게 후보가 아닙니다."
+        "\n'미표기' 모델 카드에 라이선스가 없습니다. 없는 것을 허용으로 가정할 수는 없으니"
+        "\n        정책은 똑같이 막지만, 이쪽은 올린 사람에게 물어보면 풀릴 수도 있습니다."
     )
     return 0
 
