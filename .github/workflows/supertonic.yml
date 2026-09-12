@@ -1,0 +1,37 @@
+name: Supertonic
+
+# Reads Supertonic's four ONNX graphs and its JSON tables, prints every
+# interface, and proves each graph converts to OpenVINO IR.
+#
+# A TTS pipeline chains four models. Guessing four interfaces would be four
+# times the mistake that the OCR alphabet already cost today, so they are read
+# and printed here, and the implementation copies from this log.
+#
+# Nothing is uploaded.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install OpenVINO and the hub client
+        run: python -m pip install --upgrade pip openvino huggingface_hub
+
+      - name: Read the graphs
+        run: |
+          set -o pipefail
+          python scripts/inspect_supertonic.py 2>&1 | tee report.txt
+
+      - name: Leave the report on the commit
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/post_report.py report.txt "Supertonic 인터페이스"

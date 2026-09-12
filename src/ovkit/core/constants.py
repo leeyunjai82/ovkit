@@ -48,11 +48,40 @@ PERMISSIVE_LICENSES: frozenset[str] = frozenset(
 )
 
 
+#: Licences that are **not** permissive but that ovkit may still serve, on
+#: condition that the obligation travels with the model.
+#:
+#: OpenRAIL-M grants IP rights the way a permissive licence does — commercial
+#: use, redistribution and modification are all allowed — and adds *use-based*
+#: restrictions (no illegal or harmful use) that every downstream copy must
+#: carry. That is a different animal from the two things this allow-list was
+#: written to keep out: AGPL, which would reach into ovkit's own licensing,
+#: and CC-BY-NC, which forbids commercial use outright.
+#:
+#: Deliberately narrow. ``creativeml-openrail-m`` (Stable Diffusion's) is not
+#: here: this exception was decided for one model, and widening it quietly
+#: would smuggle in a family of others.
+RESTRICTED_LICENSES: frozenset[str] = frozenset(
+    {
+        "openrail",
+        "openrail-m",
+        "bigscience-openrail-m",
+    }
+)
+
+
 def is_permissive(license_id: str | None) -> bool:
     """Return ``True`` if ``license_id`` is a known permissive SPDX id."""
     if not license_id:
         return False
     return license_id.strip().lower() in PERMISSIVE_LICENSES
+
+
+def is_restricted(license_id: str | None) -> bool:
+    """Return ``True`` for a licence ovkit serves only with its obligation attached."""
+    if not license_id:
+        return False
+    return license_id.strip().lower() in RESTRICTED_LICENSES
 
 
 # --- class name tables -----------------------------------------------------
