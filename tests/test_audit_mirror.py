@@ -70,7 +70,7 @@ def test_an_unreferenced_file_is_an_orphan(audit):
 def test_empty_manifests_never_prune_the_whole_mirror(audit, monkeypatch, capsys):
     """No manifests read (wrong cwd, bad checkout) must not mean 'delete everything'."""
     monkeypatch.setattr(audit, "referenced", lambda: (set(), set()))
-    status, orphans = audit.audit()
+    status, orphans, _ = audit.audit()
     assert status == 2 and orphans == []
     assert "refusing" in capsys.readouterr().err
 
@@ -88,3 +88,13 @@ def test_report_separates_dead_models_from_leftovers(audit, capsys):
     assert "still serves" in out and "original-name.xml" in out
     assert "no manifest mentions" in out and "detect/gone/" in out
     assert "detect/live/" not in out.split("no manifest mentions")[1]
+
+
+def test_the_safe_half_can_be_pruned_on_its_own(audit):
+    """Deleting a duplicate beside a live model and retiring a model are not
+    the same decision, so they are not the same command."""
+    files = {"detect/live/model.xml"}
+    orphans = [("detect/live/old-name.xml", 40), ("detect/gone/model.xml", 9)]
+    piles = audit.split(orphans, files)
+    assert piles["leftovers"] == [("detect/live/old-name.xml", 40)]
+    assert piles["models"] == [("detect/gone/model.xml", 9)]

@@ -190,8 +190,18 @@ def _report(orphans: list[tuple[str, int]], files: set[str]) -> None:
     print("Read the list, then re-run with --prune to delete them.")
 
 
-def audit() -> tuple[int, list[tuple[str, int]]]:
-    """List the mirror, report orphans; return (exit code, [(path, size)])."""
+def split(orphans: list[tuple[str, int]], files: set[str]) -> dict[str, list[tuple[str, int]]]:
+    """Sort the orphans into the two piles ``--prune`` can act on separately."""
+    live = _folders(files)
+    piles: dict[str, list[tuple[str, int]]] = {"leftovers": [], "models": []}
+    for path, size in orphans:
+        folder = path.rsplit("/", 1)[0] if "/" in path else ""
+        piles["leftovers" if folder in live else "models"].append((path, size))
+    return piles
+
+
+def audit() -> tuple[int, list[tuple[str, int]], set[str]]:
+    """List the mirror, report orphans; return (exit code, orphans, referenced)."""
     from huggingface_hub import HfApi
 
     files, prefixes = referenced()
@@ -201,7 +211,7 @@ def audit() -> tuple[int, list[tuple[str, int]]]:
             "file an orphan. Run this from a checkout of ovkit.",
             file=sys.stderr,
         )
-        return 2, []
+        return 2, [], files
 
     try:
         tree = [
@@ -211,7 +221,7 @@ def audit() -> tuple[int, list[tuple[str, int]]]:
         ]
     except Exception as exc:
         print(f"could not list {TARGET_REPO}: {exc}", file=sys.stderr)
-        return 2, []
+        return 2, [], files
 
     orphans: list[tuple[str, int]] = []
     kept_bytes = 0
@@ -236,7 +246,7 @@ def audit() -> tuple[int, list[tuple[str, int]]]:
         for path in missing:
             print(f"  {path}")
         print("Run scripts/sync_mirror.py --upload to fill them in.")
-    return 0, orphans
+    return 0, orphans, files
 
 
 def prune(orphans: list[tuple[str, int]]) -> int:
@@ -266,12 +276,23 @@ def prune(orphans: list[tuple[str, int]]) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument(
-        "--prune", action="store_true", help="delete the orphans (default: list them)"
+        "--prune",
+        nargs="?",
+        const="all",
+        choices=("all", "leftovers", "models"),
+        help="delete the orphans (default: list them). 'leftovers' deletes only "
+        "the unused files beside models ovkit still serves — the safe half; "
+        "'models' only the folders no manifest mentions.",
     )
     args = parser.parse_args()
-    status, orphans = audit()
+    status, orphans, files = audit()
     if status or not args.prune or not orphans:
         return status
+    if args.prune != "all":
+        orphans = split(orphans, files)[args.prune]
+        if not orphans:
+            print(f"\nnothing in the '{args.prune}' pile.")
+            return 0
     return prune(orphans)
 
 

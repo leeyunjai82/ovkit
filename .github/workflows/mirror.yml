@@ -21,9 +21,10 @@ on:
         type: boolean
         default: false
       prune:
-        description: "Actually delete the files nothing references"
-        type: boolean
-        default: false
+        description: "Delete what nothing references"
+        type: choice
+        default: "no"
+        options: ["no", "leftovers", "models", "all"]
 
 # One at a time: two concurrent runs would race on the same repository.
 concurrency:
@@ -68,13 +69,13 @@ jobs:
         run: python scripts/audit_mirror.py
 
       - name: Delete it
-        if: ${{ inputs.prune }}
+        if: ${{ inputs.prune != 'no' }}
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: python scripts/audit_mirror.py --prune
+        run: python scripts/audit_mirror.py --prune "${{ inputs.prune }}"
 
       - name: What to do next
-        if: ${{ !inputs.upload && !inputs.prune }}
+        if: ${{ !inputs.upload && inputs.prune == 'no' }}
         run: |
           echo "### Dry run" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
