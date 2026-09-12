@@ -111,11 +111,15 @@ def main() -> int:
     parser.add_argument("--upload", action="store_true", help="실제로 미러에 올린다")
     parser.add_argument("--source", default=SOURCE)
     parser.add_argument("--mirror", default=MIRROR)
+    parser.add_argument("--prefix", default="", help="원본 저장소 안의 경로 앞부분")
     parser.add_argument("--work", default="supertonic_ir", help="변환 결과를 둘 폴더")
     args = parser.parse_args()
 
     import openvino as ov
     from huggingface_hub import hf_hub_download
+
+    def at(path: str) -> str:
+        return f"{args.prefix.strip('/')}/{path}" if args.prefix.strip("/") else path
 
     work = Path(args.work)
     if work.exists():
@@ -125,7 +129,7 @@ def main() -> int:
     print(f"=== {args.source} -> IR\n")
     total = 0
     for name, folder in GRAPHS.items():
-        src = Path(hf_hub_download(args.source, name))
+        src = Path(hf_hub_download(args.source, at(name)))
         out_dir = work / folder
         out_dir.mkdir(parents=True, exist_ok=True)
         xml = out_dir / "model.xml"
@@ -144,11 +148,11 @@ def main() -> int:
     data_dir = work / "data"
     (data_dir / "voices").mkdir(parents=True, exist_ok=True)
     for name, target in TABLES.items():
-        shutil.copy(hf_hub_download(args.source, name), work / target)
+        shutil.copy(hf_hub_download(args.source, at(name)), work / target)
     for voice in VOICES:
         try:
             shutil.copy(
-                hf_hub_download(args.source, f"voice_styles/{voice}.json"),
+                hf_hub_download(args.source, at(f"voice_styles/{voice}.json")),
                 data_dir / "voices" / f"{voice}.json",
             )
         except Exception as exc:  # noqa: BLE001
@@ -156,7 +160,7 @@ def main() -> int:
 
     # The obligation travels with the weights or the model does not ship.
     try:
-        shutil.copy(hf_hub_download(args.source, "LICENSE"), work / "LICENSE")
+        shutil.copy(hf_hub_download(args.source, at("LICENSE")), work / "LICENSE")
     except Exception as exc:  # noqa: BLE001
         print(f"\n!! LICENSE를 못 받았다: {exc}")
         print("OpenRAIL-M은 사본마다 같은 제한이 따라가야 한다. 올리지 않는다.")
