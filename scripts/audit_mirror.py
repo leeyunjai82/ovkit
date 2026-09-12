@@ -40,8 +40,7 @@ TARGET_REPO = "leeyunjai/ovkit-models"
 
 MANIFEST_DIR = Path(__file__).resolve().parent.parent / "src" / "ovkit" / "manifests"
 
-#: Repository furniture, and paths deliberately kept although no manifest
-#: names them. Entries ending in "/" keep a whole subtree.
+#: Repository furniture at the root, kept whatever the manifests say.
 KEEP: tuple[str, ...] = (
     ".gitattributes",
     ".gitignore",
@@ -50,6 +49,11 @@ KEEP: tuple[str, ...] = (
     "LICENSE.md",
     "LICENSE.txt",
 )
+
+#: Provenance that travels with a model: kept when its folder holds a model
+#: ovkit still serves, dropped with the folder when it does not. Where a model
+#: came from and under what licence is not furniture to tidy away.
+COMPANIONS = frozenset({"README.md", "LICENSE", "LICENSE.md", "LICENSE.txt", "labels.txt"})
 
 
 def _mirror_specs() -> list[dict]:
@@ -87,11 +91,8 @@ def referenced() -> tuple[set[str], set[str]]:
         if filename:
             path = f"{subfolder.rstrip('/')}/{filename}" if subfolder else filename
             files.add(path)
-            folder = path.rsplit("/", 1)[0] if "/" in path else ""
-            if folder:
-                files.add(f"{folder}/labels.txt")
-                files.add(f"{folder}/LICENSE.md")
             if path.endswith(".xml"):
+                # OpenVINO IR is two files; the weights are not optional.
                 files.add(path[: -len(".xml")] + ".bin")
         elif subfolder:
             # Downloaded as a whole directory (the genai pipelines).
@@ -99,12 +100,22 @@ def referenced() -> tuple[set[str], set[str]]:
     return files, prefixes
 
 
+def _folders(files: set[str]) -> set[str]:
+    """Folders holding at least one file a manifest names."""
+    return {path.rsplit("/", 1)[0] for path in files if "/" in path}
+
+
 def _kept(path: str, files: set[str], prefixes: set[str]) -> bool:
     if path in files or path in KEEP:
         return True
-    if Path(path).name in {"LICENSE.md", ".gitattributes"}:
+    if any(path.startswith(prefix) for prefix in prefixes):
         return True
-    return any(path.startswith(prefix) for prefix in prefixes)
+    name = Path(path).name
+    if name in COMPANIONS and "/" in path:
+        # Provenance and class names ride along with a model that is still
+        # served — and go with the folder when the model itself is gone.
+        return path.rsplit("/", 1)[0] in _folders(files)
+    return False
 
 
 def _human(size: int) -> str:
@@ -114,6 +125,37 @@ def _human(size: int) -> str:
             return f"{value:,.0f} {unit}" if unit == "B" else f"{value:,.1f} {unit}"
         value /= 1024
     return f"{value:,.1f} GB"
+
+
+
+def _report(orphans: list[tuple[str, int]]) -> None:
+    """Print the orphans folder by folder — one model per line, not one file.
+
+    A mirror this size lists six hundred files; nobody reads six hundred lines
+    before deciding what to delete. The unit that matters is the model folder.
+    """
+    folders: dict[str, tuple[int, int]] = {}
+    for path, size in orphans:
+        folder = path.rsplit("/", 1)[0] if "/" in path else "(root)"
+        count, total = folders.get(folder, (0, 0))
+        folders[folder] = (count + 1, total + size)
+
+    ordered = sorted(folders.items(), key=lambda kv: (-kv[1][1], kv[0]))
+    print(f"{len(orphans)} file(s) in {len(folders)} folder(s) nothing references.\n")
+    for folder, (count, total) in ordered:
+        print(f"  {_human(total):>10}  {folder}/  ({count} file{'s' if count > 1 else ''})")
+
+    by_top: dict[str, tuple[int, int]] = {}
+    for folder, (count, total) in folders.items():
+        top = folder.split("/", 1)[0]
+        seen, bytes_ = by_top.get(top, (0, 0))
+        by_top[top] = (seen + count, bytes_ + total)
+    print("\nby task:")
+    for top, (count, total) in sorted(by_top.items(), key=lambda kv: -kv[1][1]):
+        print(f"  {_human(total):>10}  {top:<32} {count} file(s)")
+
+    print(f"\n{_human(sum(size for _, size in orphans))} would be freed.")
+    print("Read the list, then re-run with --prune to delete them.")
 
 
 def audit() -> tuple[int, list[tuple[str, int]]]:
@@ -148,25 +190,20 @@ def audit() -> tuple[int, list[tuple[str, int]]]:
         else:
             orphans.append((item.path, size))
 
-    missing = sorted(p for p in files if p not in {i.path for i in tree})
+    present = {item.path for item in tree}
+    missing = sorted(path for path in files if path not in present)
     print(f"{TARGET_REPO}: {len(tree)} file(s), {_human(kept_bytes)} of them in use\n")
 
     if not orphans:
         print("Nothing to delete — every file is referenced by a manifest.")
     else:
-        orphans.sort(key=lambda pair: (-pair[1], pair[0]))
-        print(f"{len(orphans)} file(s) nothing references:\n")
-        for path, size in orphans:
-            print(f"  {_human(size):>10}  {path}")
-        print(f"\n{_human(sum(size for _, size in orphans))} would be freed.")
-        print("Read the list, then re-run with --prune to delete them.")
+        _report(orphans)
 
     if missing:
         print(f"\n{len(missing)} file(s) a manifest asks for but the mirror lacks:")
         for path in missing:
-            optional = Path(path).name in {"labels.txt", "LICENSE.md"}
-            print(f"  {'(optional) ' if optional else ''}{path}")
-        print("Run scripts/sync_mirror.py --upload for the ones that matter.")
+            print(f"  {path}")
+        print("Run scripts/sync_mirror.py --upload to fill them in.")
     return 0, orphans
 
 

@@ -29,10 +29,23 @@ def test_manifests_reference_the_mirror(audit):
     files, prefixes = audit.referenced()
     assert "detect/rtdetr_r18/model.xml" in files
     assert "detect/rtdetr_r18/model.bin" in files, "IR weights travel with the .xml"
-    assert "detect/rtdetr_r18/labels.txt" in files, "so boxes read 'kite', not 'class_21'"
     assert "depth/depth_anything_v2_small/model.xml" in files
     assert "background/u2net/u2net.onnx" in files
     assert "genai/whisper_base/" in prefixes, "genai pipelines download whole folders"
+
+
+def test_companions_ride_along_with_a_served_model(audit):
+    """A kept model keeps its class names and its provenance."""
+    files, prefixes = audit.referenced()
+    for name in ("labels.txt", "README.md", "LICENSE", "LICENSE.md"):
+        assert audit._kept(f"detect/rtdetr_r18/{name}", files, prefixes), name
+
+
+def test_companions_go_with_a_dropped_model(audit):
+    """They are provenance for the model, not furniture that outlives it."""
+    files, prefixes = audit.referenced()
+    assert not audit._kept("detect/model_we_dropped/README.md", files, prefixes)
+    assert not audit._kept("detect/model_we_dropped/LICENSE", files, prefixes)
 
 
 def test_a_genai_subtree_is_kept_whole(audit):
@@ -44,9 +57,8 @@ def test_a_genai_subtree_is_kept_whole(audit):
 
 def test_provenance_and_furniture_survive(audit):
     files, prefixes = audit.referenced()
-    assert audit._kept("README.md", files, prefixes)
+    assert audit._kept("README.md", files, prefixes), "the mirror's own front page"
     assert audit._kept(".gitattributes", files, prefixes)
-    assert audit._kept("detect/rtdetr_r18/LICENSE.md", files, prefixes)
 
 
 def test_an_unreferenced_file_is_an_orphan(audit):
