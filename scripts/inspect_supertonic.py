@@ -29,6 +29,12 @@ from pathlib import Path
 #: the one the PyPI example loads; the older ``Supertone/supertonic`` ships
 #: the ``opensource-en`` split, whose character table is ASCII-only.
 REPO = "Supertone/supertonic-3"
+
+#: Path prefix inside the repository. Supertone publish at the root; a copy
+#: kept alongside other things (``leeyunjai/edge-lab``, say) puts the same
+#: layout under a folder. ``--prefix tts`` shifts every path below.
+PREFIX = ""
+
 GRAPHS = (
     "onnx/text_encoder.onnx",
     "onnx/duration_predictor.onnx",
@@ -36,6 +42,11 @@ GRAPHS = (
     "onnx/vocoder.onnx",
 )
 TABLES = ("onnx/tts.json", "onnx/tts.yml", "onnx/unicode_indexer.json", "voice_styles/F1.json")
+
+
+def _at(path: str) -> str:
+    """Where ``path`` lives in this repository, honouring ``--prefix``."""
+    return f"{PREFIX.strip('/')}/{path}" if PREFIX.strip("/") else path
 
 
 def _human(size: float) -> str:
@@ -96,7 +107,7 @@ def _can_it_say_hangul() -> None:
     print("--- 이 모델이 읽을 수 있는 글자 (unicode_indexer.json)")
     try:
         table = json.loads(
-            Path(hf_hub_download(REPO, "onnx/unicode_indexer.json")).read_text(encoding="utf-8")
+            Path(hf_hub_download(REPO, _at("onnx/unicode_indexer.json"))).read_text(encoding="utf-8")
         )
     except Exception as exc:  # noqa: BLE001
         print(f"    !! {type(exc).__name__}: {str(exc)[:200]}")
@@ -152,19 +163,21 @@ def _how_is_it_driven() -> None:
 
 
 def main() -> int:
-    global REPO
+    global REPO, PREFIX
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=REPO, help="Hugging Face 저장소 id")
-    REPO = parser.parse_args().repo
+    parser.add_argument("--prefix", default=PREFIX, help="저장소 안의 경로 앞부분 (예: tts)")
+    args = parser.parse_args()
+    REPO, PREFIX = args.repo, args.prefix
 
     from huggingface_hub import hf_hub_download
 
     print(f"=== {REPO} ===\n")
 
     for name in GRAPHS:
-        path = Path(hf_hub_download(REPO, name))
-        print(f"--- {name}  ({_human(path.stat().st_size)})")
+        path = Path(hf_hub_download(REPO, _at(name)))
+        print(f"--- {_at(name)}  ({_human(path.stat().st_size)})")
         try:
             import openvino as ov
 
@@ -186,11 +199,11 @@ def main() -> int:
 
     for name in TABLES:
         try:
-            path = Path(hf_hub_download(REPO, name))
+            path = Path(hf_hub_download(REPO, _at(name)))
         except Exception as exc:  # noqa: BLE001
-            print(f"--- {name}: 없음 ({type(exc).__name__})")
+            print(f"--- {_at(name)}: 없음 ({type(exc).__name__})")
             continue
-        print(f"--- {name}  ({_human(path.stat().st_size)})")
+        print(f"--- {_at(name)}  ({_human(path.stat().st_size)})")
         text = path.read_text(encoding="utf-8", errors="replace")
         if name.endswith(".json"):
             try:
