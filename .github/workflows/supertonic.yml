@@ -12,6 +12,9 @@ name: Supertonic
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write        # to leave the report as a commit comment
+
 jobs:
   inspect:
     runs-on: ubuntu-latest

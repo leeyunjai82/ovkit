@@ -100,7 +100,15 @@ def main() -> int:
             except Exception:  # noqa: BLE001
                 print(text[:400])
         else:
-            print("\n".join("  " + line for line in text.splitlines()[:40]))
+            # Only the lines that name a component or a file: the rest is
+            # training configuration, and dumping it buried the interfaces in
+            # 300 KB of log.
+            wanted = [
+                line
+                for line in text.splitlines()
+                if line.strip().endswith(":") or "path" in line or "onnx" in line
+            ]
+            print("\n".join("  " + line for line in wanted[:40]))
         print()
 
     print(
