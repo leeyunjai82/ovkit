@@ -28,6 +28,7 @@ huggingface.co.
 from __future__ import annotations
 
 import argparse
+import re
 from typing import Any
 
 #: Licences ovkit can serve, mirrored from ``ovkit.core.constants``. Kept as a
@@ -58,6 +59,18 @@ QUERIES: tuple[tuple[str, dict[str, Any]], ...] = (
     ("piper + ko", {"search": "piper ko"}),
     ("melotts", {"search": "melotts"}),
 )
+
+
+
+#: A filename counts as Korean only on a word boundary. The first version of
+#: this check matched a bare "ko" and duly reported ``kokoro-v1_0.pth`` and
+#: ``voices/af_kore.pt`` as Korean files, which is the kind of confident wrong
+#: answer this whole script exists to avoid.
+_KOREAN = re.compile(r"(?:^|[/_.\-])(?:ko|kor|korean|ko[_-]?kr)(?:$|[/_.\-])", re.IGNORECASE)
+
+
+def _looks_korean(filename: str) -> bool:
+    return bool(_KOREAN.search(filename))
 
 
 def _license_of(info: Any) -> str:
@@ -127,7 +140,7 @@ def main() -> int:
             print(f"    ONNX {len(onnx)}개, 파이토치 가중치 {len(weights)}개, 파일 {len(files)}개")
             for f in (onnx + weights)[:8]:
                 print(f"      {f}")
-            korean = [f for f in files if "ko" in f.lower() or "kor" in f.lower()]
+            korean = [f for f in files if _looks_korean(f)]
             if korean:
                 print(f"    한국어로 보이는 파일: {', '.join(korean[:6])}")
 

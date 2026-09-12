@@ -14,6 +14,10 @@ name: Supertonic
 on:
   workflow_dispatch:
     inputs:
+      repo:
+        description: "Hugging Face 저장소 (supertonic-3가 최신, supertonic은 opensource-en)"
+        required: false
+        default: "Supertone/supertonic-3"
       steps:
         description: "flow-matching 반복 횟수 (많을수록 느리고 깨끗함)"
         required: false
@@ -42,12 +46,15 @@ jobs:
       - name: Read the graphs
         run: |
           set -o pipefail
-          python scripts/inspect_supertonic.py 2>&1 | tee report.txt
+          python scripts/inspect_supertonic.py \
+            --repo "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
+            2>&1 | tee report.txt
 
       - name: Say something
         run: |
           set -o pipefail
           python scripts/try_supertonic.py \
+            --repo "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
             --steps "${{ github.event.inputs.steps || 8 }}" \
             --voice "${{ github.event.inputs.voice || 'M1' }}" \
             --out tts_out 2>&1 | tee -a report.txt

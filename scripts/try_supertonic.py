@@ -37,7 +37,7 @@ from typing import Any
 
 import numpy as np
 
-REPO = "Supertone/supertonic"
+REPO = "Supertone/supertonic-3"
 
 #: The graphs, by the role they play in the chain.
 GRAPHS = {
@@ -201,12 +201,16 @@ def load_style(path: Path) -> dict[str, np.ndarray]:
 
 
 def main() -> int:
+    global REPO
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=8, help="flow-matching 반복 횟수")
     parser.add_argument("--speed", type=float, default=1.05)
     parser.add_argument("--voice", default="M1")
+    parser.add_argument("--repo", default=REPO, help="Hugging Face 저장소 id")
     parser.add_argument("--out", default="tts_out", help="WAV을 쓸 폴더")
     args = parser.parse_args()
+    REPO = args.repo
 
     from huggingface_hub import hf_hub_download
 
