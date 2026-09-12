@@ -72,6 +72,8 @@ Python 3.10+. For development, install from source:
 git clone https://github.com/leeyunjai82/ovkit.git && cd ovkit
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev]"
+
+python scripts/check.py --fix    # what CI runs: ruff, black, pytest
 ```
 
 ## Capabilities

@@ -93,7 +93,9 @@ def test_the_buttons_are_in_the_display_language(monkeypatch):
     monkeypatch.setenv("OVKIT_LANG", "ko")
     korean = {c.name: c for c in choices()}
     assert korean["face_analyze"].label == "얼굴 분석"
-    assert korean["face_analyze"].korean_name == "얼굴분석", "the name to type, learned by seeing it"
+    assert (
+        korean["face_analyze"].korean_name == "얼굴분석"
+    ), "the name to type, learned by seeing it"
 
     monkeypatch.setenv("OVKIT_LANG", "en")
     english = {c.name: c for c in choices()}
