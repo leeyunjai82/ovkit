@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import textwrap
 from pathlib import Path
 
 import yaml
@@ -128,65 +129,76 @@ def _human(size: int) -> str:
 
 
 
+def _short(size: int) -> str:
+    """A size that fits inline: 444M, 971K."""
+    for unit, step in (("G", 1024**3), ("M", 1024**2), ("K", 1024)):
+        if size >= step:
+            return f"{size / step:.0f}{unit}"
+    return f"{size}B"
+
+
+def _wrapped(items: list[str], indent: str = "    ") -> str:
+    return textwrap.fill(
+        "  ".join(items), width=96, initial_indent=indent, subsequent_indent=indent
+    )
+
+
 def _report(orphans: list[tuple[str, int]], files: set[str]) -> None:
     """Print the orphans as two piles, because they are two different decisions.
 
-    A mirror this size lists six hundred files; nobody reads six hundred lines
-    before deciding what to delete. And the two piles are not alike:
+    *Leftovers* — the folder holds a model ovkit still serves, and these files
+    sit beside it unused: the weights under their original Open Model Zoo
+    name, kept when the mirror standardised on ``model.xml``. Nothing reads
+    them; deleting one costs nothing.
 
     *Whole models* — nothing in the folder is in a manifest, so ovkit cannot
-    load them at all. Deleting one removes a model from the mirror for good
-    (the Hub keeps history, but nothing in ovkit points at it either way).
+    load them at all. Deleting one takes a model off the mirror (the Hub keeps
+    history, but no ovkit name points at it either way).
 
-    *Leftovers* — the folder holds a model ovkit still serves, and these files
-    sit next to it unused: the weights under their original Open Model Zoo
-    name, kept when the mirror standardised on ``model.xml``. Nothing reads
-    them, and they are pure duplication.
+    Both are printed in full, grouped by task and wrapped: the point of the
+    list is to be read before anything is deleted, and a list that scrolls
+    past the top of the log is not read.
     """
-    live = _folders(files)
-    dead: dict[str, tuple[int, int]] = {}
-    leftover: dict[str, list[tuple[str, int]]] = {}
+    piles = split(orphans, files)
 
-    for path, size in orphans:
-        folder = path.rsplit("/", 1)[0] if "/" in path else "(root)"
-        if folder in live:
-            leftover.setdefault(folder, []).append((path, size))
-        else:
-            count, total = dead.get(folder, (0, 0))
-            dead[folder] = (count + 1, total + size)
+    if piles["leftovers"]:
+        total = sum(size for _, size in piles["leftovers"])
+        print(
+            f"Beside models ovkit still serves — {len(piles['leftovers'])} unused "
+            f"file(s), {_human(total)}. The model itself stays:\n"
+        )
+        by_task: dict[str, list[str]] = {}
+        for path, size in sorted(piles["leftovers"], key=lambda kv: -kv[1]):
+            task, rest = path.split("/", 1) if "/" in path else ("(root)", path)
+            by_task.setdefault(task, []).append(f"{rest}({_short(size)})")
+        for task, names in sorted(by_task.items()):
+            print(f"  {task}:")
+            print(_wrapped(names))
+        print()
 
-    if leftover:
-        total = sum(size for rows in leftover.values() for _, size in rows)
-        count = sum(len(rows) for rows in leftover.values())
-        print(f"Beside models ovkit still serves — {count} unused file(s), {_human(total)}:\n")
-        names: dict[str, int] = {}
-        for rows in leftover.values():
-            for path, size in rows:
-                names[Path(path).name] = names.get(Path(path).name, 0) + 1
-        for name, seen in sorted(names.items(), key=lambda kv: -kv[1])[:12]:
-            print(f"  x{seen:<4} {name}")
-        print("\n  (the model itself stays; only these extra files go)\n")
+    if piles["models"]:
+        folders: dict[str, tuple[int, int]] = {}
+        for path, size in piles["models"]:
+            folder = path.rsplit("/", 1)[0] if "/" in path else "(root)"
+            count, seen = folders.get(folder, (0, 0))
+            folders[folder] = (count + 1, seen + size)
+        total = sum(size for _, size in folders.values())
+        print(f"Models no manifest mentions — {len(folders)} folder(s), {_human(total)}:\n")
 
-    if dead:
-        total = sum(size for _, size in dead.values())
-        print(f"Models no manifest mentions — {len(dead)} folder(s), {_human(total)}:\n")
-        ordered = sorted(dead.items(), key=lambda kv: (-kv[1][1], kv[0]))
-        for folder, (count, size) in ordered[:40]:
-            print(f"  {_human(size):>10}  {folder}/  ({count} file{'s' if count > 1 else ''})")
-        if len(ordered) > 40:
-            rest = sum(size for _, (_, size) in ordered[40:])
-            print(f"  ... and {len(ordered) - 40} more folder(s), {_human(rest)}")
+        by_task_models: dict[str, list[tuple[str, int]]] = {}
+        for folder, (_, size) in folders.items():
+            task, name = folder.split("/", 1) if "/" in folder else ("(root)", folder)
+            by_task_models.setdefault(task, []).append((name, size))
+        ordered = sorted(
+            by_task_models.items(), key=lambda kv: -sum(size for _, size in kv[1])
+        )
+        for task, models in ordered:
+            size = sum(s for _, s in models)
+            print(f"  {task} ({len(models)}, {_human(size)}):")
+            print(_wrapped([f"{n}({_short(s)})" for n, s in sorted(models, key=lambda kv: -kv[1])]))
+        print()
 
-        by_top: dict[str, tuple[int, int]] = {}
-        for folder, (count, size) in dead.items():
-            top = folder.split("/", 1)[0]
-            seen, bytes_ = by_top.get(top, (0, 0))
-            by_top[top] = (seen + 1, bytes_ + size)
-        print("\n  by task:")
-        for top, (seen, size) in sorted(by_top.items(), key=lambda kv: -kv[1][1]):
-            print(f"    {_human(size):>10}  {top:<32} {seen} model(s)")
-
-    print(f"\n{_human(sum(size for _, size in orphans))} in total would be freed.")
+    print(f"{_human(sum(size for _, size in orphans))} in total would be freed.")
     print("Read the list, then re-run with --prune to delete them.")
 
 

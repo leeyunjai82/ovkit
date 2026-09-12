@@ -85,9 +85,10 @@ def test_report_separates_dead_models_from_leftovers(audit, capsys):
     ]
     audit._report(orphans, files)
     out = capsys.readouterr().out
-    assert "still serves" in out and "original-name.xml" in out
-    assert "no manifest mentions" in out and "detect/gone/" in out
-    assert "detect/live/" not in out.split("no manifest mentions")[1]
+    assert "still serves" in out and "live/original-name.xml" in out
+    dead = out.split("no manifest mentions")[1]
+    assert "gone(" in dead, "the retired model is named, with its size"
+    assert "live" not in dead, "the served model is not in the pile that gets retired"
 
 
 def test_the_safe_half_can_be_pruned_on_its_own(audit):
