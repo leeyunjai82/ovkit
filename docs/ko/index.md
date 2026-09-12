@@ -116,6 +116,7 @@ ovkit은 **Apache-2.0**이고 라이선스가 깨끗합니다 — AGPL 모델 �
 ```{toctree}
 :hidden:
 
+features
 usage
 guide
 cookbook

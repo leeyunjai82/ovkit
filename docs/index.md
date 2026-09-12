@@ -118,6 +118,7 @@ AGPL-licensed model stacks or non-commercial weights. See the
 ```{toctree}
 :hidden:
 
+features
 usage
 guide
 cookbook
