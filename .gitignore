@@ -217,3 +217,29 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- what running ovkit leaves behind ---------------------------------------
+#   python examples/speak.py        -> speak.wav, speak.png
+#   ovkit run detect photo.jpg      -> photo_out.jpg
+#   python scripts/verify_capabilities.py -> .verify/
+#
+# Examples and scripts write their results into the folder you ran them from,
+# which for a fresh clone is the repo root. Every rule here is rooted (leading
+# slash) on purpose: a picture someone deliberately adds under docs/ or tests/
+# is still tracked, and only the clutter at the top is hidden.
+/*.jpg
+/*.jpeg
+/*.png
+/*.bmp
+/*.webp
+/*.wav
+/*.mp4
+# `ovkit run` names its output after the input, whatever the extension.
+/*_out.*
+# examples/teach_ai.py — a classifier you taught, saved next to the code.
+/my-ai/
+# Scratch folders the scripts default to.
+/.verify/
+/tts_out/
+/supertonic_ir/
+/report.txt
