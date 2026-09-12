@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -296,18 +297,16 @@ class Attendance(Pipeline):
 
     def load_roster(self, folder: str) -> list[str]:
         """Fill the gallery from a roster folder; returns the names loaded."""
-        from pathlib import Path
-
         root = Path(folder)
         loaded: list[str] = []
         for entry in sorted(root.iterdir()) if root.is_dir() else []:
             if entry.is_file() and entry.suffix.lower() in _IMAGE_EXT:
-                self.matcher.add(entry.stem, str(entry))
+                self.matcher.add(entry.stem, self._face_in(entry))
                 loaded.append(entry.stem)
             elif entry.is_dir():
                 images = [p for p in sorted(entry.iterdir()) if p.suffix.lower() in _IMAGE_EXT]
                 for img in images:
-                    self.matcher.add(entry.name, str(img))
+                    self.matcher.add(entry.name, self._face_in(img))
                 if images:
                     loaded.append(entry.name)
         if not loaded:
@@ -319,6 +318,27 @@ class Attendance(Pipeline):
                 )
             )
         return loaded
+
+    def _face_in(self, path: Path) -> Any:
+        """The face crop from a roster photo — what the register compares against.
+
+        The gallery used to hold the whole photo while the register embedded a
+        face crop cut from the frame. Two different pictures of the same person
+        score far enough apart to fall under the threshold, so a class photo of
+        one student came back "출석 0/1" with that very student in the gallery.
+        A roster photo that is already a tight crop still works: no face found
+        means the picture is used as it is.
+        """
+        from ..image.ops import imread
+
+        image = imread(str(path))
+        found = detections(self.model(self.detector), image, DEFAULT_CONF)
+        boxes = found.boxes
+        if boxes is None or not len(boxes):
+            return image
+        widest = max(range(len(boxes)), key=lambda i: float(boxes.data[i, 2] - boxes.data[i, 0]))
+        crop = found.crop(widest, pad=0.15)
+        return crop if crop.size else image
 
     @property
     def roster(self) -> list[str]:
