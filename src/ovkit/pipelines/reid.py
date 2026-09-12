@@ -30,8 +30,9 @@ class ReID(Pipeline):
     Parameters
     ----------
     embedder:
-        Registered embedding model: ``face_reid`` (faces), ``vehicle_reid_0001``
-        (whole cars), or ``image_retrieval`` (whole scenes).
+        Registered embedding model: ``face_reid`` (faces), ``person_reid``
+        (whole people — the one that survives a face turning away),
+        ``vehicle_reid_0001`` (whole cars), or ``image_retrieval`` (scenes).
     threshold:
         Below this similarity :meth:`who` answers ``None`` instead of naming the
         closest gallery entry — without it every stranger gets somebody's name.
@@ -67,7 +68,7 @@ class ReID(Pipeline):
         if not out or not out[0].tensors:
             raise OVKitError(
                 f"'{self.embedder}' returned no descriptor. Use an embedding model "
-                f"(face_reid, vehicle_reid_0001, image_retrieval)."
+                f"(face_reid, person_reid, vehicle_reid_0001, image_retrieval)."
             )
         vector = np.asarray(next(iter(out[0].tensors.values()))).reshape(-1).astype(np.float32)
         return normalize(vector)

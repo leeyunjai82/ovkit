@@ -1,0 +1,119 @@
+# Models that were already in the mirror, unreferenced, and are worth serving.
+# ---------------------------------------------------------------------------
+# scripts/audit_mirror.py found 89 model folders in leeyunjai/ovkit-models that
+# no manifest mentioned — ovkit could not load them by any name. Most of them
+# are archive (older detectors, sparse research variants, three sizes of BERT
+# nobody asked for). These are the ones that answer something ovkit could not
+# answer before, or answer it better, so they are registered instead of deleted.
+#
+# What each one earns:
+#
+#   rtdetr_r101                         the largest RT-DETR, from the same
+#                                       project as r18/r34/r50
+#   facial_landmarks_98_detection_0001  98 points instead of 5 — real eyelid
+#                                       and mouth contours, which is what
+#                                       drowsiness and gaze want
+#   person_reidentification_retail_0287 person embeddings: `reid` and
+#                                       `face_match` could only do faces
+#
+# The ``tier: zoo`` entries load by name but stay off the curated list, which
+# is kept short on purpose — a beginner scrolling past seventy names is the
+# problem the tiers exist to solve. They are alternatives, not upgrades:
+#
+#   single_image_super_resolution_1032  4x enlargement (core `super_resolution`
+#                                       does 3x) — `super_resolution_4x`
+#   text_image_super_resolution_0001    3x on text images, small print that OCR
+#                                       cannot read — `text_super_resolution`
+#   facial_landmarks_35_adas_0002       between the 5-point and 98-point models
+#   human_pose_estimation_0005          slower and more accurate than 0007
+#
+# Verified as manifest entries, not yet run: this container cannot reach
+# Hugging Face. Run one before relying on it.
+# ---------------------------------------------------------------------------
+
+rtdetr_r101:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: detect/rtdetr_r101/model.xml
+  task: detect
+  description: RT-DETR R101 — COCO-80, NMS-free. The largest; stills and accuracy work.
+  precision: fp16
+  license: apache-2.0
+  imgsz: 640
+  preprocess:
+    layout: NCHW
+    scale: 255.0
+    mean: [0.0, 0.0, 0.0]
+    std: [1.0, 1.0, 1.0]
+  postprocess:
+    format: detr
+    classes: coco80
+  fallback:
+    src: hf
+    repo: leeyunjai/rtdetr
+
+facial_landmarks_98_detection_0001:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: classify/facial_landmarks_98_detection_0001/model.xml
+  task: face
+  precision: fp16
+  license: apache-2.0
+  description: "98-point facial landmarks (eye and mouth contours, jawline)."
+  license_url: https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/LICENSE
+
+person_reidentification_retail_0287:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: classify/person_reidentification_retail_0287/model.xml
+  task: classify
+  precision: fp16
+  license: apache-2.0
+  description: "Person re-identification embedding (256-d) — the same person across frames or cameras."
+  license_url: https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/LICENSE
+
+single_image_super_resolution_1032:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: image_processing/single_image_super_resolution_1032/model.xml
+  task: image_processing
+  tier: zoo
+  precision: fp16
+  license: apache-2.0
+  description: "4x single-image super-resolution."
+  license_url: https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/LICENSE
+
+text_image_super_resolution_0001:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: image_processing/text_image_super_resolution_0001/model.xml
+  task: image_processing
+  tier: zoo
+  precision: fp16
+  license: apache-2.0
+  description: "3x super-resolution for text images — small print, made readable."
+  license_url: https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/LICENSE
+
+# --- alternatives, kept out of the curated list ----------------------------
+
+facial_landmarks_35_adas_0002:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: classify/facial_landmarks_35_adas_0002/model.xml
+  task: face
+  tier: zoo
+  precision: fp16
+  license: apache-2.0
+  description: "35-point facial landmarks — between the 5-point and 98-point models."
+  license_url: https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/LICENSE
+
+human_pose_estimation_0005:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: pose/human_pose_estimation_0005/model.xml
+  task: pose
+  tier: zoo
+  precision: fp16
+  license: apache-2.0
+  description: "Multi-person 2D pose (17 keypoints) — slower and more accurate than 0007."
+  license_url: https://raw.githubusercontent.com/openvinotoolkit/open_model_zoo/master/LICENSE
