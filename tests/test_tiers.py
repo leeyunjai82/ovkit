@@ -209,7 +209,14 @@ def test_the_readme_model_count_is_the_real_one():
     from ovkit.core import registry
 
     raw = registry._load_raw()
-    models = [n for n in registry.list_models(tier=None) if "alias" not in raw[n]]
+    models = [
+        n
+        for n in registry.list_models(tier=None)
+        # Parts are not models you can use: a vocoder wants a latent, which
+        # nobody has lying around. Counting them would inflate the headline
+        # number with things no reader could call.
+        if "alias" not in raw[n] and registry.tier_of(n) != "part"
+    ]
 
     readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
     claimed = re.search(r"over (\d+) ready models", readme)
@@ -217,3 +224,23 @@ def test_the_readme_model_count_is_the_real_one():
     assert int(claimed.group(1)) == len(
         models
     ), f"README says {claimed.group(1)} models, the registry holds {len(models)}"
+
+
+# -- parts: pieces of a capability, not models -------------------------------
+
+
+def test_parts_are_hidden_but_reachable():
+    """A part stays off every listing a person reads, and still resolves."""
+    part = "supertonic3_vocoder"
+    assert tier_of(part) == "part"
+    assert part not in list_models()  # core: the front page
+    assert part not in list_models("zoo")  # the attic: it was never archived
+    assert part in list_models(tier=None)  # everything: still there
+    assert resolve(part) is not None
+
+
+def test_a_part_carries_its_licence():
+    """OpenRAIL-M only loads when the obligation can travel with it."""
+    for name in list_models("part"):
+        entry = resolve(name)
+        assert entry.license_url, f"{name} declares {entry.license} without a licence to point at"

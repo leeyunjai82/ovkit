@@ -296,3 +296,44 @@ def _find_cached_source(entry: ModelEntry, dest_dir: Path) -> Path | None:
         if hits:
             return hits[0]
     return None
+
+
+def data_dir(group: str) -> Path:
+    """Return (and create) the cache directory for a group of data files."""
+    d = cache_root() / "data" / group
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def fetch_data(repo: str, filename: str, *, group: str) -> Path:
+    """Download one auxiliary data file from the Hub and return its local path.
+
+    Some models are not just weights. A text-to-speech model needs the table
+    that turns characters into ids and the vectors that give it a voice; a
+    graph without them produces nothing. :func:`fetch` is about a model's
+    *source artifact* and only knows how to find one — this is the same cache,
+    the same offline rule, for the files that travel beside it.
+
+    ``group`` keeps one model's data together under the cache root, so removing
+    a model removes its tables too.
+    """
+    dest = data_dir(group) / Path(filename).name
+    if dest.is_file() and dest.stat().st_size > 0:
+        return dest
+    if is_offline():
+        raise OfflineError(
+            f"OVKIT_OFFLINE=1 but '{filename}' is not in the cache ({dest}). "
+            f"Disable offline mode to download it."
+        )
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:  # pragma: no cover - dependency missing
+        raise DownloadError(f"huggingface_hub is required to download '{filename}'.") from exc
+    try:
+        got = hf_hub_download(repo_id=repo, filename=filename)
+    except Exception as exc:  # pragma: no cover - network/hub variety
+        raise DownloadError(f"Failed to download '{filename}' from {repo}: {exc}") from exc
+    # Copy rather than link: the hub cache can be cleared independently, and a
+    # dangling symlink here would look like a corrupt install.
+    dest.write_bytes(Path(got).read_bytes())
+    return dest

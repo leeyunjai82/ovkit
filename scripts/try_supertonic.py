@@ -37,7 +37,7 @@ from typing import Any
 
 import numpy as np
 
-REPO = "Supertone/supertonic"
+REPO = "Supertone/supertonic-3"
 
 #: The graphs, by the role they play in the chain.
 GRAPHS = {
@@ -57,9 +57,7 @@ SENTENCES = (
 
 # --- text -> ids (ported from py/helper.py, UnicodeProcessor) ---------------
 
-_EMOJI = re.compile(
-    "[\U0001f300-\U0001faff☀-➿\U0001f1e6-\U0001f1ff]+", flags=re.UNICODE
-)
+_EMOJI = re.compile("[\U0001f300-\U0001faff☀-➿\U0001f1e6-\U0001f1ff]+", flags=re.UNICODE)
 _REPLACE = {
     "–": "-",
     "‑": "-",
@@ -201,12 +199,16 @@ def load_style(path: Path) -> dict[str, np.ndarray]:
 
 
 def main() -> int:
+    global REPO
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=8, help="flow-matching 반복 횟수")
     parser.add_argument("--speed", type=float, default=1.05)
     parser.add_argument("--voice", default="M1")
+    parser.add_argument("--repo", default=REPO, help="Hugging Face 저장소 id")
     parser.add_argument("--out", default="tts_out", help="WAV을 쓸 폴더")
     args = parser.parse_args()
+    REPO = args.repo
 
     from huggingface_hub import hf_hub_download
 
@@ -235,7 +237,9 @@ def main() -> int:
         _write_wav(path, got["wav"], tts.sample_rate)
         rows.append((lang, sentence, got, took, path))
 
-    print(f"{'lang':5s} {'글자':>4s} {'모르는 글자':>10s} {'길이(초)':>9s} {'RMS':>8s} {'peak':>7s}")
+    print(
+        f"{'lang':5s} {'글자':>4s} {'모르는 글자':>10s} {'길이(초)':>9s} {'RMS':>8s} {'peak':>7s}"
+    )
     for lang, sentence, got, took, path in rows:
         share = got["unknown"] / got["chars"] * 100 if got["chars"] else 0
         print(

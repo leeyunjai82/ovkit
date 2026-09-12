@@ -111,6 +111,36 @@ Two more are a single model, but they answer in sentences the same way:
 | `depth` | 거리재기 | nearest: bottom-left · 34% of the frame is close, plus a colour map |
 | `remove_background` | 배경지우기 | the subject, as a transparent PNG |
 
+### speak — text out loud
+
+```python
+r = Model("읽어주기", "안녕하세요. 오늘은 기계 학습을 배웁니다.")
+r.save("hello.wav")         # 44.1 kHz WAV
+r.plot()                    # the waveform
+```
+
+**31 languages**, Korean among them. The language is read off the script unless
+you name one (`lang="en"`).
+
+```python
+Model("speak", "Good morning.", voice="M3")   # ten voices: F1..F5, M1..M5
+Model("speak", "안녕하세요", speed=1.3)        # faster
+Model("speak", "안녕하세요", steps=2)          # rougher and quicker (8 by default)
+Model("speak", "script.txt")                  # a file works too
+```
+
+**Four networks** in a row: predict how long the sentence takes
+(`duration_predictor`), encode the text (`text_encoder`), push that much noise
+towards the sentence a few times (`vector_estimator`, `steps` passes), turn the
+result into a waveform (`vocoder`). Under a second per sentence on a laptop CPU.
+
+The same sentence sounds the same twice (`seed=0` by default); pass `seed=None`
+for a fresh sample each call.
+
+> **Licence**: the model is **OpenRAIL-M**, © Supertone Inc. Commercial use and
+> redistribution are allowed, and the same use-based restrictions must travel
+> with every copy you pass on. `LICENSE` sits beside the weights on the mirror.
+
 `gesture`, `drowsiness`, `posture` and `exercise` **need time** — point them at
 a webcam or a video, not a still.
 

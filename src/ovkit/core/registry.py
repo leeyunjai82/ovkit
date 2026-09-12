@@ -48,6 +48,14 @@ class ModelEntry:
     #: ``"core"`` for the curated set ovkit puts in front of you, ``"zoo"`` for
     #: the rest of the Open Model Zoo — still loadable by name, just not in the
     #: way of someone deciding what to try first.
+    #:
+    #: ``"part"`` is neither: a network that is a *piece* of a capability and
+    #: does nothing alone. Supertonic's vocoder turns a latent into a waveform,
+    #: which is not a thing anyone has lying around. "zoo" would have been the
+    #: lazy answer and would have been wrong in a way that matters — zoo means
+    #: "superseded, still here", and a capability built on superseded models is
+    #: exactly what ``test_no_capability_is_built_on_an_archived_model`` exists
+    #: to catch. Hiding parts under the same word would have blunted that check.
     tier: str = "core"
     fallback: dict[str, Any] | None = None
     preprocess: dict[str, Any] = field(default_factory=dict)
@@ -158,7 +166,7 @@ def list_models(tier: str | None = "core") -> list[str]:
 
 
 def tier_of(name: str, _seen: set[str] | None = None) -> str:
-    """``"core"`` or ``"zoo"`` for a registered name (``"core"`` if unknown).
+    """``"core"``, ``"zoo"`` or ``"part"`` for a name (``"core"`` if unknown).
 
     An alias inherits its target's tier: hiding a model but leaving its
     friendly name on the front page would only move the dead end.

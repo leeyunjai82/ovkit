@@ -32,6 +32,7 @@ from .plates import PlateReader
 from .privacy import Anonymizer
 from .reid import ReID
 from .scene import SceneReport
+from .speak import Speaker
 from .teach import Teach
 from .temporal import DrowsinessMonitor, GestureRecognizer
 from .text import TextReader
@@ -47,6 +48,8 @@ PIPELINES: dict[str, type[Pipeline]] = {
     # read something out of it
     "read_text": TextReader,
     "read_plate": PlateReader,
+    # read something out loud
+    "speak": Speaker,
     # follow it over time
     "track": Tracker,
     "gesture": GestureRecognizer,
@@ -88,6 +91,10 @@ ALIASES = {
     "vehicle": "vehicle_analyze",
     "car": "vehicle_analyze",
     "tracking": "track",
+    "tts": "speak",
+    "say": "speak",
+    "read_aloud": "speak",
+    "text_to_speech": "speak",
     "reid": "face_match",
     "match": "face_match",
 }

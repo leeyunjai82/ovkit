@@ -1,0 +1,66 @@
+# Text to speech.
+#
+# Supertonic 3 is four networks, not one: a duration predictor, a text encoder,
+# a flow-matching vector estimator run several times, and a vocoder. They are
+# registered separately because that is what they are — the `speak` capability
+# (Model("읽어주기", "안녕하세요")) is what chains them.
+#
+# Licence: OpenRAIL-M, © Supertone Inc. ovkit serves it on the condition that
+# the obligation travels with it, so every entry carries `license_url` and the
+# mirror carries the LICENSE file itself. Without `license_url`,
+# registry.resolve refuses to load the model — see core/constants.py.
+#
+# They are `tier: part`: not archived (that is what `zoo` means), just not
+# models anyone loads on their own. A vocoder takes a latent, and nobody has a
+# latent lying around. `Model("읽어주기", "안녕하세요")` is the way in.
+
+supertonic3_duration_predictor:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: tts/supertonic3/duration_predictor/model.xml
+  # Not weights, but the graphs are useless without them: the character table
+  # turns a sentence into ids, the voice vectors give it a voice, and the
+  # licence has to travel with every copy. Nothing names them as a `filename`,
+  # so `scripts/audit_mirror.py --prune` would have called them orphans and
+  # deleted them — quietly breaking 읽어주기 and stripping the OpenRAIL-M
+  # obligation off the mirror. Declared once, on the chain's first link,
+  # because all four graphs share one data folder.
+  data:
+    - tts/supertonic3/data/        # 글자표(unicode_indexer), tts.json, 목소리 10개
+    - tts/supertonic3/LICENSE
+    - tts/supertonic3/README.md
+  task: generic
+  license: openrail
+  license_url: https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE
+  tier: part
+  description: Supertonic 3 — how many seconds a sentence takes to say. (~1 MB)
+
+supertonic3_text_encoder:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: tts/supertonic3/text_encoder/model.xml
+  task: generic
+  license: openrail
+  license_url: https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE
+  tier: part
+  description: Supertonic 3 — text + voice style to a text embedding. (~13 MB)
+
+supertonic3_vector_estimator:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: tts/supertonic3/vector_estimator/model.xml
+  task: generic
+  license: openrail
+  license_url: https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE
+  tier: part
+  description: Supertonic 3 — flow matching; run it several times. (~63 MB)
+
+supertonic3_vocoder:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: tts/supertonic3/vocoder/model.xml
+  task: generic
+  license: openrail
+  license_url: https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE
+  tier: part
+  description: Supertonic 3 — latent to a 44.1 kHz waveform. (~48 MB)

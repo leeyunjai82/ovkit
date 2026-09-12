@@ -21,10 +21,14 @@ huggingface.co.
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
-REPO = "Supertone/supertonic"
+#: Default repository. ``Supertone/supertonic-3`` is the newer release and
+#: the one the PyPI example loads; the older ``Supertone/supertonic`` ships
+#: the ``opensource-en`` split, whose character table is ASCII-only.
+REPO = "Supertone/supertonic-3"
 GRAPHS = (
     "onnx/text_encoder.onnx",
     "onnx/duration_predictor.onnx",
@@ -65,7 +69,6 @@ def _peek(value: object, depth: int = 0) -> str:
         sample = ", ".join(repr(v)[:40] for v in value[:6])
         return f"{pad}list[{len(value)}]: {sample}{' …' if len(value) > 6 else ''}"
     return f"{pad}{type(value).__name__}: {str(value)[:80]}"
-
 
 
 #: Unicode blocks worth asking about by name. ``tts.json`` says the released
@@ -114,7 +117,6 @@ def _can_it_say_hangul() -> None:
     print()
 
 
-
 def _how_is_it_driven() -> None:
     """Print the repository's own files and README.
 
@@ -150,6 +152,12 @@ def _how_is_it_driven() -> None:
 
 
 def main() -> int:
+    global REPO
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repo", default=REPO, help="Hugging Face 저장소 id")
+    REPO = parser.parse_args().repo
+
     from huggingface_hub import hf_hub_download
 
     print(f"=== {REPO} ===\n")

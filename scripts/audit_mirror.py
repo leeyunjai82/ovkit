@@ -98,6 +98,15 @@ def referenced() -> tuple[set[str], set[str]]:
         elif subfolder:
             # Downloaded as a whole directory (the genai pipelines).
             prefixes.add(subfolder.rstrip("/") + "/")
+
+        # `data:` names what a model needs besides its weights — a character
+        # table, voice vectors, the licence that has to travel with it. A
+        # trailing slash means the whole subtree.
+        for path in spec.get("data") or ():
+            if str(path).endswith("/"):
+                prefixes.add(str(path))
+            else:
+                files.add(str(path))
     return files, prefixes
 
 
@@ -115,7 +124,14 @@ def _kept(path: str, files: set[str], prefixes: set[str]) -> bool:
     if name in COMPANIONS and "/" in path:
         # Provenance and class names ride along with a model that is still
         # served — and go with the folder when the model itself is gone.
-        return path.rsplit("/", 1)[0] in _folders(files)
+        #
+        # "Its folder" reaches downwards too. A model made of several graphs
+        # keeps one LICENSE above them (tts/supertonic3/LICENSE over
+        # tts/supertonic3/vocoder/), and matching only the exact folder would
+        # have deleted the licence while keeping every model it covers — the
+        # one file OpenRAIL-M says must travel with the weights.
+        here = path.rsplit("/", 1)[0]
+        return any(folder == here or folder.startswith(here + "/") for folder in _folders(files))
     return False
 
 

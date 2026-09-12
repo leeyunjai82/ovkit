@@ -14,6 +14,10 @@ name: Supertonic
 on:
   workflow_dispatch:
     inputs:
+      repo:
+        description: "Hugging Face 저장소 (supertonic-3가 최신, supertonic은 opensource-en)"
+        required: false
+        default: "Supertone/supertonic-3"
       steps:
         description: "flow-matching 반복 횟수 (많을수록 느리고 깨끗함)"
         required: false
@@ -22,6 +26,11 @@ on:
         description: "목소리 (F1..F5, M1..M5)"
         required: false
         default: "M1"
+      mirror:
+        description: "IR로 변환해 ovkit 미러에 올릴지 (끄면 변환만 하고 확인)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write        # to leave the report as a commit comment
@@ -42,15 +51,38 @@ jobs:
       - name: Read the graphs
         run: |
           set -o pipefail
-          python scripts/inspect_supertonic.py 2>&1 | tee report.txt
+          python scripts/inspect_supertonic.py \
+            --repo "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
+            2>&1 | tee report.txt
 
       - name: Say something
         run: |
           set -o pipefail
           python scripts/try_supertonic.py \
+            --repo "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
             --steps "${{ github.event.inputs.steps || 8 }}" \
             --voice "${{ github.event.inputs.voice || 'M1' }}" \
             --out tts_out 2>&1 | tee -a report.txt
+
+      - name: Convert to IR and mirror it
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -o pipefail
+          python scripts/mirror_supertonic.py \
+            --source "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
+            ${{ inputs.mirror && '--upload' || '' }} \
+            2>&1 | tee -a report.txt
+
+      # The scripts above prove the model works. This proves *ovkit* works:
+      # the manifest entry resolves, the licence check lets it through, the
+      # tables download from the mirror, and Model("읽어주기", "안녕하세요")
+      # returns audio of the length it claims. Everything a student touches.
+      - name: Does Model("읽어주기") actually speak
+        run: |
+          set -o pipefail
+          python -m pip install -e .
+          python scripts/verify_capabilities.py speak --work tts_out 2>&1 | tee -a report.txt
 
       - name: Keep the audio
         if: always()
