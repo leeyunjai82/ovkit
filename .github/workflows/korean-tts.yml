@@ -1,0 +1,46 @@
+name: Korean TTS
+
+# Supertonic reads English and only English — its character table has ids for
+# 81 ASCII characters and none for 가-힣. So the Korean half of "읽어주기" needs
+# a different model, and this asks the Hub which ones ovkit is allowed to ship
+# rather than picking one from memory.
+#
+# Nothing is uploaded. The answer comes back as a commit comment.
+
+on:
+  workflow_dispatch:
+    inputs:
+      files:
+        description: "후보의 파일 목록까지 볼지"
+        type: boolean
+        required: false
+        default: true
+
+permissions:
+  contents: write        # to leave the report as a commit comment
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the hub client
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Ask the Hub
+        run: |
+          set -o pipefail
+          python scripts/find_korean_tts.py \
+            ${{ github.event.inputs.files == 'false' && ' ' || '--files' }} \
+            2>&1 | tee report.txt
+
+      - name: Leave the report on the commit
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/post_report.py report.txt "한국어 TTS 후보"
