@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .download import model_cache_dir
 from .errors import ConversionError
+from .progress import converting
 
 
 def _ir_paths(name: str, precision: str) -> tuple[Path, Path]:
@@ -41,6 +42,7 @@ def to_ir(source: Path, name: str, precision: str = "fp16") -> Path:
     if cached is not None:
         return cached
 
+    converting(name)
     try:
         import openvino as ov
     except ImportError as exc:  # pragma: no cover - dependency missing

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import shutil
 import tempfile
 import urllib.error
 import urllib.request
@@ -23,6 +22,7 @@ from pathlib import Path
 
 from .constants import cache_root, is_offline
 from .errors import DownloadError, GatedModelError, MirrorMissingError, OfflineError
+from .progress import Bar, downloading
 from .registry import ModelEntry
 
 #: HF mirror that hosts OMZ-derived (Apache-2.0) IR for ovkit.
@@ -85,7 +85,15 @@ def _atomic_url_download(url: str, dest: Path) -> None:
     tmp = Path(tmp_name)
     try:
         with urllib.request.urlopen(url) as resp, tmp.open("wb") as out:  # noqa: S310
-            shutil.copyfileobj(resp, out)
+            # Not copyfileobj: a 300 MB file that prints nothing is
+            # indistinguishable from a hung process, and this path (unlike the
+            # Hub client's) had no meter of its own.
+            total = resp.headers.get("Content-Length")
+            bar = Bar(dest.name, int(total) if total and total.isdigit() else None)
+            while chunk := resp.read(1 << 20):
+                out.write(chunk)
+                bar.advance(len(chunk))
+            bar.close()
         tmp.replace(dest)
     except urllib.error.HTTPError as exc:  # pragma: no cover - network
         tmp.unlink(missing_ok=True)
@@ -246,6 +254,7 @@ def fetch(entry: ModelEntry) -> Path:
     dest_dir = downloads_dir(entry.name)
 
     # Offline fast-path: reuse anything already downloaded.
+    # (announced below, once we know it is not already here)
     if is_offline():
         cached = _find_cached_source(entry, dest_dir)
         if cached is not None:
@@ -254,6 +263,11 @@ def fetch(entry: ModelEntry) -> Path:
             f"OVKIT_OFFLINE=1 but '{entry.name}' is not in the cache "
             f"({dest_dir}). Disable offline mode to download it."
         )
+
+    cached = _find_cached_source(entry, dest_dir)
+    if cached is not None:
+        return cached
+    downloading(entry.name, entry.description or "", None)
 
     try:
         path = _fetch_by_src(entry, dest_dir)
