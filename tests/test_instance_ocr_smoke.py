@@ -40,3 +40,29 @@ def test_pose_multi_instance(synthetic_pose_ir, synthetic_image):
     n, k, three = r.keypoints.data.shape
     assert n >= 1 and k == 2 and three == 3
     assert (r.keypoints.conf > 0).any()
+
+
+def test_text_recognition_0014_puts_the_blank_first():
+    """Its classes are [blank, 0-9, a-z]; the default table has no leading blank.
+
+    Decoded with the default, "building" came back as "c0v0j0me0joh0": every
+    letter shifted one forward, and the blank printed as "0".
+    """
+    import numpy as np
+
+    from ovkit.core import registry
+    from ovkit.recognize.ocr import OCRAdapter
+
+    entry = registry.resolve("text_recognition_0014")
+    adapter = OCRAdapter(postprocess=entry.postprocess)
+    symbols, blank = adapter._symbols()
+    assert blank == 0 and symbols[0] == "#"
+
+    word = "building"
+    ids = [0]
+    for ch in word:
+        ids.extend([symbols.index(ch), 0])  # a blank between letters, as CTC emits
+    logits = np.zeros((len(ids), 1, len(symbols)), np.float32)
+    for t, c in enumerate(ids):
+        logits[t, 0, c] = 10.0
+    assert adapter._ctc_greedy(logits) == word

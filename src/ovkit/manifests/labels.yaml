@@ -75,3 +75,15 @@ nfnet_f0:
   postprocess: {classes: imagenet1000}
 resnet50_binary_0001:
   postprocess: {classes: imagenet1000}
+
+# --- OCR: which symbol each class id means ---------------------------------
+# text-recognition-0014 numbers its classes [blank, 0-9, a-z] — the blank
+# first, unlike text-recognition-0012, whose alphabet ovkit's default table was
+# written from. Decoding it with that default shifted every letter by one and
+# printed the blank as "0": the sign on the Robert Noyce Building came back as
+# "s0p0c0f0s0u0 o0 o0p0z0d0f0 c0v0j0me0joh0" (shift "cvjmejoh" back a letter
+# and it says "building").
+text_recognition_0014:
+  postprocess:
+    symbols: "#0123456789abcdefghijklmnopqrstuvwxyz"
+    blank: 0

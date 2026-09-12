@@ -132,7 +132,7 @@ CASES: list[Case] = [
     Case("anonymize", "face"),
     Case("gaze", "face"),
     Case("attention", "face"),
-    Case("face_match", "face", note="갤러리가 비어 있으면 아무도 아님"),
+    Case("face_match", "face", kind="setup", note="갤러리에 넣고 다시 물어봄"),
     # --- need motion: the path runs, the answer is not evidence ------------
     Case("track", "street", kind="clip"),
     Case("gesture", "people", kind="clip"),
@@ -211,16 +211,20 @@ def run_teach(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
 
     started = time.perf_counter()
     try:
-        # Two classes built from the same photo are not two classes: pointing
-        # both keys at one file made teach "wrong" when it was answering fine.
-        keys = [k for k, v in images.items() if v]
-        seen: dict[str, str] = {}
-        for key in list(keys):
-            resolved = str(images[key])
-            if resolved in seen.values():
-                keys.remove(key)
-            else:
-                seen[key] = resolved
+        # Two classes built from the same photo are not two classes. Each key
+        # is written to its own file, so comparing paths missed it — compare
+        # the bytes.
+        import hashlib
+
+        keys: list[str] = []
+        digests: set[str] = set()
+        for key, path in images.items():
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            if digest not in digests:
+                digests.add(digest)
+                keys.append(key)
+        if len(keys) < 2:
+            return "SKIP", "서로 다른 사진이 두 장 필요합니다", 0.0
         root = work / "teach"
         shutil.rmtree(root, ignore_errors=True)
         for key in keys[:2]:
@@ -320,7 +324,37 @@ def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
         return "ERROR", " · ".join([*lines, detail]), (time.perf_counter() - started) * 1000
 
 
-SETUP = {"teach": run_teach, "attendance": run_attendance, "probe": run_probe}
+def run_face_match(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
+    """Add the face to the gallery, then ask who it is.
+
+    Asking an empty gallery produces "no match", which is the right answer to
+    the wrong question — it tested nothing.
+    """
+    from ovkit import Model
+
+    started = time.perf_counter()
+    try:
+        ids = Model("face_match")
+        ids.add("학생1", str(images["face"]))
+        name, score = ids.who(str(images["face"])) or (None, 0.0)
+        elapsed = (time.perf_counter() - started) * 1000
+        if name is None:
+            return "EMPTY", "갤러리에 넣은 바로 그 얼굴을 못 알아봤습니다", elapsed
+        return "OK", f"{name} {score:.2f} (같은 사진을 넣고 물어봄)", elapsed
+    except Exception as exc:  # noqa: BLE001
+        return (
+            "ERROR",
+            f"{type(exc).__name__}: {str(exc)[:150]}",
+            (time.perf_counter() - started) * 1000,
+        )
+
+
+SETUP = {
+    "teach": run_teach,
+    "attendance": run_attendance,
+    "face_match": run_face_match,
+    "probe": run_probe,
+}
 
 
 def run(case: Case, source: Path) -> tuple[str, str, float]:
@@ -378,8 +412,8 @@ def main() -> int:
     cases = [c for c in CASES if not args.only or c.name in args.only]
     print(f"\n{len(cases)} case(s)\n")
     header = f"{'capability':22s} {'photo':7s} {'status':7s} {'ms':>7s}  answer"
-    print(header)
-    print("-" * len(header))
+    print(header, flush=True)
+    print("-" * len(header), flush=True)
 
     counts = {"OK": 0, "EMPTY": 0, "ERROR": 0, "SKIP": 0, "PATH": 0}
     failures: list[tuple[str, str]] = []
@@ -394,7 +428,10 @@ def main() -> int:
             counts[status] = counts.get(status, 0) + 1
             if status == "ERROR":
                 failures.append((case.name, said))
-            print(f"{case.title:22s} {case.image:7s} {status:7s} {ms:7.0f}  {said[:96]}")
+            print(
+                f"{case.title:22s} {case.image:7s} {status:7s} {ms:7.0f}  {said[:300]}",
+                flush=True,
+            )
             continue
 
         if case.kind == "audio":
@@ -408,6 +445,7 @@ def main() -> int:
         else:
             source = images[case.image]
 
+        print(f"{case.title:22s} {'...':7s} running", flush=True)
         if source is None:
             counts["SKIP"] += 1
             print(f"{case.title:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
@@ -422,7 +460,10 @@ def main() -> int:
             failures.append((case.name, said))
         note = f"   ({case.note})" if case.note else ""
         source_key = "audio" if case.kind == "audio" else case.image
-        print(f"{case.title:22s} {source_key:7s} {status:7s} {ms:7.0f}  {said[:96]}{note}")
+        print(
+            f"{case.title:22s} {source_key:7s} {status:7s} {ms:7.0f}  {said[:140]}{note}",
+            flush=True,
+        )
 
     print(
         "\n" + "  ".join(f"{k} {v}" for k, v in counts.items() if v) + f"   /  {len(cases)} cases"
