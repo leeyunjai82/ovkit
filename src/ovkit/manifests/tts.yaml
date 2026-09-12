@@ -18,6 +18,17 @@ supertonic3_duration_predictor:
   src: hf
   repo: leeyunjai/ovkit-models
   filename: tts/supertonic3/duration_predictor/model.xml
+  # Not weights, but the graphs are useless without them: the character table
+  # turns a sentence into ids, the voice vectors give it a voice, and the
+  # licence has to travel with every copy. Nothing names them as a `filename`,
+  # so `scripts/audit_mirror.py --prune` would have called them orphans and
+  # deleted them — quietly breaking 읽어주기 and stripping the OpenRAIL-M
+  # obligation off the mirror. Declared once, on the chain's first link,
+  # because all four graphs share one data folder.
+  data:
+    - tts/supertonic3/data/        # 글자표(unicode_indexer), tts.json, 목소리 10개
+    - tts/supertonic3/LICENSE
+    - tts/supertonic3/README.md
   task: generic
   license: openrail
   license_url: https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE

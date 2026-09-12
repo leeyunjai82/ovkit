@@ -17,6 +17,7 @@ read off the real graphs, not remembered:
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -247,3 +248,45 @@ def test_it_is_reachable_by_its_korean_name():
 
     for name in ("읽어주기", "말하기", "speak", "tts"):
         assert resolve_name(name) == "speak"
+
+
+# -- the mirror keeps what the chain needs -----------------------------------
+
+
+def test_every_file_the_chain_fetches_is_declared_in_the_manifest():
+    """Otherwise ``audit_mirror.py --prune`` deletes it and nothing says so.
+
+    The graphs are named by `filename`, so the audit protects them. The
+    character table, the voice vectors and the LICENSE are named by nobody —
+    they were orphans until the manifest declared them, and pruning the mirror
+    would have taken the table that turns a sentence into ids and the licence
+    OpenRAIL-M says must travel with the weights.
+    """
+    import yaml
+
+    from ovkit.pipelines import speak as mod
+
+    spec = yaml.safe_load(
+        (Path(mod.__file__).parent.parent / "manifests" / "tts.yaml").read_text(encoding="utf-8")
+    )
+    declared = {d for entry in spec.values() for d in (entry.get("data") or ())}
+    assert declared, "tts.yaml declares no data files"
+
+    wanted = [f"{mod._DATA}/tts.json", f"{mod._DATA}/unicode_indexer.json"]
+    wanted += [f"{mod._DATA}/voices/{v}.json" for v in mod.VOICES]
+    for path in wanted:
+        covered = path in declared or any(path.startswith(d) for d in declared if d.endswith("/"))
+        assert covered, f"{path} is fetched at runtime but not declared in tts.yaml"
+
+
+def test_the_licence_is_mirrored_beside_the_weights():
+    """OpenRAIL-M travels with the model or the model does not ship."""
+    import yaml
+
+    from ovkit.pipelines import speak as mod
+
+    spec = yaml.safe_load(
+        (Path(mod.__file__).parent.parent / "manifests" / "tts.yaml").read_text(encoding="utf-8")
+    )
+    declared = {d for entry in spec.values() for d in (entry.get("data") or ())}
+    assert any(d.endswith("/LICENSE") for d in declared)
