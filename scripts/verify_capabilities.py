@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+"""Run every capability on a real photo and report what it actually answered.
+
+    python scripts/verify_capabilities.py            # everything
+    python scripts/verify_capabilities.py detect scene
+    python scripts/verify_capabilities.py --images my_photos/
+
+Or run the **Verify capabilities** workflow on GitHub, which has the network
+this container does not.
+
+Why this exists
+---------------
+ovkit has 19 capabilities and 68 models, and until now nothing ran them end to
+end against real weights. Unit tests use fakes: they prove the plumbing, not
+that a photo of a street comes back saying "2 people, a car". A capability that
+loads, runs, and answers *nothing* passes every test in the suite and is
+useless to the person holding the camera — which is exactly what "lots of
+models, nothing usable" feels like from outside.
+
+So each case here is judged on its answer, not on the absence of an exception:
+
+``OK``      it ran and said something specific
+``EMPTY``   it ran and found nothing — suspicious on a photo chosen to contain
+            what it looks for, so this reads as a failure to investigate
+``ERROR``   it raised
+
+Capabilities that need motion (``gesture``, ``drowsiness``, ``posture``,
+``exercise``, ``track``) cannot be judged on a still, so they are driven with a
+short clip built from the photo: that exercises the whole path and catches
+crashes, but a ``track`` that finds nothing to track in a still repeated ten
+times is not evidence of a bug. Those are marked ``PATH``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+import traceback
+import urllib.request
+import wave
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import numpy as np
+
+# --- sample photos ---------------------------------------------------------
+# Permissively licensed, from the OpenVINO project's own sample data (the
+# notebooks repository is Apache-2.0). A URL that has moved shows up as a
+# skipped case rather than a silent pass.
+NOTEBOOK_DATA = (
+    "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image"
+)
+IMAGES: dict[str, list[str]] = {
+    # key            candidate URLs, tried in order
+    "street": [f"{NOTEBOOK_DATA}/intel_rnb.jpg", f"{NOTEBOOK_DATA}/coco.jpg"],
+    "people": [f"{NOTEBOOK_DATA}/coco.jpg", f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
+    "face": [f"{NOTEBOOK_DATA}/coco_hollywood.jpg", f"{NOTEBOOK_DATA}/coco.jpg"],
+    "text": [f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
+}
+
+
+@dataclass
+class Case:
+    """One capability, the picture it should be judged on, and how to drive it."""
+
+    name: str
+    image: str = "street"
+    kind: str = "photo"  # photo | clip | audio
+    note: str = ""
+    kwargs: dict = field(default_factory=dict)
+
+
+CASES: list[Case] = [
+    # --- single models, the ones a capability name points at ---------------
+    Case("detect", "street", note="사람·차 같은 COCO 80종"),
+    Case("classify", "street"),
+    Case("segment", "street"),
+    Case("pose", "people"),
+    Case("depth", "street"),
+    Case("remove_background", "people"),
+    Case("face_detection", "face"),
+    Case("text_detection", "text"),
+    # --- composed capabilities --------------------------------------------
+    Case("scene", "street"),
+    Case("face_analyze", "face"),
+    Case("person_analyze", "people"),
+    Case("vehicle_analyze", "street"),
+    Case("read_text", "text", note="한국어면 PP-OCRv3, 아니면 라틴"),
+    Case("read_plate", "street"),
+    Case("count", "street"),
+    Case("anonymize", "face"),
+    Case("gaze", "face"),
+    Case("attention", "face"),
+    Case("face_match", "face", note="갤러리가 비어 있으면 아무도 아님"),
+    # --- need motion: the path runs, the answer is not evidence ------------
+    Case("track", "street", kind="clip"),
+    Case("gesture", "people", kind="clip"),
+    Case("drowsiness", "face", kind="clip"),
+    Case("posture", "people", kind="clip"),
+    Case("exercise", "people", kind="clip"),
+    # --- audio -------------------------------------------------------------
+    Case("sound_classification", kind="audio"),
+    Case("noise_suppression", kind="audio"),
+    # --- need something built first: a gallery, a roster, example folders ---
+    Case("teach", "people", kind="setup"),
+    Case("attendance", "face", kind="setup"),
+    # `anomaly` needs an anomalib checkpoint and `pip install ovkit[anomaly]`;
+    # there is nothing sensible to point it at here, so it is left out rather
+    # than reported as passing.
+]
+
+
+def fetch_images(dest: Path, source: Path | None) -> dict[str, Path]:
+    """Local photos if given, otherwise the sample set. Missing ones are skipped."""
+    if source:
+        files = sorted(p for p in source.iterdir() if p.suffix.lower() in {".jpg", ".jpeg", ".png"})
+        if not files:
+            raise SystemExit(f"no images in {source}")
+        return {key: files[i % len(files)] for i, key in enumerate(IMAGES)}
+
+    dest.mkdir(parents=True, exist_ok=True)
+    out: dict[str, Path] = {}
+    for key, urls in IMAGES.items():
+        for url in urls:
+            path = dest / f"{key}{Path(url).suffix}"
+            try:
+                with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310
+                    path.write_bytes(response.read())
+                out[key] = path
+                print(f"  {key:8s} <- {url}")
+                break
+            except Exception as exc:  # noqa: BLE001 - any failure means "try the next"
+                print(f"  {key:8s} !! {url} ({type(exc).__name__})")
+    return out
+
+
+def make_clip(image: Path, dest: Path, frames: int = 12) -> Path:
+    """A short video of one still — enough to drive the over-time capabilities."""
+    import cv2
+
+    frame = cv2.imread(str(image))
+    h, w = frame.shape[:2]
+    writer = cv2.VideoWriter(str(dest), cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (w, h))
+    for _ in range(frames):
+        writer.write(frame)
+    writer.release()
+    return dest
+
+
+def make_wav(dest: Path, seconds: float = 2.0, rate: int = 16000) -> Path:
+    """A tone under noise — not a real recording, but a real audio path."""
+    t = np.linspace(0, seconds, int(rate * seconds), endpoint=False)
+    signal = 0.3 * np.sin(2 * np.pi * 440 * t) + 0.05 * np.random.default_rng(0).normal(size=t.size)
+    with wave.open(str(dest), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes((np.clip(signal, -1, 1) * 32767).astype("<i2").tobytes())
+    return dest
+
+
+def run_teach(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
+    """Learn two classes from two photos, then ask about one of them."""
+    import shutil
+
+    from ovkit import Model
+
+    started = time.perf_counter()
+    try:
+        keys = list(images)
+        root = work / "teach"
+        shutil.rmtree(root, ignore_errors=True)
+        for key in keys[:2]:
+            folder = root / key
+            folder.mkdir(parents=True)
+            for i in range(3):
+                shutil.copy(images[key], folder / f"{i}{images[key].suffix}")
+
+        ai = Model("teach")
+        for key in keys[:2]:
+            ai.learn(key, str(root / key))
+        name, score = ai.guess(str(images[keys[0]]))
+        elapsed = (time.perf_counter() - started) * 1000
+        if name != keys[0]:
+            return "EMPTY", f"'{keys[0]}'를 '{name}'로 맞혔습니다 ({score:.2f})", elapsed
+        return "OK", f"{name} {score:.2f} (2개 분류, 예시 3장씩)", elapsed
+    except Exception as exc:  # noqa: BLE001
+        elapsed = (time.perf_counter() - started) * 1000
+        return "ERROR", f"{type(exc).__name__}: {str(exc)[:150]}", elapsed
+
+
+def run_attendance(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
+    """Build a one-name roster from the face photo, then take the register."""
+    import shutil
+
+    from ovkit import Model
+
+    started = time.perf_counter()
+    try:
+        roster = work / "roster"
+        shutil.rmtree(roster, ignore_errors=True)
+        roster.mkdir(parents=True)
+        shutil.copy(images["face"], roster / f"학생1{images['face'].suffix}")
+
+        result = Model("attendance", roster=str(roster))(str(images["face"]))
+        result = result[-1] if isinstance(result, (list, tuple)) and result else result
+        elapsed = (time.perf_counter() - started) * 1000
+        said = str(result).replace("\n", " ").strip()
+        return ("OK" if said else "EMPTY", said or "(빈 문자열)", elapsed)
+    except Exception as exc:  # noqa: BLE001
+        elapsed = (time.perf_counter() - started) * 1000
+        return "ERROR", f"{type(exc).__name__}: {str(exc)[:150]}", elapsed
+
+
+SETUP = {"teach": run_teach, "attendance": run_attendance}
+
+
+def run(case: Case, source: Path) -> tuple[str, str, float]:
+    """Return (status, what it said, milliseconds)."""
+    from ovkit import Model
+
+    started = time.perf_counter()
+    try:
+        result = Model(case.name, str(source), **case.kwargs)
+        if not isinstance(result, (list, tuple)) and hasattr(result, "__iter__"):
+            result = list(result)  # a stream (clip / folder)
+        if isinstance(result, (list, tuple)):
+            result = result[-1] if result else None
+        elapsed = (time.perf_counter() - started) * 1000
+        if result is None:
+            return "EMPTY", "결과 없음", elapsed
+        said = str(result).replace("\n", " ").strip()
+        if not said or said in {"nothing found", "아무것도 못 찾음"}:
+            return "EMPTY", said or "(빈 문자열)", elapsed
+        return "OK", said, elapsed
+    except Exception as exc:  # noqa: BLE001 - the report is the point
+        elapsed = (time.perf_counter() - started) * 1000
+        detail = str(exc).replace("\n", " ")[:150] or type(exc).__name__
+        return "ERROR", f"{type(exc).__name__}: {detail}", elapsed
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument("only", nargs="*", help="just these capabilities")
+    parser.add_argument("--images", default="", help="a folder of your own photos")
+    parser.add_argument("--work", default=".verify", help="where samples are written")
+    args = parser.parse_args()
+
+    work = Path(args.work)
+    work.mkdir(parents=True, exist_ok=True)
+
+    print("samples:")
+    images = fetch_images(work, Path(args.images) if args.images else None)
+    if not images:
+        print("no sample images could be fetched — nothing to verify.", file=sys.stderr)
+        return 2
+
+    clips: dict[str, Path] = {}
+    wav = make_wav(work / "tone.wav")
+
+    cases = [c for c in CASES if not args.only or c.name in args.only]
+    print(f"\n{len(cases)} case(s)\n")
+    header = f"{'capability':22s} {'status':7s} {'ms':>7s}  answer"
+    print(header)
+    print("-" * len(header))
+
+    counts = {"OK": 0, "EMPTY": 0, "ERROR": 0, "SKIP": 0, "PATH": 0}
+    failures: list[tuple[str, str]] = []
+
+    for case in cases:
+        if case.kind == "setup":
+            if case.image not in images:
+                counts["SKIP"] += 1
+                print(f"{case.name:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
+                continue
+            status, said, ms = SETUP[case.name](images, work)
+            counts[status] = counts.get(status, 0) + 1
+            if status == "ERROR":
+                failures.append((case.name, said))
+            print(f"{case.name:22s} {status:7s} {ms:7.0f}  {said[:96]}")
+            continue
+
+        if case.kind == "audio":
+            source: Path | None = wav
+        elif case.image not in images:
+            source = None
+        elif case.kind == "clip":
+            if case.image not in clips:
+                clips[case.image] = make_clip(images[case.image], work / f"{case.image}.mp4")
+            source = clips[case.image]
+        else:
+            source = images[case.image]
+
+        if source is None:
+            counts["SKIP"] += 1
+            print(f"{case.name:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
+            continue
+
+        status, said, ms = run(case, source)
+        # A still repeated is not motion, so "found nothing" proves nothing here.
+        if case.kind == "clip" and status == "EMPTY":
+            status = "PATH"
+        counts[status] = counts.get(status, 0) + 1
+        if status == "ERROR":
+            failures.append((case.name, said))
+        note = f"   ({case.note})" if case.note else ""
+        print(f"{case.name:22s} {status:7s} {ms:7.0f}  {said[:96]}{note}")
+
+    print(
+        "\n" + "  ".join(f"{k} {v}" for k, v in counts.items() if v) + f"   /  {len(cases)} cases"
+    )
+
+    if failures:
+        print("\nraised:")
+        for name, detail in failures:
+            print(f"  {name}: {detail}")
+    if counts.get("EMPTY"):
+        print(
+            "\nEMPTY은 실패로 봅니다 — 그 사진에 있을 법한 것을 못 찾았다는 뜻입니다.\n"
+            "샘플이 그 기능에 안 맞는 사진이면 IMAGES/CASES를 고치고, 아니면 기능을 고쳐야 합니다."
+        )
+    return 1 if failures or counts.get("EMPTY") else 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        print("\n중단", file=sys.stderr)
+        raise SystemExit(130) from None
+    except Exception:  # noqa: BLE001 - a harness that dies must say why
+        traceback.print_exc()
+        raise SystemExit(2) from None

@@ -1,0 +1,46 @@
+name: Verify capabilities
+
+# Runs every capability against real weights on a real photo and prints what it
+# answered. The unit suite uses fakes — it proves the plumbing, not that a
+# photo of a street comes back saying "2 people, a car". This is the check that
+# catches a capability which loads, runs, and says nothing.
+#
+# Red is the point: EMPTY (found nothing it should have found) and ERROR both
+# fail the job. Read the table, fix the capability or the sample, re-run.
+#
+# Weekly, because the mirror and the models move under us.
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Just these capabilities (space separated; blank = all)"
+        type: string
+        default: ""
+  schedule:
+    - cron: "17 3 * * 1"   # Mondays, early
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ovkit
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Cache the models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ovkit
+          key: ovkit-models-${{ hashFiles('src/ovkit/manifests/*.yaml') }}
+          restore-keys: ovkit-models-
+
+      - name: Run every capability
+        run: python scripts/verify_capabilities.py ${{ inputs.only }}
