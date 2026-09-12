@@ -89,6 +89,21 @@ def _is_optional(source_path: str) -> bool:
     return Path(source_path).name in OPTIONAL
 
 
+def _need_token() -> int:
+    """Uploading needs a write token; say so before fetching 300 MB."""
+    import os
+
+    if os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN"):
+        return 0
+    print(
+        "HF_TOKEN is not set — uploading needs a token with write access to\n"
+        f"{TARGET_REPO}. Either export it here, or run the\n"
+        '"Sync the model mirror" workflow on GitHub, where it lives as a secret.',
+        file=sys.stderr,
+    )
+    return 2
+
+
 def check() -> tuple[int, list[tuple[str, str]]]:
     """Report what is missing from the mirror; return (exit code, to-copy)."""
     from huggingface_hub import list_repo_files
@@ -169,6 +184,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--upload", action="store_true", help="copy (default: check only)")
     args = parser.parse_args()
+    if args.upload and (bad := _need_token()):
+        return bad
     status, todo = check()
     if status or not args.upload:
         return status

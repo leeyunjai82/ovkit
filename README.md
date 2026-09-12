@@ -318,6 +318,27 @@ automatically and results render with overlays.
 
 </details>
 
+## The model mirror
+
+Everything ovkit downloads comes from one repository,
+[leeyunjai/ovkit-models](https://huggingface.co/leeyunjai/ovkit-models) — one
+copy for an offline site to take, one repository to keep alive. Models that
+originate elsewhere (the RT-DETR sizes, Depth Anything V2 Small, U2-Net) are
+copied in, and their home stays registered as the fallback.
+
+To refresh it after adding a model, run the **Sync the model mirror** workflow
+from the Actions tab (dry run by default; tick *upload* to copy). It needs an
+`HF_TOKEN` repository secret with write access, set once. The same thing runs
+locally:
+
+```bash
+export HF_TOKEN=hf_...
+python scripts/sync_mirror.py            # what is missing
+python scripts/sync_mirror.py --upload   # copy just that
+```
+
+It lists the target first and copies only what is absent, so re-running is safe.
+
 ## Adding a model
 
 Models are data, not code — one manifest entry
