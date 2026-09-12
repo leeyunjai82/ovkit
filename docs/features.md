@@ -1,6 +1,6 @@
 # Features
 
-Everything ovkit can answer today: 19 composed capabilities, 67 models (35
+Everything ovkit can answer today: 19 composed capabilities, 68 models (36
 curated), 44 Korean names — and what each one hands back.
 
 ```bash
@@ -185,7 +185,8 @@ repository, `leeyunjai/ovkit-models`. Below are the 35 curated ones; the other
 
 | Model | What |
 | ----- | ---- |
-| `text_recognition_0014` | read a cropped word (CTC) |
+| `korean_text_recognition` | **Korean text recognition** (PP-OCRv3, CTC) — what `read_text` uses in Korean |
+| `text_recognition_0014` | read a cropped Latin word (CTC) |
 | `common_sign_language_0002` | 12 hand gestures (video clip) |
 | `noise_suppression_poconetlike_0001` | 16 kHz speech denoising |
 
@@ -343,11 +344,24 @@ Worth the most on NPU.
 
 ---
 
+## Reading text, and which language
+
+`read_text` picks the recogniser that matches the display language — the
+PP-OCRv3 Korean model in Korean, the Latin one otherwise. Naming one yourself
+wins over both.
+
+```python
+Model("read_text")("sign.jpg")                        # Korean when OVKIT_LANG=ko
+Model("read_text", recognizer="text_recognition")     # force Latin + digits
+```
+
+If the Korean model cannot be loaded (offline, nothing cached) it warns once
+and falls back to Latin rather than quietly returning empty strings.
+
 ## Not there yet
 
 | | |
 | --- | --- |
-| Korean OCR | text recognition covers Latin letters and digits; Korean signage is not readable yet |
 | hand landmarks | `teach`'s `hand` mode needs `ovkit[hand]` |
 | converting detectors | what the Hub path can bring over stops at classification and embeddings |
 | the 7 newest models | rescued from the mirror and registered, but verified as manifest entries only. Run `rtdetr_r101` and `human_pose_estimation_0005` on one photo before relying on them |

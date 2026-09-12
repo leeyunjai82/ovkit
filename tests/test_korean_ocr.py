@@ -116,3 +116,18 @@ def test_a_missing_korean_model_falls_back_out_loud(monkeypatch):
         assert reader._read(np.zeros((8, 8, 3), np.uint8)) == ""
     assert calls == ["text_recognition_ko", "text_recognition"]
     assert reader.recognizer == "text_recognition", "it should not warn twice"
+
+
+def test_the_space_token_decodes_to_a_space():
+    """A space cannot survive as a line in a labels file, so it travels as a token.
+
+    The alternative — dropping the line — shifts every class after it by one,
+    and the model reads fluent nonsense without raising anything.
+    """
+    adapter = OCRAdapter(
+        postprocess={"charset": "labels", "blank_first": True},
+        names={0: "안", 1: "<space>", 2: "녕"},
+    )
+    symbols, blank = adapter._symbols()
+    assert symbols == ["", "안", " ", "녕"] and blank == 0
+    assert adapter._ctc_greedy(_logits([1, 2, 3], 4)) == "안 녕"

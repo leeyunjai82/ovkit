@@ -31,6 +31,11 @@ from .base import BaseAdapter
 #: Default symbol table (OMZ text-recognition-0012): blank ('#') last.
 _DEFAULT_SYMBOLS = "0123456789abcdefghijklmnopqrstuvwxyz#"
 
+#: A space cannot be a line in a labels file — anything that reads one strips
+#: it away — so a charset writes it as this token and the decoder maps it back.
+#: Dropping it instead would shift every later class by one.
+_SPACE_TOKEN = "<space>"
+
 
 class OCRAdapter(BaseAdapter):
     """Adapter for text recognition (greedy CTC)."""
@@ -52,7 +57,10 @@ class OCRAdapter(BaseAdapter):
     def _symbols(self) -> tuple[list[str], int]:
         """The symbol table and which class id means "nothing here"."""
         if self.post.get("charset") == "labels" and self.names:
-            table = [self.names[i] for i in sorted(self.names)]
+            table = [
+                " " if self.names[i] == _SPACE_TOKEN else self.names[i]
+                for i in sorted(self.names)
+            ]
             if self.post.get("space"):
                 table.append(" ")
             if self.post.get("blank_first"):
