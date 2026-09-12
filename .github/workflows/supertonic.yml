@@ -74,6 +74,16 @@ jobs:
             ${{ inputs.mirror && '--upload' || '' }} \
             2>&1 | tee -a report.txt
 
+      # The scripts above prove the model works. This proves *ovkit* works:
+      # the manifest entry resolves, the licence check lets it through, the
+      # tables download from the mirror, and Model("읽어주기", "안녕하세요")
+      # returns audio of the length it claims. Everything a student touches.
+      - name: Does Model("읽어주기") actually speak
+        run: |
+          set -o pipefail
+          python -m pip install -e .
+          python scripts/verify_capabilities.py speak --work tts_out 2>&1 | tee -a report.txt
+
       - name: Keep the audio
         if: always()
         uses: actions/upload-artifact@v4

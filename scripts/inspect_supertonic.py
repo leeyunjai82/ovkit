@@ -71,7 +71,6 @@ def _peek(value: object, depth: int = 0) -> str:
     return f"{pad}{type(value).__name__}: {str(value)[:80]}"
 
 
-
 #: Unicode blocks worth asking about by name. ``tts.json`` says the released
 #: split is ``opensource-en``; whether that means "English voices" or "English
 #: characters only" is the difference between a Korean TTS and a dead end, and
@@ -116,7 +115,6 @@ def _can_it_say_hangul() -> None:
     sample = "".join(chr(i) for i in known[:80] if 0x20 <= i < 0x3000)
     print(f"    id가 붙은 글자 맛보기: {sample[:80]!r}")
     print()
-
 
 
 def _how_is_it_driven() -> None:

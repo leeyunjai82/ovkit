@@ -88,6 +88,7 @@ m.infer(x)                # 원본 출력 텐서 그대로
 | `vehicle_analyze` | 차량분석 | 차량 2대: 승용차(0.98) · 검정(0.83) … | 차량검출 + 종류/색 |
 | `read_text` | 글자읽기 | `'여기서 기다리세요'` — 읽는 순서대로 | 글자검출 + 글자인식(언어에 맞는 것으로) |
 | `read_plate` | 번호판읽기 | 차량 2대: 검정 승용차 — 12GA3456 … | 번호판검출 + 인식 + 차량속성 |
+| `speak` | 읽어주기 | 글을 사람 목소리로 — `r.save('안녕.wav')` | 길이예측 + 글자인코딩 + 흐름정합 + 보코더 |
 | `track` | 따라가기 | 사람 2명 (#1, #4) — 프레임이 바뀌어도 번호 유지 | 검출 + IoU 연결 |
 | `count` | 개수세기 | 연필 3 · 컵 1 (한 종류만 셀 수도) | 검출 + 종류별 집계 |
 | `drowsiness` | 졸음감지 | 눈 감김 1.4초 — 졸음 | 얼굴 + 랜드마크 + 눈상태 + 머리방향 · 시간축 |
@@ -109,11 +110,43 @@ m.infer(x)                # 원본 출력 텐서 그대로
 | `depth` | 거리재기 | 가장 가까운 곳: 왼쪽 아래 · 화면의 34%가 가까움 + 색지도 |
 | `remove_background` | 배경지우기 | 피사체만 남은 투명 PNG |
 
+
+### 읽어주기 — 글을 소리로
+
+```python
+r = Model("읽어주기", "안녕하세요. 오늘은 기계 학습을 배웁니다.")
+r.save("인사.wav")          # 44.1 kHz WAV
+r.plot()                    # 파형 그림
+```
+
+한국어를 포함해 **31개 언어**를 읽습니다. 언어는 글에서 알아서 고르고,
+`lang="en"`처럼 직접 정할 수도 있습니다.
+
+```python
+Model("읽어주기", "Good morning.", voice="M3")   # 목소리 열 개: F1~F5, M1~M5
+Model("읽어주기", "안녕하세요", speed=1.3)        # 빠르게
+Model("읽어주기", "안녕하세요", steps=2)          # 거칠고 빠르게 (기본 8)
+Model("읽어주기", "원고.txt")                     # 파일도 읽어 줍니다
+```
+
+네트워크 **네 개**가 이어 달립니다. 문장이 몇 초짜리인지 예측하고
+(`duration_predictor`), 글을 인코딩하고(`text_encoder`), 그 길이만큼의
+잡음을 문장 쪽으로 몇 번 밀어내고(`vector_estimator`, `steps`번 반복),
+마지막에 파형으로 바꿉니다(`vocoder`). 노트북 CPU에서 문장 하나가 1초
+아래입니다.
+
+같은 문장은 같은 소리가 납니다(`seed=0`이 기본). 매번 다르게 하려면
+`seed=None`.
+
+> **라이선스**: 모델은 Supertone Inc.의 **OpenRAIL-M**입니다. 상업적 이용과
+> 재배포가 되지만, 사본을 넘길 때 **같은 사용 제한이 함께 가야 합니다**.
+> 미러에 `LICENSE`가 같이 올라가 있고, 쓰기 전에 한 번 읽어 보세요.
+
 `gesture`, `drowsiness`, `posture`, `exercise`는 **시간이 필요합니다** — 사진 한 장이
 아니라 웹캠이나 동영상을 넣어야 답이 나옵니다.
 
 줄임 이름도 받습니다: `ocr` `anpr` `blur` `driver` `describe` `faces` `people`
-`vehicle` `tracking` `reid`. 무엇이 있는지는 `list_pipelines()` 또는
+`vehicle` `tracking` `reid` `tts` `say`. 무엇이 있는지는 `list_pipelines()` 또는
 `ovkit capabilities`.
 
 ```python

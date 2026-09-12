@@ -150,6 +150,8 @@ CASES: list[Case] = [
     Case("exercise", "people", kind="clip"),
     # --- audio -------------------------------------------------------------
     Case("sound_classification", kind="audio"),
+    # Reads a sentence rather than a picture, so it drives itself.
+    Case("speak", "-", kind="setup", note="한국어를 소리로 — 길이·세기·WAV 확인"),
     Case("noise_suppression", kind="audio"),
     # --- need something built first: a gallery, a roster, example folders ---
     Case("teach", "people", kind="setup"),
@@ -368,11 +370,52 @@ def run_face_match(images: dict[str, Path], work: Path) -> tuple[str, str, float
         )
 
 
+def run_speak(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
+    """Read a Korean sentence aloud and check the sound is actually sound.
+
+    "It returned a Results" is not evidence for a text-to-speech model: a chain
+    that silently mis-sizes a latent returns a Results full of zeros. So this
+    asks three things a broken chain cannot fake — that the waveform is as long
+    as the model said the sentence takes, that it carries energy, and that the
+    file it writes is a WAV a player would open.
+    """
+    from ovkit import Model
+
+    sentence = "안녕하세요. 오늘은 기계 학습을 배웁니다."
+    started = time.perf_counter()
+    try:
+        result = Model("읽어주기", sentence)
+        elapsed = (time.perf_counter() - started) * 1000
+        if result.audio is None:
+            return "EMPTY", "소리가 없다", elapsed
+        samples, rate = result.audio
+        seconds = len(samples) / rate
+        rms = float(np.sqrt(np.mean(np.square(samples)))) if len(samples) else 0.0
+        out = work / "speak_ko.wav"
+        result.save(out)
+        with wave.open(str(out)) as fh:
+            written = fh.getnframes() / fh.getframerate()
+        if seconds < 0.3:
+            return "EMPTY", f"{seconds:.2f}초밖에 안 나왔다", elapsed
+        if rms < 0.001:
+            return "EMPTY", f"{seconds:.1f}초인데 거의 무음이다 (RMS {rms:.5f})", elapsed
+        return (
+            "OK",
+            f"{seconds:.1f}초 · {rate} Hz · RMS {rms:.4f} · WAV {written:.1f}초 -> {out.name}",
+            elapsed,
+        )
+    except Exception as exc:  # noqa: BLE001 - the report is the point
+        elapsed = (time.perf_counter() - started) * 1000
+        detail = str(exc).replace("\n", " ")[:150] or type(exc).__name__
+        return "ERROR", f"{type(exc).__name__}: {detail}", elapsed
+
+
 SETUP = {
     "teach": run_teach,
     "attendance": run_attendance,
     "face_match": run_face_match,
     "probe": run_probe,
+    "speak": run_speak,
 }
 
 
@@ -439,7 +482,10 @@ def main() -> int:
 
     for case in cases:
         if case.kind == "setup":
-            if case.image not in images:
+            # "-" means this case brings its own input (a sentence, not a photo);
+            # skipping it because a sample image failed to download would report
+            # a missing picture as a missing capability.
+            if case.image != "-" and case.image not in images:
                 counts["SKIP"] += 1
                 print(f"{case.title:22s} {case.image:7s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음")
                 continue

@@ -169,7 +169,7 @@ def main() -> int:
     print(f"  목소리 {len(list((data_dir / 'voices').glob('*.json')))}개")
     print(f"  LICENSE {(work / 'LICENSE').stat().st_size:,}바이트")
 
-    print(f"\n=== 매니페스트 (src/ovkit/manifests/tts.yaml)\n")
+    print("\n=== 매니페스트 (src/ovkit/manifests/tts.yaml)\n")
     print(_manifest_snippet(args.mirror))
 
     if not args.upload:

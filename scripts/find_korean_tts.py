@@ -61,7 +61,6 @@ QUERIES: tuple[tuple[str, dict[str, Any]], ...] = (
 )
 
 
-
 #: A filename counts as Korean only on a word boundary. The first version of
 #: this check matched a bare "ko" and duly reported ``kokoro-v1_0.pth`` and
 #: ``voices/af_kore.pt`` as Korean files, which is the kind of confident wrong
@@ -92,9 +91,7 @@ def _verdict(license_id: str) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--limit", type=int, default=25, help="검색당 최대 개수")
-    parser.add_argument(
-        "--files", action="store_true", help="쓸 수 있는 후보의 파일 목록도 본다"
-    )
+    parser.add_argument("--files", action="store_true", help="쓸 수 있는 후보의 파일 목록도 본다")
     args = parser.parse_args()
 
     from huggingface_hub import HfApi
