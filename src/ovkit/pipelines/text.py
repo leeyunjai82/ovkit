@@ -10,12 +10,19 @@ word but cannot find it. This joins them and puts each word on its own box.
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 import numpy as np
 
+from ..core.i18n import lang
 from ..core.results import Boxes, Results
 from .base import Pipeline, detections
+
+#: Recogniser per display language. The Latin model reads 0-9 a-z and nothing
+#: else, so a Korean sign came back empty until the Korean one existed.
+_RECOGNIZERS = {"ko": "text_recognition_ko"}
+_FALLBACK = "text_recognition"
 
 
 class TextReader(Pipeline):
@@ -35,11 +42,13 @@ class TextReader(Pipeline):
         self,
         device: str = "AUTO",
         detector: str = "text_detection",
-        recognizer: str = "text_recognition",
+        recognizer: str | None = None,
     ) -> None:
         super().__init__(device)
         self.detector = detector
-        self.recognizer = recognizer
+        #: ``None`` means "match the display language" — Korean text needs the
+        #: Korean recogniser, and asking for one explicitly is the override.
+        self.recognizer = recognizer or _RECOGNIZERS.get(lang(), _FALLBACK)
 
     def run(self, image: np.ndarray, *, conf: float = 0.3, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
@@ -61,7 +70,23 @@ class TextReader(Pipeline):
         if crop.size == 0:
             return ""
         try:
-            out = self.model(self.recognizer)(crop)
+            reader = self.model(self.recognizer)
+        except Exception as exc:
+            # A recogniser that cannot be loaded at all (not on the mirror yet,
+            # offline) would otherwise turn every word into "" with no reason
+            # given. Say it once and read what we can.
+            if self.recognizer == _FALLBACK:
+                raise
+            warnings.warn(
+                f"'{self.recognizer}' could not be loaded ({exc}); "
+                f"reading with '{_FALLBACK}', which knows only 0-9 and a-z.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            self.recognizer = _FALLBACK
+            reader = self.model(self.recognizer)
+        try:
+            out = reader(crop)
         except Exception:
             return ""
         return (out[0].text or "").strip() if out else ""

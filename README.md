@@ -5,7 +5,7 @@
 # ovkit
 
 **OpenVINO inference in one line.** One `Model` class, clean `Results`, and 19
-composed capabilities over 67 ready models — with `AUTO`/`NPU`/`GPU` devices,
+composed capabilities over 68 ready models — with `AUTO`/`NPU`/`GPU` devices,
 async throughput, INT8, and your own detector trainable in the same package.
 
 [![CI](https://github.com/leeyunjai82/ovkit/actions/workflows/ci.yml/badge.svg)](https://github.com/leeyunjai82/ovkit/actions/workflows/ci.yml)

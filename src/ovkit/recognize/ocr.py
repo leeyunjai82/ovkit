@@ -9,6 +9,13 @@ logits stay available in :attr:`Results.tensors`.
 The symbol set defaults to OMZ ``text-recognition-0012``'s alphabet
 (``0-9a-z#`` with ``#`` as blank); override per model via the manifest
 ``postprocess.symbols`` / ``postprocess.blank`` fields.
+
+A Korean alphabet has ~3,700 symbols, which is a data file and not a manifest
+string, so ``postprocess.charset: labels`` reads the table from the
+``labels.txt`` that travels with the model — one symbol per line. PaddleOCR
+recognisers also number their classes the other way round (blank **first**,
+so dictionary entry *i* is class *i+1*) and append the space character in
+code rather than in the file: ``blank_first`` and ``space`` say so.
 """
 
 from __future__ import annotations
@@ -42,6 +49,21 @@ class OCRAdapter(BaseAdapter):
         res.text = text
         return res
 
+    def _symbols(self) -> tuple[list[str], int]:
+        """The symbol table and which class id means "nothing here"."""
+        if self.post.get("charset") == "labels" and self.names:
+            table = [self.names[i] for i in sorted(self.names)]
+            if self.post.get("space"):
+                table.append(" ")
+            if self.post.get("blank_first"):
+                # Class 0 is the blank; dictionary entry i is class i + 1.
+                return ["" ] + table, 0
+            return table, len(table) - 1
+
+        table = list(str(self.post.get("symbols", _DEFAULT_SYMBOLS)))
+        blank = self.post.get("blank")
+        return table, int(blank) if blank is not None else len(table) - 1
+
     def _ctc_greedy(self, logits: np.ndarray) -> str:
         """Greedy CTC decode of ``[T, 1, C]`` / ``[1, T, C]`` / ``[T, C]`` logits."""
         a = logits
@@ -50,9 +72,7 @@ class OCRAdapter(BaseAdapter):
         if a.ndim != 2:
             return ""
 
-        symbols = str(self.post.get("symbols", _DEFAULT_SYMBOLS))
-        blank = self.post.get("blank")
-        blank_idx = int(blank) if blank is not None else len(symbols) - 1
+        symbols, blank_idx = self._symbols()
 
         ids = a.argmax(axis=1)
         chars: list[str] = []
