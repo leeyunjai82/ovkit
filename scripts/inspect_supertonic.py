@@ -67,6 +67,88 @@ def _peek(value: object, depth: int = 0) -> str:
     return f"{pad}{type(value).__name__}: {str(value)[:80]}"
 
 
+
+#: Unicode blocks worth asking about by name. ``tts.json`` says the released
+#: split is ``opensource-en``; whether that means "English voices" or "English
+#: characters only" is the difference between a Korean TTS and a dead end, and
+#: the indexer answers it without a guess.
+_BLOCKS = {
+    "ASCII 소문자 a-z": (0x61, 0x7A),
+    "숫자 0-9": (0x30, 0x39),
+    "한글 자모 ㄱ-ㅎ": (0x3131, 0x314E),
+    "한글 음절 가-힣": (0xAC00, 0xD7A3),
+    "한자": (0x4E00, 0x9FFF),
+    "일본어 히라가나": (0x3041, 0x3096),
+}
+
+
+def _can_it_say_hangul() -> None:
+    """Ask the unicode indexer which characters it actually has ids for.
+
+    A TTS that cannot index 가-힣 cannot read Korean, whatever its voices sound
+    like. Cheaper to learn here than after a pipeline is written around it.
+    """
+    from huggingface_hub import hf_hub_download
+
+    print("--- 이 모델이 읽을 수 있는 글자 (unicode_indexer.json)")
+    try:
+        table = json.loads(
+            Path(hf_hub_download(REPO, "onnx/unicode_indexer.json")).read_text(encoding="utf-8")
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"    !! {type(exc).__name__}: {str(exc)[:200]}")
+        return
+    if not isinstance(table, list):
+        print(f"    예상과 다른 모양: {type(table).__name__}")
+        return
+    known = [i for i, v in enumerate(table) if isinstance(v, int) and v >= 0]
+    print(f"    표 길이 {len(table):,} / 실제로 id가 붙은 글자 {len(known):,}개")
+    print(f"    id 범위 0..{max((table[i] for i in known), default=-1)}")
+    for label, (lo, hi) in _BLOCKS.items():
+        got = sum(1 for cp in range(lo, hi + 1) if cp < len(table) and table[cp] >= 0)
+        total = hi - lo + 1
+        mark = "O" if got == total else ("일부" if got else "X")
+        print(f"    {label:16s} {got:5d}/{total:<5d}  {mark}")
+    sample = "".join(chr(i) for i in known[:80] if 0x20 <= i < 0x3000)
+    print(f"    id가 붙은 글자 맛보기: {sample[:80]!r}")
+    print()
+
+
+
+def _how_is_it_driven() -> None:
+    """Print the repository's own files and README.
+
+    The four interfaces say what each graph eats. They do not say how many
+    flow-matching steps to run, how ``duration`` becomes a latent length, or
+    whether ``denoised_latent`` is the vector field or the updated latent. That
+    is the repository's to answer, and it answers in prose and file names.
+    """
+    from huggingface_hub import hf_hub_download, list_repo_files
+
+    print("--- 저장소에 실제로 들어 있는 파일")
+    try:
+        files = sorted(list_repo_files(REPO))
+    except Exception as exc:  # noqa: BLE001
+        print(f"    !! {type(exc).__name__}: {str(exc)[:200]}")
+        files = []
+    for name in files:
+        print(f"    {name}")
+    print()
+
+    for doc in ("README.md",):
+        if files and doc not in files:
+            print(f"--- {doc}: 없음")
+            continue
+        try:
+            text = Path(hf_hub_download(REPO, doc)).read_text(encoding="utf-8", errors="replace")
+        except Exception as exc:  # noqa: BLE001
+            print(f"--- {doc}: {type(exc).__name__}")
+            continue
+        print(f"--- {doc} ({len(text):,}자)")
+        print("\n".join("  " + line for line in text.splitlines()[:200]))
+        print()
+
+
 def main() -> int:
     from huggingface_hub import hf_hub_download
 
@@ -118,6 +200,9 @@ def main() -> int:
             ]
             print("\n".join("  " + line for line in wanted[:40]))
         print()
+
+    _can_it_say_hangul()
+    _how_is_it_driven()
 
     print(
         "이 표에 적힌 입출력 이름과 모양이 파이프라인 구현의 근거다."
