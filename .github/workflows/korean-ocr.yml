@@ -1,0 +1,53 @@
+name: Korean OCR
+
+# Converts PaddleOCR's Korean recogniser to OpenVINO IR and puts it on the
+# mirror. Needs the same HF_TOKEN secret as "Sync the model mirror".
+#
+# Dry run by default: it fetches, converts, and prints the graph's real input
+# and output shapes. Read those against src/ovkit/manifests/ocr_ko.yaml before
+# running again with upload ticked — a manifest that disagrees with the graph
+# produces a model that loads and reads nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Actually put it on the mirror (unchecked = convert and report)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: mirror-sync     # shares the mirror with the sync workflow
+  cancel-in-progress: false
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install OpenVINO and the hub client
+        run: python -m pip install --upgrade pip openvino huggingface_hub
+
+      - name: Check the token is present
+        if: ${{ inputs.upload }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::HF_TOKEN is not set. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: Convert
+        if: ${{ !inputs.upload }}
+        run: python scripts/add_korean_ocr.py
+
+      - name: Convert and upload
+        if: ${{ inputs.upload }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/add_korean_ocr.py --upload

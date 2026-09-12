@@ -1,0 +1,36 @@
+# 한국어 글자 인식 — PaddleOCR PP-OCRv3 (Apache-2.0).
+# ---------------------------------------------------------------------------
+# ovkit이 읽던 글자는 영문과 숫자뿐이었다. 한국 학생이 찍는 간판과 칠판은
+# 한글인데, 영역은 잡히고 글자는 안 나오는 상태였다.
+#
+# PaddleOCR의 한국어 인식 모델을 쓴다. 고른 이유는 하나가 분명하다 —
+# OpenVINO에 paddle 프론트엔드가 이미 있고(`ir jax onnx paddle pytorch tf
+# tflite`), core/convert.py가 `.pdmodel`을 이미 받는다. 변환 단계가 늘지
+# 않는다. 10 MB짜리 CTC 모델이라 교실 노트북에서 실시간으로 돌고, 기존
+# OCR 어댑터의 그리디 CTC 디코더에 그대로 얹힌다.
+#
+# 문자표는 3,700자라 매니페스트에 적을 것이 아니라 데이터다. 모델 옆의
+# labels.txt로 따라오고(`charset: labels`), PaddleOCR은 blank를 0번에 두며
+# 공백은 파일이 아니라 코드에서 붙이므로 `blank_first`와 `space`로 적는다.
+#
+# 미러에 올리는 것은 scripts/add_korean_ocr.py (Actions에서 실행).
+# ---------------------------------------------------------------------------
+
+korean_text_recognition:
+  src: hf
+  repo: leeyunjai/ovkit-models
+  filename: optical_character_recognition/korean_ppocrv3_rec/model.xml
+  task: optical_character_recognition
+  precision: fp16
+  license: apache-2.0
+  description: "한국어 글자 인식 (PP-OCRv3, CTC) — 잘라낸 글자 줄을 읽습니다."
+  license_url: https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/LICENSE
+  preprocess:
+    rgb: true
+    scale: 255.0
+    mean: [0.5, 0.5, 0.5]
+    std: [0.5, 0.5, 0.5]
+  postprocess:
+    charset: labels
+    blank_first: true
+    space: true

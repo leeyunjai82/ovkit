@@ -51,6 +51,7 @@ text_super_resolution: {alias: text_image_super_resolution_0001}
 
 # --- OCR ---
 text_recognition: {alias: text_recognition_0014}
+text_recognition_ko: {alias: korean_text_recognition}   # 한글 — read_text가 한국어일 때 쓰는 것
 license_plate: {alias: vehicle_license_plate_detection_barrier_0106}
 
 # --- NLP / audio / time series ---
