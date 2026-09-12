@@ -39,6 +39,10 @@ import numpy as np
 
 REPO = "Supertone/supertonic-3"
 
+#: Path prefix inside the repository; a copy kept beside other things puts the
+#: same layout under a folder.
+PREFIX = ""
+
 #: The graphs, by the role they play in the chain.
 GRAPHS = {
     "duration": "onnx/duration_predictor.onnx",
@@ -199,25 +203,29 @@ def load_style(path: Path) -> dict[str, np.ndarray]:
 
 
 def main() -> int:
-    global REPO
+    global REPO, PREFIX
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--steps", type=int, default=8, help="flow-matching 반복 횟수")
     parser.add_argument("--speed", type=float, default=1.05)
     parser.add_argument("--voice", default="M1")
     parser.add_argument("--repo", default=REPO, help="Hugging Face 저장소 id")
+    parser.add_argument("--prefix", default=PREFIX, help="저장소 안의 경로 앞부분 (예: tts)")
     parser.add_argument("--out", default="tts_out", help="WAV을 쓸 폴더")
     args = parser.parse_args()
-    REPO = args.repo
+    REPO, PREFIX = args.repo, args.prefix
+
+    def at(path: str) -> str:
+        return f"{PREFIX.strip('/')}/{path}" if PREFIX.strip('/') else path
 
     from huggingface_hub import hf_hub_download
 
-    files = {role: Path(hf_hub_download(REPO, name)) for role, name in GRAPHS.items()}
-    cfg = json.loads(Path(hf_hub_download(REPO, "onnx/tts.json")).read_text(encoding="utf-8"))
+    files = {role: Path(hf_hub_download(REPO, at(name))) for role, name in GRAPHS.items()}
+    cfg = json.loads(Path(hf_hub_download(REPO, at("onnx/tts.json"))).read_text(encoding="utf-8"))
     indexer = json.loads(
-        Path(hf_hub_download(REPO, "onnx/unicode_indexer.json")).read_text(encoding="utf-8")
+        Path(hf_hub_download(REPO, at("onnx/unicode_indexer.json"))).read_text(encoding="utf-8")
     )
-    style = load_style(Path(hf_hub_download(REPO, f"voice_styles/{args.voice}.json")))
+    style = load_style(Path(hf_hub_download(REPO, at(f"voice_styles/{args.voice}.json"))))
 
     print(f"=== Supertonic을 OpenVINO로 돌린다 (voice={args.voice}, steps={args.steps})\n")
     started = time.perf_counter()

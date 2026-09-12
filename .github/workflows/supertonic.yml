@@ -18,6 +18,10 @@ on:
         description: "Hugging Face 저장소 (supertonic-3가 최신, supertonic은 opensource-en)"
         required: false
         default: "Supertone/supertonic-3"
+      prefix:
+        description: "저장소 안의 경로 앞부분 (edge-lab 사본이면 tts)"
+        required: false
+        default: ""
       steps:
         description: "flow-matching 반복 횟수 (많을수록 느리고 깨끗함)"
         required: false
@@ -53,6 +57,7 @@ jobs:
           set -o pipefail
           python scripts/inspect_supertonic.py \
             --repo "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
+            --prefix "${{ github.event.inputs.prefix }}" \
             2>&1 | tee report.txt
 
       - name: Say something
@@ -60,6 +65,7 @@ jobs:
           set -o pipefail
           python scripts/try_supertonic.py \
             --repo "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
+            --prefix "${{ github.event.inputs.prefix }}" \
             --steps "${{ github.event.inputs.steps || 8 }}" \
             --voice "${{ github.event.inputs.voice || 'M1' }}" \
             --out tts_out 2>&1 | tee -a report.txt
