@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("segment")(src)[0]
+    r = Model("segment", src)
     print("class map:", r.masks.data.shape)
     r.save("segment_out.jpg")
     print("overlay -> segment_out.jpg")

@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("pose")(src)[0]
+    r = Model("pose", src)
     print("keypoints:", r.keypoints.data.shape)  # (people, K, [x, y, conf])
     r.save("pose_out.jpg")
     print("skeleton -> pose_out.jpg")

@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import sys
 
-import cv2
-
 from ovkit import Model
 
 
@@ -18,10 +16,8 @@ def main() -> None:
 
     for r in watcher.predict(source, stream=True):
         print(r.summary())  # '1 person looking at: laptop'
-        cv2.imshow("ovkit attention (q to quit)", r.plot())
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        if not r.show("ovkit attention (q to quit)"):
             break
-    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

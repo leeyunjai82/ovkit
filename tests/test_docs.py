@@ -78,3 +78,19 @@ def test_both_doc_trees_hold_the_same_pages() -> None:
         p.name for p in (DOCS / "ko").glob("*.rst")
     }
     assert en == ko, f"only in English: {en - ko} · only in Korean: {ko - en}"
+
+
+def test_no_example_calls_imshow_directly():
+    """`cv2.imshow` raises on the OpenCV ovkit depends on.
+
+    Every webcam example used it, so the demos in the README crashed for
+    anyone who installed exactly what the README told them to. `Results.show()`
+    is the one place that knows how to degrade.
+    """
+    examples = DOCS.parent / "examples"
+    offenders = [
+        p.name
+        for p in sorted(examples.glob("*.py"))
+        if "cv2.imshow" in p.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"use r.show(...) instead of cv2.imshow: {offenders}"

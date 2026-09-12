@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("detect")(src, conf=0.25)[0]
+    r = Model("detect", src, conf=0.25)
     for x1, y1, x2, y2, conf, cls in r.boxes.data:
         print(f"{r.name_for(int(cls)):12s} {conf:.2f}  [{int(x1)},{int(y1)},{int(x2)},{int(y2)}]")
     r.save("detect_out.jpg")

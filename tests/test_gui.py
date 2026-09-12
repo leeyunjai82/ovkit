@@ -78,9 +78,37 @@ def controller():
 
 def test_the_button_list_is_short_and_described():
     entries = choices()
-    assert 6 <= len(entries) <= 20  # a beginner should not face 43 models
+    assert 6 <= len(entries) <= 24  # a beginner should not face 68 models
     assert all(c.label and c.hint for c in entries)
     assert entries[0].name == "scene"  # the friendliest thing first
+
+
+def test_the_buttons_are_in_the_display_language(monkeypatch):
+    """The window is where a beginner starts, and it greeted them in English.
+
+    In a package whose display language defaults to Korean and whose point is
+    that ``Model("얼굴분석")`` works, the one place the Korean was missing was
+    the first screen.
+    """
+    monkeypatch.setenv("OVKIT_LANG", "ko")
+    korean = {c.name: c for c in choices()}
+    assert korean["face_analyze"].label == "얼굴 분석"
+    assert (
+        korean["face_analyze"].korean_name == "얼굴분석"
+    ), "the name to type, learned by seeing it"
+
+    monkeypatch.setenv("OVKIT_LANG", "en")
+    english = {c.name: c for c in choices()}
+    assert english["face_analyze"].label == "Faces"
+
+
+def test_every_button_names_something_ovkit_can_load():
+    from ovkit import list_pipelines
+    from ovkit.core import registry
+
+    caps = set(list_pipelines())
+    unknown = [c.name for c in choices() if c.name not in caps and registry.resolve(c.name) is None]
+    assert not unknown, f"the window offers what ovkit cannot load: {unknown}"
 
 
 def test_selecting_a_capability_loads_it_in_the_background(controller):

@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "clip.wav"
-    r = Model("sound_classification")(src)[0]
+    r = Model("sound_classification", src)
     print(r.summary())  # e.g. 'dog 0.82'
 
     for i in r.probs.top5:

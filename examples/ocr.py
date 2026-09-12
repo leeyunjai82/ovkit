@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("read_text")(src)[0]
+    r = Model("read_text", src)
     print(r.text)  # every word, in reading order
     for i, word in enumerate(r.labels or []):
         x1, y1, x2, y2 = r.boxes.xyxy[i]
