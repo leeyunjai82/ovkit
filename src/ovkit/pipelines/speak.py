@@ -232,7 +232,8 @@ class Speaker(Pipeline):
         result = Results(waveform(samples, sample_rate), task=self.name)
         result.audio = (samples, sample_rate)
         result.text = text
-        result.labels = [f"{lang} · {voice} · {seconds:.1f}초"]
+        # No `labels`: Results draws one label per box, and there are no boxes
+        # here. Setting it would be state nothing reads, which rots quietly.
         return result
 
     def run(self, image: Any, **kwargs: Any) -> Results:  # pragma: no cover - not an image task
