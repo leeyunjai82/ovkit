@@ -99,6 +99,8 @@ camera index).
 | `exercise` | `squat x 12 (down)` | pose + joint-angle hysteresis (squat, push-up) |
 | `attendance` | `present 24/26` + `roll.csv` | face detection + roster matching |
 | `teach` | your own classes, from example photos | embedding + cosine k-NN (5 modes) |
+| `depth` | `nearest: bottom-left · 34% of the frame is close` + a colour map | Depth Anything V2 Small |
+| `remove_background` | the subject, saved as a transparent PNG | U2-Net |
 
 ```python
 from ovkit import Model, list_pipelines
@@ -170,8 +172,9 @@ model.export(half=True)                      # -> IR + labels.txt
 ```
 
 The three sizes are `rtdetr_r18` (20M, 46.4 COCO AP — what `detect` uses),
-`rtdetr_r34` (31M, 48.9) and `rtdetr_r50` (43M, 53.1). Running them needs
-nothing but ovkit; `ovkit[train]` adds PyTorch for fine-tuning:
+`rtdetr_r34` (31M, 48.9) and `rtdetr_r50` (43M, 53.1), mirrored like every
+other model. Running them needs nothing but ovkit; `ovkit[train]` adds PyTorch
+for fine-tuning:
 
 ```python
 Model("detect", "street.jpg")      # r18 — keeps up with a webcam

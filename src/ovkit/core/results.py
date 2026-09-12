@@ -247,6 +247,11 @@ class Results:
         #: ``(samples, sample_rate)`` for audio results; ``orig_img`` then holds
         #: the waveform, so plot/save work exactly as they do for a picture.
         self.audio: tuple[np.ndarray, int] | None = None
+        #: A picture this result wants shown *instead of* the input — a
+        #: colourised depth map, a subject cut out of its background. Boxes and
+        #: keypoints would mean nothing drawn on top of it, so :meth:`plot`
+        #: returns it with only the caption added.
+        self.display: np.ndarray | None = None
         #: How long inference took and where it ran ("CPU"/"GPU"/"NPU"). On an
         #: AI PC this pair is teaching material, so every result carries it.
         self.elapsed_ms: float | None = None
@@ -543,6 +548,13 @@ class Results:
                     tipLength=0.25,
                 )
 
+        # A result that computed its own picture (depth, background) says so.
+        if self.display is not None:
+            shown = np.ascontiguousarray(self.display)
+            if caption:
+                draw_caption(shown, self.summary(), font_scale)
+            return shown
+
         # When the model's output IS an image (super-resolution, style transfer,
         # matting), show that image — it is the answer.
         if self.tensors is not None and not any(
@@ -596,6 +608,17 @@ class Results:
             return write_wav(target, samples, sr)
 
         from ..image.ops import imwrite
+
+        alpha = (self.tensors or {}).get("alpha")
+        if alpha is not None and target.suffix.lower() == ".png":
+            # Cutting the subject out is the point; a JPEG would paste the
+            # background back in as black.
+            import cv2
+
+            rgba = cv2.cvtColor(self.orig_img, cv2.COLOR_BGR2BGRA)
+            rgba[:, :, 3] = np.clip(np.asarray(alpha) * 255, 0, 255).astype(np.uint8)
+            imwrite(target, rgba)
+            return target
 
         imwrite(target, self.plot())
         return target

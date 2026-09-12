@@ -12,6 +12,7 @@ from typing import Any
 
 from .base import BaseAdapter
 from .classify import ClassifyAdapter
+from .depth import BackgroundAdapter, DepthAdapter
 from .detect import DetectAdapter
 from .face import FaceAdapter
 from .generic import GenericAdapter
@@ -27,6 +28,8 @@ _ADAPTERS: dict[str, type[BaseAdapter]] = {
     "face": FaceAdapter,
     "optical_character_recognition": OCRAdapter,
     "ocr": OCRAdapter,
+    "depth": DepthAdapter,
+    "background": BackgroundAdapter,
 }
 
 #: Tasks with a typed decoder (the rest use the generic raw-output adapter).
@@ -47,8 +50,10 @@ def get_adapter(task: str, **kwargs: Any) -> BaseAdapter:
 
 
 __all__ = [
+    "BackgroundAdapter",
     "BaseAdapter",
     "ClassifyAdapter",
+    "DepthAdapter",
     "DetectAdapter",
     "FaceAdapter",
     "GenericAdapter",
