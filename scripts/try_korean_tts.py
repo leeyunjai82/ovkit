@@ -45,12 +45,25 @@ def main() -> int:
     findings: list[str] = []
 
     step(1, "melotts 설치")
-    code = run([sys.executable, "-m", "pip", "install", "--quiet", "melotts"])
-    if code != 0:
-        findings.append("pip install melotts 실패 — 이 경로는 여기서 끝납니다.")
+    # PyPI first, because that is what a teacher would type. It fails: the
+    # sdist's setup.py reads a requirements.txt the sdist does not contain.
+    # The project's own README installs from git, so that is attempt two.
+    sources = [
+        ("PyPI (pip install melotts)", "melotts"),
+        ("git (README가 안내하는 방법)", "git+https://github.com/myshell-ai/MeloTTS.git"),
+    ]
+    installed = ""
+    for label, target in sources:
+        print(f"\n-- {label}")
+        if run([sys.executable, "-m", "pip", "install", "--quiet", target]) == 0:
+            installed = label
+            break
+        findings.append(f"설치 실패: {label}")
+    if not installed:
+        findings.append("어느 방법으로도 설치되지 않습니다 — 이 경로는 여기서 끝납니다.")
         print("\n".join(findings))
         return 1
-    findings.append("melotts 설치 OK")
+    findings.append(f"설치 OK — {installed}")
 
     step(2, "한국어 체크포인트 로드")
     try:
