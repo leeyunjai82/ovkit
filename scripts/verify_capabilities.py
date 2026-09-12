@@ -171,6 +171,8 @@ def fetch_images(dest: Path, source: Path | None) -> dict[str, Path]:
             raise SystemExit(f"no images in {source}")
         return {key: files[i % len(files)] for i, key in enumerate(IMAGES)}
 
+    import cv2
+
     dest.mkdir(parents=True, exist_ok=True)
     out: dict[str, Path] = {}
     for key, urls in IMAGES.items():
@@ -179,11 +181,19 @@ def fetch_images(dest: Path, source: Path | None) -> dict[str, Path]:
             try:
                 with urllib.request.urlopen(url, timeout=60) as response:  # noqa: S310
                     path.write_bytes(response.read())
-                out[key] = path
-                print(f"  {key:8s} <- {url}")
-                break
             except Exception as exc:  # noqa: BLE001 - any failure means "try the next"
                 print(f"  {key:8s} !! {url} ({type(exc).__name__})")
+                continue
+            # A 200 is not a photo: one candidate answered with something
+            # OpenCV could not decode, and the cases that used it failed with
+            # "Could not read image" as though ovkit were at fault.
+            if cv2.imread(str(path)) is None:
+                print(f"  {key:8s} !! {url} (내려받았지만 이미지가 아님)")
+                path.unlink(missing_ok=True)
+                continue
+            out[key] = path
+            print(f"  {key:8s} <- {url}")
+            break
     return out
 
 
