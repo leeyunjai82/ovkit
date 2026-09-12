@@ -1,0 +1,66 @@
+name: Sync the model mirror
+
+# Copies every model ovkit serves into leeyunjai/ovkit-models.
+#
+# One-time setup: Settings -> Secrets and variables -> Actions -> New secret
+#   name  HF_TOKEN
+#   value a Hugging Face token with **write** access to leeyunjai/ovkit-models
+#
+# Then run it from Actions -> "Sync the model mirror" -> Run workflow.
+# It defaults to a dry run: read the log, then run again with upload = true.
+#
+# Safe to re-run — the script lists the target first and copies only what is
+# missing, so a second run with everything present uploads nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: "Actually copy (unchecked = report what is missing)"
+        type: boolean
+        default: false
+
+# One at a time: two concurrent runs would race on the same repository.
+concurrency:
+  group: mirror-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the hub client
+        run: python -m pip install --upgrade pip huggingface_hub
+
+      - name: Check the token is present
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::error::HF_TOKEN is not set. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - name: What is missing from the mirror
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/sync_mirror.py
+
+      - name: Copy it in
+        if: ${{ inputs.upload }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/sync_mirror.py --upload
+
+      - name: What to do next
+        if: ${{ !inputs.upload }}
+        run: |
+          echo "### Dry run" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Nothing was uploaded. The log above lists what is missing." >> "$GITHUB_STEP_SUMMARY"
+          echo "Run this workflow again with **upload** ticked to copy it in." >> "$GITHUB_STEP_SUMMARY"
