@@ -128,7 +128,6 @@ def _human(size: int) -> str:
     return f"{value:,.1f} GB"
 
 
-
 def _short(size: int) -> str:
     """A size that fits inline: 444M, 971K."""
     for unit, step in (("G", 1024**3), ("M", 1024**2), ("K", 1024)):
@@ -189,9 +188,7 @@ def _report(orphans: list[tuple[str, int]], files: set[str]) -> None:
         for folder, (_, size) in folders.items():
             task, name = folder.split("/", 1) if "/" in folder else ("(root)", folder)
             by_task_models.setdefault(task, []).append((name, size))
-        ordered = sorted(
-            by_task_models.items(), key=lambda kv: -sum(size for _, size in kv[1])
-        )
+        ordered = sorted(by_task_models.items(), key=lambda kv: -sum(size for _, size in kv[1]))
         for task, models in ordered:
             size = sum(s for _, s in models)
             print(f"  {task} ({len(models)}, {_human(size)}):")

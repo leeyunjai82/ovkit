@@ -155,7 +155,13 @@ def test_face_landmarks_are_mapped_back_onto_the_full_image():
 
 
 def test_read_text_reads_boxes_in_reading_order():
-    """Detector order is confidence order; a reader has to work top-left down."""
+    """Detector order is confidence order; a reader has to work top-left down.
+
+    The recogniser is named explicitly: ``TextReader()`` picks one by display
+    language, and in Korean it would ask for a model these fakes do not
+    provide — which, on a machine with a network, quietly downloads the real
+    one and reads the grey rectangles as nothing at all.
+    """
     # Each region is painted a distinct grey so the fake recogniser can tell
     # which crop it was handed.
     image = np.zeros((240, 320, 3), np.uint8)
@@ -176,7 +182,7 @@ def test_read_text_reads_boxes_in_reading_order():
         r.text = by_value[int(round(float(crop.mean())))]
         return r
 
-    pipe = TextReader()
+    pipe = TextReader(recognizer="text_recognition")
     detector = _Fake(lambda img: Results(img, task="detect", names={0: "text"}, boxes=_boxes(rows)))
     _install(pipe, text_detection=detector, text_recognition=_Fake(recognize))
     r = pipe.run(image)
@@ -194,7 +200,7 @@ def test_read_text_survives_an_unreadable_crop():
         def __call__(self, image, **_kwargs):
             raise RuntimeError("nope")
 
-    pipe = TextReader()
+    pipe = TextReader(recognizer="text_recognition")
     _install(
         pipe,
         text_detection=_Fake(

@@ -58,14 +58,13 @@ class OCRAdapter(BaseAdapter):
         """The symbol table and which class id means "nothing here"."""
         if self.post.get("charset") == "labels" and self.names:
             table = [
-                " " if self.names[i] == _SPACE_TOKEN else self.names[i]
-                for i in sorted(self.names)
+                " " if self.names[i] == _SPACE_TOKEN else self.names[i] for i in sorted(self.names)
             ]
             if self.post.get("space"):
                 table.append(" ")
             if self.post.get("blank_first"):
                 # Class 0 is the blank; dictionary entry i is class i + 1.
-                return ["" ] + table, 0
+                return [""] + table, 0
             return table, len(table) - 1
 
         table = list(str(self.post.get("symbols", _DEFAULT_SYMBOLS)))
