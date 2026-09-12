@@ -15,6 +15,7 @@ pip install -r examples/requirements.txt # fastapi / uvicorn (web demos only)
 | [`pose.py`](pose.py) | `pose` | keypoints/skeleton |
 | [`classify.py`](classify.py) | `classify` | top-5 classes |
 | [`ocr.py`](ocr.py) | `text_recognition` | decoded text |
+| [`speak.py`](speak.py) | `읽어주기` | text read aloud, saved as a WAV |
 | [`super_resolution.py`](super_resolution.py) | `super_resolution` | upscaled image |
 | [`background_matting.py`](background_matting.py) | `background_matting_mobilenetv2` | cut the subject out (needs frame + empty-scene photo) |
 
