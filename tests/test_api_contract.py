@@ -184,3 +184,35 @@ def test_pipeline_results_carry_elapsed_and_device(echo):
     assert r.elapsed_ms is not None and r.elapsed_ms >= 0.0
     assert r.device  # "AUTO" here; a real backend reports the resolved device
     assert r.to_dict()["device"] == r.device
+
+
+def test_network_passes_its_arguments_to_the_right_parameters(synthetic_detr_ir, synthetic_image):
+    """``Model.network`` used to shift every argument one place to the left.
+
+    ``__init__``'s second parameter is ``source``, so calling it positionally
+    handed ``task`` to ``source``, ``device`` to ``task`` and ``precision`` to
+    ``device``. Every sub-model a pipeline loaded was therefore built with
+    ``task="AUTO"`` — a task no adapter claims — so it decoded through the
+    generic adapter and returned raw tensors with no boxes. On a photo with a
+    face in it, ``face_detection`` found the face and ``face_analyze``, running
+    that same detector, reported "no face found".
+    """
+    model = Model.network(synthetic_detr_ir, device="CPU")
+    assert model.device == "CPU", "device landed in `task`"
+    assert model._task_override is None, "device was read as the task override"
+
+    model(synthetic_image, conf=0.25)  # the task is worked out on first use
+    assert model.task == "detect", "the task must still be detected from the graph"
+
+
+def test_a_pipeline_sub_model_decodes_detections(synthetic_detr_ir, synthetic_image):
+    """The whole point of the above: a pipeline's detector returns boxes."""
+    from ovkit.pipelines.base import Pipeline
+
+    pipe = Pipeline(device="CPU")
+    pipe._models["det"] = Model.network(synthetic_detr_ir, device="CPU")
+
+    out = pipe.model("det")(synthetic_image, conf=0.25)
+    assert (
+        out and out[0].boxes is not None and len(out[0].boxes) >= 1
+    ), "a pipeline's detector came back with no boxes — the generic adapter again"
