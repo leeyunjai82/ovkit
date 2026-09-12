@@ -1,5 +1,71 @@
 # Changelog
 
+## v0.4.0 (2026-09-12)
+
+**ovkit learned to speak, and learned to read Hangul.** Both go through the
+same `Model(...)` call, and every capability was run against real weights
+before this release — which is how most of the fixes below were found.
+
+### Added
+- **`Model("읽어주기", "안녕하세요")`** — text to speech in **31 languages**,
+  Korean among them. Four networks chained (duration → text encoder → flow
+  matching → vocoder), 44.1 kHz, ten voices, under a second per sentence on a
+  laptop CPU. `r.save("인사.wav")` writes the sound, `r.save("인사.png")` the
+  waveform. Supertonic 3, OpenRAIL-M, mirrored with its licence.
+- **Korean OCR** — `read_text` picks the recogniser that matches the display
+  language: PP-OCRv3 Korean for `ko`, the Latin one for `en`. Force either with
+  `recognizer=`.
+- **`ovkit pull`** — convert any Hugging Face model once and run it with plain
+  ovkit afterwards.
+- **RT-DETR ladder** — `rtdetr_r18` / `r34` / `r50` / `r101`, r18 by default.
+- `depth` and `remove_background`, mirrored out of their AGPL upstream.
+- Seven models that were sitting unreferenced in the mirror, now registered
+  (98-point facial landmarks, person re-id, two super-resolutions, …).
+- **`docs/features.md`** and **`docs/ko/features.md`** — every capability, what
+  it answers with, and what it is made of.
+- `ovkit gui` speaks Korean, and has a text box for 읽어주기.
+- `scripts/check.py` — runs exactly what CI runs, with real exit codes.
+
+### Fixed
+- **Every pipeline's sub-models were built with the wrong arguments.**
+  `Model.network()` passed `task`/`device`/`precision` positionally into a
+  signature whose second parameter is `source`, so every sub-model was created
+  with `task="AUTO"`, fell back to the generic adapter, and returned no boxes.
+  Ten capabilities answered "nothing found" on pictures full of the thing they
+  look for. Keyword arguments, and two regression tests.
+- **The Latin text recogniser was off by one letter.** `text-recognition-0014`
+  puts its blank first; ovkit's default table put it last, so "building" came
+  out `c0v0j0me0joh0`.
+- **A capability was stricter than the model it wraps** — `face_detection`
+  found a face at 0.47 and `face_analyze`, hardcoded to 0.5, reported none on
+  the same photo. One `DEFAULT_CONF`, and the caller's `conf` now reaches the
+  sub-pipelines.
+- **`attendance` recognised nobody** — it enrolled whole roster photos and
+  matched face crops.
+- **"Found nothing" and "read nothing" were the same answer.** `read_text` now
+  warns when it finds text regions and reads none of them.
+- The Korean character table lost its space entry (3687 classes instead of
+  3690), so spaces were never emitted.
+- `sound_classification` crashed on models with a dynamic sample axis.
+- `Results.show()` killed the process on a machine with no display (full
+  OpenCV exits through Qt, uncatchable). It checks first, and saves instead.
+- The first 60 seconds were silent — a 125 MB download with no output. Now it
+  says what it is fetching and how far along it is.
+
+### Changed
+- **One mirror.** Everything ovkit serves comes from
+  `leeyunjai/ovkit-models` — 278 files, 2.8 GB, every one referenced by a
+  manifest. External hosts remain only as fallbacks for when the mirror is
+  unreachable.
+- **The licence allow-list opened, narrowly.** OpenRAIL-M loads when the entry
+  can point at its licence (`license_url`), because that licence requires every
+  copy to pass on the same use restrictions. AGPL and CC-BY-NC stay out.
+- **`tier: part`** — a network that is a piece of a capability and does nothing
+  alone (a vocoder wants a latent) is hidden from every listing a person reads,
+  without being filed under `zoo`, which means "superseded".
+- `manifests` entries may declare `data:` — the tables and licences a model
+  needs beside its weights, so mirror pruning cannot delete them.
+
 ## v0.3.0 (2026-08-24)
 
 **ovkit stopped relaying models and started answering questions.** `Model` now

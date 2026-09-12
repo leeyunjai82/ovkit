@@ -41,7 +41,7 @@ from .core.registry import list_models
 from .core.results import Boxes, Keypoints, Masks, Probs, Results
 from .pipelines import Pipeline, list_pipelines
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 
 def __getattr__(name: str):
