@@ -1,6 +1,7 @@
 name: Sync the model mirror
 
-# Copies every model ovkit serves into leeyunjai/ovkit-models.
+# Copies every model ovkit serves into leeyunjai/ovkit-models, and reports
+# what is in there that no manifest asks for.
 #
 # One-time setup: Settings -> Secrets and variables -> Actions -> New secret
 #   name  HF_TOKEN
@@ -19,6 +20,15 @@ on:
         description: "Actually copy (unchecked = report what is missing)"
         type: boolean
         default: false
+      show:
+        description: "List what the mirror holds under these paths (space separated)"
+        type: string
+        default: ""
+      prune:
+        description: "Delete what nothing references"
+        type: choice
+        default: "no"
+        options: ["no", "leftovers", "models", "all"]
 
 # One at a time: two concurrent runs would race on the same repository.
 concurrency:
@@ -35,7 +45,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install the hub client
-        run: python -m pip install --upgrade pip huggingface_hub
+        run: python -m pip install --upgrade pip huggingface_hub pyyaml
 
       - name: Check the token is present
         env:
@@ -57,10 +67,31 @@ jobs:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: python scripts/sync_mirror.py --upload
 
+      - name: What is in these folders
+        if: ${{ inputs.show != '' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/audit_mirror.py --files ${{ inputs.show }}
+
+      - name: What nothing references
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/audit_mirror.py
+
+      - name: Delete it
+        if: ${{ inputs.prune != 'no' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/audit_mirror.py --prune "${{ inputs.prune }}"
+
       - name: What to do next
-        if: ${{ !inputs.upload }}
+        if: ${{ !inputs.upload && inputs.prune == 'no' }}
         run: |
           echo "### Dry run" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Nothing was uploaded. The log above lists what is missing." >> "$GITHUB_STEP_SUMMARY"
-          echo "Run this workflow again with **upload** ticked to copy it in." >> "$GITHUB_STEP_SUMMARY"
+          echo "Nothing was uploaded or deleted. The log above lists what is" >> "$GITHUB_STEP_SUMMARY"
+          echo "missing from the mirror, and what is in it that no manifest" >> "$GITHUB_STEP_SUMMARY"
+          echo "references." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Re-run with **upload** to copy the missing in, or **prune**" >> "$GITHUB_STEP_SUMMARY"
+          echo "to delete the unreferenced." >> "$GITHUB_STEP_SUMMARY"

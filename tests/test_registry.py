@@ -92,3 +92,39 @@ def test_omz_onnx_url_picks_onnx_when_no_ir():
     assert _omz_onnx_url(spec) == "https://example.com/model.onnx"
     # Nothing convertible -> None, so the model is skipped rather than half-added.
     assert _omz_onnx_url({"files": [{"name": "w.caffemodel", "source": "u"}]}) is None
+
+
+def test_revived_models_resolve_to_the_mirror():
+    """The models rescued from the unreferenced pile must be loadable by name.
+
+    They were sitting in leeyunjai/ovkit-models that no manifest mentioned —
+    registering them is the whole point of not deleting them, so a typo in a
+    path would quietly put them back where they were.
+    """
+    from ovkit.core import registry
+
+    for name in (
+        "rtdetr_r101",
+        "facial_landmarks_98_detection_0001",
+        "person_reidentification_retail_0287",
+        "single_image_super_resolution_1032",
+        "text_image_super_resolution_0001",
+        "facial_landmarks_35_adas_0002",
+        "human_pose_estimation_0005",
+    ):
+        entry = registry.resolve(name)
+        assert entry is not None, name
+        assert entry.repo == "leeyunjai/ovkit-models", name
+        assert entry.filename and entry.filename.endswith(".xml"), name
+
+
+def test_the_new_friendly_names_point_somewhere():
+    from ovkit.core import registry
+
+    for alias, target in (
+        ("person_reid", "person_reidentification_retail_0287"),
+        ("face_landmarks_98", "facial_landmarks_98_detection_0001"),
+        ("super_resolution_4x", "single_image_super_resolution_1032"),
+        ("text_super_resolution", "text_image_super_resolution_0001"),
+    ):
+        assert registry.resolve(alias).name == target

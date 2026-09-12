@@ -26,6 +26,7 @@ instance_segmentation: {alias: instance_segmentation_person_0007}
 # --- pose / landmarks / gaze ---
 pose: {alias: human_pose_estimation_0007}
 face_landmarks: {alias: landmarks_regression_retail_0009}
+face_landmarks_98: {alias: facial_landmarks_98_detection_0001}
 head_pose: {alias: head_pose_estimation_adas_0001}
 gaze: {alias: gaze_estimation_adas_0002}
 
@@ -33,6 +34,7 @@ gaze: {alias: gaze_estimation_adas_0002}
 age_gender: {alias: age_gender_recognition_retail_0013}
 emotion: {alias: emotions_recognition_retail_0003}
 face_reid: {alias: face_reidentification_retail_0095}
+person_reid: {alias: person_reidentification_retail_0287}
 person_attributes: {alias: person_attributes_recognition_crossroad_0234}
 vehicle_attributes: {alias: vehicle_attributes_recognition_barrier_0042}
 
@@ -44,6 +46,8 @@ remove_background: {alias: u2net}         # cut the subject out of the scene
 classify: {alias: nfnet_f0}                  # general ImageNet classifier
 image_retrieval: {alias: image_retrieval_0001}
 super_resolution: {alias: single_image_super_resolution_1033}
+super_resolution_4x: {alias: single_image_super_resolution_1032}
+text_super_resolution: {alias: text_image_super_resolution_0001}
 
 # --- OCR ---
 text_recognition: {alias: text_recognition_0014}

@@ -194,3 +194,26 @@ def test_the_sync_script_covers_every_model_it_should():
     for name in ("rtdetr_r18", "rtdetr_r34", "rtdetr_r50", "depth_anything_v2_small", "u2net"):
         entry = resolve(name)
         assert entry.filename in copied, f"{name} -> {entry.filename} is never synced"
+
+
+def test_the_readme_model_count_is_the_real_one():
+    """The front page says how many models ovkit serves; it has to still be true.
+
+    That number was written once and went stale — it read 56 while the registry
+    held 67. A count nobody checks is a claim nobody can trust, so the check
+    lives here instead of in someone's memory.
+    """
+    import re
+    from pathlib import Path
+
+    from ovkit.core import registry
+
+    raw = registry._load_raw()
+    models = [n for n in registry.list_models(tier=None) if "alias" not in raw[n]]
+
+    readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
+    claimed = re.search(r"over (\d+) ready models", readme)
+    assert claimed, "the README no longer states a model count"
+    assert int(claimed.group(1)) == len(models), (
+        f"README says {claimed.group(1)} models, the registry holds {len(models)}"
+    )

@@ -5,7 +5,7 @@
 # ovkit
 
 **OpenVINO inference in one line.** One `Model` class, clean `Results`, and 19
-composed capabilities over 56 ready models — with `AUTO`/`NPU`/`GPU` devices,
+composed capabilities over 67 ready models — with `AUTO`/`NPU`/`GPU` devices,
 async throughput, INT8, and your own detector trainable in the same package.
 
 [![CI](https://github.com/leeyunjai82/ovkit/actions/workflows/ci.yml/badge.svg)](https://github.com/leeyunjai82/ovkit/actions/workflows/ci.yml)
@@ -338,6 +338,19 @@ python scripts/sync_mirror.py --upload   # copy just that
 ```
 
 It lists the target first and copies only what is absent, so re-running is safe.
+
+The traffic goes the other way too. A mirror only ever added to fills up with
+models that left the lineup and weights uploaded under an old path — and it is
+the thing a school clones whole:
+
+```bash
+python scripts/audit_mirror.py           # what no manifest references
+python scripts/audit_mirror.py --prune   # delete just that
+```
+
+A model's `README.md`, `LICENSE` and `labels.txt` stay as long as the model
+does, and go with it when it leaves. Deletions are ordinary Hub commits, so
+the history still has them.
 
 ## Adding a model
 
