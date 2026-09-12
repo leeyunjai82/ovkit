@@ -18,7 +18,7 @@ that points at a well-tested default. `Model("face_detection")` just works.
 
 | alias | → default model | what it does |
 | ----- | --------------- | ------------ |
-| `detect` | `rtdetr_r50` | general object detection (COCO-80) |
+| `detect` | `rtdetr_r18` | general object detection (COCO-80) |
 | `face_detection` | `face_detection_0205` | detect faces |
 | `person_detection` | `person_detection_0202` | detect people |
 | `pedestrian_detection` | `person_detection_0202` | detect pedestrians (driving) |

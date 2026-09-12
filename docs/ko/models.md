@@ -15,7 +15,7 @@ ovkit은 permissive 라이선스의 OpenVINO 모델을 미러에서 다량 제�
 
 | 별칭 | → 기본 모델 | 기능 |
 | ---- | ----------- | ---- |
-| `detect` | `rtdetr_r50` | 범용 객체 검출 (COCO-80) |
+| `detect` | `rtdetr_r18` | 범용 객체 검출 (COCO-80) |
 | `face_detection` | `face_detection_0205` | 얼굴 검출 |
 | `person_detection` | `person_detection_0202` | 사람 검출 |
 | `pedestrian_detection` | `person_detection_0202` | 보행자 검출 (주행) |
