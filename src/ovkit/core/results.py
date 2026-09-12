@@ -193,6 +193,11 @@ class Probs:
         return np.argsort(self.data)[::-1][:5]
 
 
+#: Set once when a window cannot be opened, so the advice is given once
+#: rather than per frame.
+_WINDOWS_UNAVAILABLE = False
+
+
 class Results:
     """Container for a single image's prediction.
 
@@ -591,6 +596,52 @@ class Results:
                     hwc = hwc * 255.0
                 return np.clip(hwc, 0, 255).astype(np.uint8)
         return None
+
+    #: How many frames have been written by :meth:`show` in this process.
+    _shown = 0
+
+    def show(self, title: str = "ovkit", wait: int = 1) -> bool:
+        """Put the drawn result in a window. Returns ``False`` when asked to stop.
+
+        Every webcam example needs this, and every one of them wrote
+        ``cv2.imshow`` — which **raises** on the OpenCV ovkit actually depends
+        on. ``opencv-python-headless`` has no window support, so the demos in
+        the README crashed for anyone who installed exactly what the README
+        told them to, with a message about rebuilding OpenCV with GTK+.
+
+        Here it degrades instead: the first time a window cannot be opened it
+        says so and how to fix it, and from then on the frames are written to
+        files. ``wait=0`` blocks until a key is pressed (a still), ``wait=1``
+        keeps a stream moving.
+        """
+        import cv2
+
+        from .progress import has_display, no_window_advice
+
+        frame = self.plot()
+        global _WINDOWS_UNAVAILABLE
+        if not _WINDOWS_UNAVAILABLE:
+            if not has_display():
+                # Not a caught exception: full OpenCV on a machine with no
+                # display does not raise, it takes the process down with a Qt
+                # error. A demo must never do that, so the check comes first.
+                _WINDOWS_UNAVAILABLE = True
+                no_window_advice()
+            else:
+                try:
+                    cv2.imshow(title, frame)
+                    key = cv2.waitKey(wait) & 0xFF
+                    return key not in (ord("q"), 27)  # q or Esc
+                except cv2.error:
+                    _WINDOWS_UNAVAILABLE = True
+                    no_window_advice()
+
+        from ..image.ops import imwrite
+
+        target = Path(f"{title.replace(' ', '_')}_{self._shown:04d}.jpg")
+        imwrite(target, frame)
+        self.__class__._shown += 1
+        return True
 
     def save(self, path: str | Path) -> Path:
         """Write the result to ``path``.

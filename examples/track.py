@@ -7,8 +7,6 @@ from __future__ import annotations
 
 import sys
 
-import cv2
-
 from ovkit import Model
 
 
@@ -18,10 +16,8 @@ def main() -> None:
 
     for r in tracker.predict(source, stream=True):
         print(r.summary())  # 2x person (#1, #4)
-        cv2.imshow("ovkit track (q to quit)", r.plot())
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        if not r.show("ovkit track (q to quit)"):
             break
-    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

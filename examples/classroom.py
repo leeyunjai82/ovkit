@@ -10,18 +10,14 @@ from __future__ import annotations
 
 import sys
 
-import cv2
-
 from ovkit import Model
 
 
 def live(pipe) -> None:
     for r in pipe.predict(0, stream=True):
         print(r.summary())
-        cv2.imshow("ovkit (q to quit)", r.plot())
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        if not r.show("ovkit (q to quit)"):
             break
-    cv2.destroyAllWindows()
 
 
 def main() -> None:

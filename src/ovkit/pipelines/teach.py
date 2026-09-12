@@ -37,6 +37,7 @@ import numpy as np
 from ..core.errors import OVKitError
 from ..core.i18n import lang
 from ..core.maths import unit
+from ..core.progress import has_display, no_window_advice
 from ..core.results import Probs, Results
 from .base import DEFAULT_CONF, Pipeline
 
@@ -422,6 +423,11 @@ def collect(
             _msg(f"웹캠({camera})을 열 수 없어요.", f"could not open camera {camera}.")
         )
     saved, last = 0, 0.0
+    # Checked up front: a full OpenCV build with no display does not raise
+    # here, it kills the process.
+    preview = has_display()
+    if not preview:
+        no_window_advice()
     try:
         while saved < count:
             ok, frame = capture.read()
@@ -432,12 +438,13 @@ def collect(
                 cv2.imwrite(str(folder / f"{saved + 1:04d}.jpg"), frame)
                 saved += 1
                 last = now
-            try:
-                cv2.imshow(f"collect: {label} ({saved}/{count}) — q to stop", frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    break
-            except cv2.error:
-                pass  # headless: keep capturing without a preview
+            if preview:
+                try:
+                    cv2.imshow(f"collect: {label} ({saved}/{count}) — q to stop", frame)
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        break
+                except cv2.error:
+                    preview = False  # headless: keep capturing without one
     finally:
         capture.release()
         try:

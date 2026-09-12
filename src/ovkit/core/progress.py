@@ -89,6 +89,30 @@ def step(korean: str, english: str) -> Iterator[None]:
             say(f"끝났습니다 ({seconds:.1f}초).", f"done ({seconds:.1f}s).")
 
 
+def has_display() -> bool:
+    """Whether a window could plausibly open here.
+
+    Checked *before* calling ``cv2.imshow``, not after: a headless build
+    raises, which is catchable, but a full OpenCV build on a machine with no
+    display takes the whole process down with a Qt error instead. A demo must
+    never do that.
+    """
+    if sys.platform.startswith(("win", "darwin")):
+        return True
+    return bool(os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY"))
+
+
+def no_window_advice() -> None:
+    """Say once why there is no window, and how to get one."""
+    say(
+        "창을 띄울 수 없어서 결과를 파일로 저장합니다. "
+        "(headless OpenCV이거나 화면이 없는 환경)\n"
+        "         창으로 보려면: pip install opencv-python",
+        "cannot open a window (headless OpenCV, or no display) — saving frames instead.\n"
+        "         For a window: pip install opencv-python",
+    )
+
+
 class Bar:
     """A one-line download meter for sources that stream bytes themselves.
 

@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("super_resolution")(src)[0]
+    r = Model("super_resolution", src)
     import cv2
 
     cv2.imwrite("sr_out.png", r.plot())  # plot() returns the upscaled image

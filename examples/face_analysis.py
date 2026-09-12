@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("face_analyze")(src)[0]
+    r = Model("face_analyze", src)
     print(r.summary())  # 2 faces: age 31 · male 98% · happy 92%, ...
     for i, label in enumerate(r.labels or []):
         x1, y1, x2, y2 = r.boxes.xyxy[i]

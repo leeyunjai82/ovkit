@@ -12,7 +12,7 @@ from ovkit import Model
 
 def main() -> None:
     src = sys.argv[1] if len(sys.argv) > 1 else "image.jpg"
-    r = Model("read_plate")(src)[0]
+    r = Model("read_plate", src)
     print(r.summary())  # '2 vehicles: black car — 12GA3456, white van — 34NA5678'
     for box in r.to_dict().get("boxes", []):
         print(f"  {box['label']:14s} {box.get('text', '')}")

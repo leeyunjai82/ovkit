@@ -8,8 +8,6 @@ from __future__ import annotations
 
 import sys
 
-import cv2
-
 from ovkit import Model
 
 
@@ -19,10 +17,8 @@ def main() -> None:
 
     for r in monitor.predict(source, stream=True):
         print(r.summary())  # 'awake (0.97)' ... 'EYES CLOSED 1.4s — drowsy'
-        cv2.imshow("ovkit drowsiness (q to quit)", r.plot())
-        if cv2.waitKey(1) & 0xFF == ord("q"):
+        if not r.show("ovkit drowsiness (q to quit)"):
             break
-    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

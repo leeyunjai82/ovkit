@@ -20,8 +20,8 @@ def main() -> None:
     print("\nOr click through them all:  ovkit gui")
     print("\nExample:")
     print("  from ovkit import Model")
-    print('  r = Model("face_analyze")("group.jpg")[0]')
-    print("  print(r.summary())")
+    print('  r = Model("face_analyze", "group.jpg")')
+    print("  print(r)")
     print("\nDevices and options pass straight through:")
     print('  Model("face_analyze", device="GPU", attributes=("age_gender",))')
     assert Model  # imported for the snippets above
