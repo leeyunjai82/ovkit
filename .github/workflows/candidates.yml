@@ -15,6 +15,10 @@ on:
         description: "Model ids to check (space separated; blank = the standing shortlist)"
         type: string
         default: ""
+      inspect:
+        description: "Also look inside these repos (file list, config, ONNX or not)"
+        type: string
+        default: ""
 
 jobs:
   check:
@@ -28,3 +32,7 @@ jobs:
         run: python -m pip install --upgrade pip pyyaml
       - name: Ask the Hub
         run: python scripts/check_candidates.py ${{ inputs.ids }}
+
+      - name: Look inside
+        if: ${{ inputs.inspect != '' }}
+        run: python scripts/inspect_tts.py ${{ inputs.inspect }}
