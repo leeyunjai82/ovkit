@@ -152,3 +152,29 @@ def test_waveform_renders_an_image():
     img = waveform(_tone(0.5), 16_000, width=200, height=80)
     assert img.shape == (80, 200, 3)
     assert img.max() > 0
+
+
+def test_a_dynamic_length_model_gets_the_whole_window():
+    """A model that leaves its sample axis dynamic reports -1 there.
+
+    Mapping that to 1, as the other dynamic dims must be, asked numpy to fit
+    16,000 samples into one slot: "cannot reshape array of size 16000 into
+    shape (1,1,1,1)". Real aclnet weights do exactly this.
+    """
+    import numpy as np
+
+    from ovkit.recognize.audio import SoundClassifier
+
+    seen: list[tuple[int, ...]] = []
+
+    class _Dynamic:
+        input_shape = (1, 1, 1, -1)
+
+        def infer(self, feed):
+            seen.append(tuple(feed.shape))
+            return {"out": np.zeros((1, 53), np.float32)}
+
+    audio = np.zeros(16000, np.float32)
+    result = SoundClassifier().run(_Dynamic(), audio, 16000)
+    assert seen and seen[0] == (1, 1, 1, 16000)
+    assert result.text

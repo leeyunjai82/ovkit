@@ -60,15 +60,43 @@ IMAGES: dict[str, list[str]] = {
 }
 
 
+#: ovkit's own vocabulary for "I found nothing". A capability that says one of
+#: these ran fine and answered nothing, which on a photo chosen to contain what
+#: it looks for is the failure this harness exists to surface — the first run
+#: scored every one of them as a pass, which made the report useless.
+NOTHING = (
+    "nothing found",
+    "nothing to anonymise",
+    "no face",
+    "nobody found",
+    "no person",
+    "no vehicle",
+    "no match",
+    "0 instance",
+    "cannot tell",
+    "empty-looking",
+    "못 찾",
+    "안 보여",
+    "없어요",
+    "없습니다",
+)
+
+
 @dataclass
 class Case:
     """One capability, the picture it should be judged on, and how to drive it."""
 
     name: str
     image: str = "street"
-    kind: str = "photo"  # photo | clip | audio
+    kind: str = "photo"  # photo | clip | audio | setup
     note: str = ""
     kwargs: dict = field(default_factory=dict)
+    #: What to print when the same capability appears twice, configured differently.
+    label: str = ""
+
+    @property
+    def title(self) -> str:
+        return self.label or self.name
 
 
 CASES: list[Case] = [
@@ -86,7 +114,14 @@ CASES: list[Case] = [
     Case("face_analyze", "face"),
     Case("person_analyze", "people"),
     Case("vehicle_analyze", "street"),
-    Case("read_text", "text", note="한국어면 PP-OCRv3, 아니면 라틴"),
+    Case("read_text", "text", note="표시 언어에 맞는 인식기"),
+    Case(
+        "read_text",
+        "text",
+        note="라틴 강제 — 한글 인식기와 비교용",
+        label="read_text(latin)",
+        kwargs={"recognizer": "text_recognition"},
+    ),
     Case("read_plate", "street"),
     Case("count", "street"),
     Case("anonymize", "face"),
@@ -231,8 +266,17 @@ def run(case: Case, source: Path) -> tuple[str, str, float]:
         if result is None:
             return "EMPTY", "결과 없음", elapsed
         said = str(result).replace("\n", " ").strip()
-        if not said or said in {"nothing found", "아무것도 못 찾음"}:
-            return "EMPTY", said or "(빈 문자열)", elapsed
+        if not said:
+            return "EMPTY", "(빈 문자열)", elapsed
+        lowered = said.lower()
+        if any(phrase in lowered for phrase in NOTHING):
+            return "EMPTY", said, elapsed
+        # Scores say whether a threshold is the reason something was missed.
+        found = getattr(result, "found", None) or []
+        if found:
+            best = max(float(row.get("score") or 0) for row in found)
+            if best:
+                said = f"{said}   [top {best:.2f}]"
         return "OK", said, elapsed
     except Exception as exc:  # noqa: BLE001 - the report is the point
         elapsed = (time.perf_counter() - started) * 1000
@@ -272,13 +316,13 @@ def main() -> int:
         if case.kind == "setup":
             if case.image not in images:
                 counts["SKIP"] += 1
-                print(f"{case.name:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
+                print(f"{case.title:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
                 continue
             status, said, ms = SETUP[case.name](images, work)
             counts[status] = counts.get(status, 0) + 1
             if status == "ERROR":
                 failures.append((case.name, said))
-            print(f"{case.name:22s} {status:7s} {ms:7.0f}  {said[:96]}")
+            print(f"{case.title:22s} {status:7s} {ms:7.0f}  {said[:96]}")
             continue
 
         if case.kind == "audio":
@@ -294,7 +338,7 @@ def main() -> int:
 
         if source is None:
             counts["SKIP"] += 1
-            print(f"{case.name:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
+            print(f"{case.title:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
             continue
 
         status, said, ms = run(case, source)
@@ -305,7 +349,7 @@ def main() -> int:
         if status == "ERROR":
             failures.append((case.name, said))
         note = f"   ({case.note})" if case.note else ""
-        print(f"{case.name:22s} {status:7s} {ms:7.0f}  {said[:96]}{note}")
+        print(f"{case.title:22s} {status:7s} {ms:7.0f}  {said[:96]}{note}")
 
     print(
         "\n" + "  ".join(f"{k} {v}" for k, v in counts.items() if v) + f"   /  {len(cases)} cases"
