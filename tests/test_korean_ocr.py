@@ -8,6 +8,8 @@ hand-built alphabet where the right answer is known.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -131,3 +133,27 @@ def test_the_space_token_decodes_to_a_space():
     symbols, blank = adapter._symbols()
     assert symbols == ["", "안", " ", "녕"] and blank == 0
     assert adapter._ctc_greedy(_logits([1, 2, 3], 4)) == "안 녕"
+
+
+def test_a_recogniser_that_cannot_read_says_so_once(monkeypatch):
+    """Eight empty strings and "nothing found" is what a broken reader looked like.
+
+    The crops kept failing for the same reason and every failure was swallowed,
+    so a picture full of words was reported exactly like a blank wall.
+    """
+    monkeypatch.setenv("OVKIT_LANG", "en")
+    reader = TextReader()
+
+    class _Broken:
+        def __call__(self, _crop):
+            raise RuntimeError("input shape mismatch")
+
+    monkeypatch.setattr(reader, "model", lambda name: _Broken())
+    crop = np.zeros((8, 8, 3), np.uint8)
+
+    with pytest.warns(RuntimeWarning, match="input shape mismatch"):
+        assert reader._read(crop) == ""
+    # the second crop fails the same way and stays quiet
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert reader._read(crop) == ""

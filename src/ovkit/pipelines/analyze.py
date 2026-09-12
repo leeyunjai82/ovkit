@@ -16,7 +16,7 @@ from typing import Any
 import numpy as np
 
 from ..core.results import Boxes, Keypoints, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 
 class _DetectAndDescribe(Pipeline):
@@ -50,7 +50,7 @@ class _DetectAndDescribe(Pipeline):
             )
         self.attributes = chosen
 
-    def run(self, image: np.ndarray, *, conf: float = 0.5, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         result = Results(image, task=self.name, names=found.names, boxes=boxes)
@@ -102,7 +102,7 @@ class FaceAnalyzer(_DetectAndDescribe):
     pad = 0.15
     noun = "face"
 
-    def run(self, image: np.ndarray, *, conf: float = 0.5, **kwargs: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **kwargs: Any) -> Results:
         result = super().run(image, conf=conf, **kwargs)
         if "face_landmarks" in self.attributes:
             result.keypoints = self._landmarks(image, result)

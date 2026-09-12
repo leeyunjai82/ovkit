@@ -86,6 +86,19 @@ class Pipeline:
         return f"{type(self).__name__}(name={self.name!r}, device={self.device!r})"
 
 
+#: The confidence every capability starts from — the same number
+#: :meth:`Model.predict` uses.
+#:
+#: It used to be whatever each pipeline's author felt like: 0.25, 0.3, 0.4, 0.5
+#: across twelve files. Running them all on one photo showed what that costs —
+#: ``Model("face_detection")`` found a face at 0.47 and ``Model("face_analyze")``,
+#: at 0.5, reported "no face found" on the same picture. A capability that is
+#: stricter than the model it wraps is a capability that calls its own detector
+#: a liar. Raise it per call (``conf=0.5``) when precision matters more than
+#: recall; do not raise it behind the user's back.
+DEFAULT_CONF = 0.25
+
+
 def detections(model: Model, image: np.ndarray, conf: float) -> Results:
     """Run a detector and return its ``Results`` (empty boxes are fine)."""
     out = model(image, conf=conf)

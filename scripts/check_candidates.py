@@ -87,9 +87,7 @@ def licence_of(info: dict) -> str:
 
 def size_of(info: dict) -> str:
     total = sum(
-        int(f.get("size") or 0)
-        for f in (info.get("siblings") or [])
-        if isinstance(f, dict)
+        int(f.get("size") or 0) for f in (info.get("siblings") or []) if isinstance(f, dict)
     )
     if not total:
         used = info.get("usedStorage")
@@ -120,8 +118,7 @@ def report(groups: dict[str, list[str]]) -> int:
             mark = "OK" if ok else "거부"
             downloads = info.get("downloads") or 0
             print(
-                f"  {mark:6s} {model_id:52s} {licence:22s} "
-                f"{size_of(info):>8s}  ↓{downloads:,}"
+                f"  {mark:6s} {model_id:52s} {licence:22s} " f"{size_of(info):>8s}  ↓{downloads:,}"
             )
     print(
         "\n'거부'는 ovkit의 라이선스 정책(PERMISSIVE_LICENSES)에서 불러오기 자체가"

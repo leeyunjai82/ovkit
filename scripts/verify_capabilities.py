@@ -52,10 +52,15 @@ NOTEBOOK_DATA = (
     "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/image"
 )
 IMAGES: dict[str, list[str]] = {
-    # key            candidate URLs, tried in order
+    # key       candidate URLs, tried in order
+    #
+    # `detect` reported "2x person, airplane, tie" on intel_rnb.jpg and nothing
+    # of the sort on coco.jpg, so the people-finders are judged on the former.
+    # Judging them on a photo with no people in it produced a page of EMPTY
+    # that said nothing about ovkit.
     "street": [f"{NOTEBOOK_DATA}/intel_rnb.jpg", f"{NOTEBOOK_DATA}/coco.jpg"],
-    "people": [f"{NOTEBOOK_DATA}/coco.jpg", f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
-    "face": [f"{NOTEBOOK_DATA}/coco_hollywood.jpg", f"{NOTEBOOK_DATA}/coco.jpg"],
+    "people": [f"{NOTEBOOK_DATA}/intel_rnb.jpg", f"{NOTEBOOK_DATA}/coco.jpg"],
+    "face": [f"{NOTEBOOK_DATA}/coco_hollywood.jpg", f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
     "text": [f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
 }
 
@@ -305,7 +310,7 @@ def main() -> int:
 
     cases = [c for c in CASES if not args.only or c.name in args.only]
     print(f"\n{len(cases)} case(s)\n")
-    header = f"{'capability':22s} {'status':7s} {'ms':>7s}  answer"
+    header = f"{'capability':22s} {'photo':7s} {'status':7s} {'ms':>7s}  answer"
     print(header)
     print("-" * len(header))
 
@@ -316,13 +321,13 @@ def main() -> int:
         if case.kind == "setup":
             if case.image not in images:
                 counts["SKIP"] += 1
-                print(f"{case.title:22s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음 ({case.image})")
+                print(f"{case.title:22s} {case.image:7s} {'SKIP':7s} {'-':>7s}  샘플 사진 없음")
                 continue
             status, said, ms = SETUP[case.name](images, work)
             counts[status] = counts.get(status, 0) + 1
             if status == "ERROR":
                 failures.append((case.name, said))
-            print(f"{case.title:22s} {status:7s} {ms:7.0f}  {said[:96]}")
+            print(f"{case.title:22s} {case.image:7s} {status:7s} {ms:7.0f}  {said[:96]}")
             continue
 
         if case.kind == "audio":
@@ -349,7 +354,8 @@ def main() -> int:
         if status == "ERROR":
             failures.append((case.name, said))
         note = f"   ({case.note})" if case.note else ""
-        print(f"{case.title:22s} {status:7s} {ms:7.0f}  {said[:96]}{note}")
+        source_key = "audio" if case.kind == "audio" else case.image
+        print(f"{case.title:22s} {source_key:7s} {status:7s} {ms:7.0f}  {said[:96]}{note}")
 
     print(
         "\n" + "  ".join(f"{k} {v}" for k, v in counts.items() if v) + f"   /  {len(cases)} cases"

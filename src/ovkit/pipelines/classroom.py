@@ -20,7 +20,7 @@ import numpy as np
 from ..core.errors import OVKitError
 from ..core.i18n import display_name, lang
 from ..core.results import Boxes, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 from .reid import ReID
 
 _IMAGE_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
@@ -49,7 +49,7 @@ class Counter(Pipeline):
         #: English class key to count exclusively (``person``, ``cell-phone`` ...).
         self.what = str(what).strip().lower().replace(" ", "-") if what else None
 
-    def run(self, image: np.ndarray, *, conf: float = 0.4, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         found = detections(self.model(self.detector), image, conf)
         boxes = found.boxes if found.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         result = Results(image, task=self.name, names=found.names, boxes=boxes)
@@ -333,7 +333,7 @@ class Attendance(Pipeline):
 
     # -- running ------------------------------------------------------------
 
-    def run(self, image: np.ndarray, *, conf: float = 0.5, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         if not self.matcher.gallery:
             raise OVKitError(
                 _msg(

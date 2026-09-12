@@ -19,7 +19,7 @@ from typing import Any
 import numpy as np
 
 from ..core.results import Boxes, Results
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 from .gaze import GazeEstimator
 
 
@@ -49,7 +49,7 @@ class AttentionAnalyzer(Pipeline):
         self.steps = int(steps)
         self.gaze = GazeEstimator(device=device)
 
-    def run(self, image: np.ndarray, *, conf: float = 0.3, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         looking = self.gaze.run(image, conf=0.5)
         objects = detections(self.model(self.detector), image, conf)
         boxes = objects.boxes if objects.boxes is not None else Boxes(np.zeros((0, 6), np.float32))

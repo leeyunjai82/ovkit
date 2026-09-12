@@ -17,7 +17,7 @@ import numpy as np
 
 from ..core.results import Boxes, Results
 from .analyze import FaceAnalyzer
-from .base import Pipeline, detections
+from .base import DEFAULT_CONF, Pipeline, detections
 
 
 class SceneReport(Pipeline):
@@ -43,7 +43,7 @@ class SceneReport(Pipeline):
         self.use_faces = faces
         self._faces = FaceAnalyzer(device=device) if faces else None
 
-    def run(self, image: np.ndarray, *, conf: float = 0.3, **_: Any) -> Results:
+    def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
         objects = detections(self.model(self.detector), image, conf)
         boxes = objects.boxes if objects.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
         result = Results(image, task=self.name, names=objects.names, boxes=boxes)
