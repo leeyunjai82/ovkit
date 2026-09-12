@@ -2,6 +2,8 @@
 
 Builds a tiny synthetic DETR-style OpenVINO IR model so the detection slice can
 be tested end-to-end without any network access or large model download.
+
+The suite also runs **offline**: see :func:`no_network`.
 """
 
 from __future__ import annotations
@@ -21,6 +23,19 @@ def _opset():
     except Exception:  # pragma: no cover - version variety
         from openvino import opset13 as op  # type: ignore
     return op
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every test runs with ``OVKIT_OFFLINE=1``.
+
+    A unit test that reaches the mirror is a test whose result depends on the
+    machine it runs on. One did: a pipeline asked for a model the fakes did not
+    provide, and on a machine without a network it fell back and passed, while
+    CI downloaded the real model and failed. Offline turns that into a loud
+    error wherever it runs.
+    """
+    monkeypatch.setenv("OVKIT_OFFLINE", "1")
 
 
 @pytest.fixture(scope="session")

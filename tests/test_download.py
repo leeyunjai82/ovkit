@@ -57,6 +57,10 @@ def test_offline_uses_cached_source(tmp_path, monkeypatch):
 
 
 def test_fallback_used_when_primary_fails(tmp_path, monkeypatch):
+    # The suite runs offline (see conftest.no_network); these two tests are
+    # about the fetch path itself and drive it with file:// URLs, so they opt
+    # back in. Nothing here leaves the machine.
+    monkeypatch.delenv("OVKIT_OFFLINE", raising=False)
     monkeypatch.setenv("OVKIT_HOME", str(tmp_path))
     good = tmp_path / "good.onnx"
     good.write_bytes(b"weights")
@@ -71,6 +75,7 @@ def test_fallback_used_when_primary_fails(tmp_path, monkeypatch):
 
 
 def test_no_fallback_reraises(tmp_path, monkeypatch):
+    monkeypatch.delenv("OVKIT_OFFLINE", raising=False)
     monkeypatch.setenv("OVKIT_HOME", str(tmp_path))
     entry = ModelEntry(name="nofb", src="url", url="file:///definitely/missing/x.onnx")
     with pytest.raises(DownloadError):

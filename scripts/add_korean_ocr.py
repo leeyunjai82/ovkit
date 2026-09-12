@@ -48,9 +48,7 @@ from pathlib import Path
 TARGET_REPO = "leeyunjai/ovkit-models"
 DEST = "optical_character_recognition/korean_ppocrv3_rec"
 
-MODEL_TAR = (
-    "https://paddleocr.bj.bcebos.com/PP-OCRv3/multilingual/korean_PP-OCRv3_rec_infer.tar"
-)
+MODEL_TAR = "https://paddleocr.bj.bcebos.com/PP-OCRv3/multilingual/korean_PP-OCRv3_rec_infer.tar"
 DICT_URL = (
     "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/release/2.7/"
     "ppocr/utils/dict/korean_dict.txt"
@@ -90,9 +88,13 @@ def fetch(work: Path) -> tuple[Path, list[str]]:
             if member.isfile():
                 name = Path(member.name).name
                 (work / name).write_bytes(tar.extractfile(member).read())  # type: ignore[union-attr]
-    model = next((work / n for n in ("inference.pdmodel", "model.pdmodel") if (work / n).is_file()), None)
+    model = next(
+        (work / n for n in ("inference.pdmodel", "model.pdmodel") if (work / n).is_file()), None
+    )
     if model is None:
-        raise SystemExit(f"no .pdmodel in {MODEL_TAR} — contents: {sorted(p.name for p in work.iterdir())}")
+        raise SystemExit(
+            f"no .pdmodel in {MODEL_TAR} — contents: {sorted(p.name for p in work.iterdir())}"
+        )
 
     # Every line is a symbol, including the one that is a space. Only the
     # trailing newline at the end of the file is not an entry.
@@ -100,7 +102,9 @@ def fetch(work: Path) -> tuple[Path, list[str]]:
     if raw and raw[-1] == "":
         raw.pop()
     chars = [SPACE_TOKEN if not ln.strip() else ln for ln in raw]
-    print(f"  model: {model.name} ({model.stat().st_size / 1e6:.1f} MB)  dictionary: {len(chars)} symbols")
+    print(
+        f"  model: {model.name} ({model.stat().st_size / 1e6:.1f} MB)  dictionary: {len(chars)} symbols"
+    )
     return model, chars
 
 
@@ -155,7 +159,7 @@ def upload(out_dir: Path) -> int:
     if not (os.environ.get("HF_TOKEN") or os.environ.get("HUGGING_FACE_HUB_TOKEN")):
         print(
             "HF_TOKEN is not set — uploading needs a token with write access to\n"
-            f"{TARGET_REPO}. Either export it here, or run the \"Korean OCR\"\n"
+            f'{TARGET_REPO}. Either export it here, or run the "Korean OCR"\n'
             "workflow on GitHub, where it lives as a secret.",
             file=sys.stderr,
         )
@@ -180,7 +184,7 @@ def upload(out_dir: Path) -> int:
         commit_message="Add the Korean PP-OCRv3 text recogniser",
     )
     print("done. ovkit already has the manifest entry:")
-    print('  python -c "from ovkit import Model; print(Model(\'read_text\', \'sign.jpg\'))"')
+    print("  python -c \"from ovkit import Model; print(Model('read_text', 'sign.jpg'))\"")
     return 0
 
 

@@ -214,6 +214,6 @@ def test_the_readme_model_count_is_the_real_one():
     readme = (Path(__file__).resolve().parent.parent / "README.md").read_text(encoding="utf-8")
     claimed = re.search(r"over (\d+) ready models", readme)
     assert claimed, "the README no longer states a model count"
-    assert int(claimed.group(1)) == len(models), (
-        f"README says {claimed.group(1)} models, the registry holds {len(models)}"
-    )
+    assert int(claimed.group(1)) == len(
+        models
+    ), f"README says {claimed.group(1)} models, the registry holds {len(models)}"
