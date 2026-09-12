@@ -1,16 +1,27 @@
 name: Supertonic
 
 # Reads Supertonic's four ONNX graphs and its JSON tables, prints every
-# interface, and proves each graph converts to OpenVINO IR.
+# interface, then actually runs the chain through OpenVINO and writes WAVs.
 #
 # A TTS pipeline chains four models. Guessing four interfaces would be four
-# times the mistake that the OCR alphabet already cost today, so they are read
-# and printed here, and the implementation copies from this log.
+# times the mistake that the OCR alphabet already cost, so they are read and
+# printed here, the chain is run here, and the implementation copies from this
+# log rather than from memory.
 #
-# Nothing is uploaded.
+# Nothing is uploaded to the model mirror. The WAVs come back as artifacts so a
+# person can listen and judge.
 
 on:
   workflow_dispatch:
+    inputs:
+      steps:
+        description: "flow-matching 반복 횟수 (많을수록 느리고 깨끗함)"
+        required: false
+        default: "8"
+      voice:
+        description: "목소리 (F1..F5, M1..M5)"
+        required: false
+        default: "M1"
 
 permissions:
   contents: write        # to leave the report as a commit comment
@@ -33,8 +44,24 @@ jobs:
           set -o pipefail
           python scripts/inspect_supertonic.py 2>&1 | tee report.txt
 
+      - name: Say something
+        run: |
+          set -o pipefail
+          python scripts/try_supertonic.py \
+            --steps "${{ github.event.inputs.steps || 8 }}" \
+            --voice "${{ github.event.inputs.voice || 'M1' }}" \
+            --out tts_out 2>&1 | tee -a report.txt
+
+      - name: Keep the audio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: supertonic-wav
+          path: tts_out/
+          if-no-files-found: warn
+
       - name: Leave the report on the commit
         if: always()
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/post_report.py report.txt "Supertonic 인터페이스"
+        run: python scripts/post_report.py report.txt "Supertonic 인터페이스와 시험 합성"
