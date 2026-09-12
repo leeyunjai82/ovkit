@@ -53,7 +53,10 @@ def main() -> int:
         ("git (README가 안내하는 방법)", "git+https://github.com/myshell-ai/MeloTTS.git"),
     ]
     installed = ""
-    for label, target in sources:
+    already = run([sys.executable, "-c", "import melo"]) == 0
+    if already:
+        installed = "이미 설치되어 있음 (앞선 시도의 결과)"
+    for label, target in [] if already else sources:
         print(f"\n-- {label}")
         if run([sys.executable, "-m", "pip", "install", "--quiet", target]) == 0:
             installed = label

@@ -31,7 +31,7 @@ jobs:
         run: |
           python scripts/try_korean_tts.py || true
           echo "::group::unidic 사전 내려받기 (약 250 MB)"
-          python -m pip install --quiet unidic || true
+          python -m pip install --quiet unidic onnxscript || true
           python -m unidic download || true
           echo "::endgroup::"
           python scripts/try_korean_tts.py
