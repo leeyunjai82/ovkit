@@ -230,3 +230,97 @@ def test_closing_ends_the_worker_thread():
     assert _wait(
         lambda: not any(t.name == "ovkit-gui" and t.is_alive() for t in threading.enumerate())
     )
+
+
+# -- reading text aloud ------------------------------------------------------
+
+
+class _FakeSpeaker:
+    """Stands in for the speak pipeline: takes a sentence, answers with sound."""
+
+    def __init__(self, name, device="AUTO"):
+        self.name = name
+        self.device = device
+        self.said: list[tuple[str, str]] = []
+
+    def __call__(self, text, voice="F1", **kwargs):
+        self.said.append((text, voice))
+        samples = np.full(4410, 0.1, np.float32)
+        r = Results(np.zeros((40, 200, 3), np.uint8), task="speak")
+        r.audio = (samples, 44_100)
+        r.text = text
+        return [r]
+
+
+@pytest.fixture
+def speaker():
+    made: list[_FakeSpeaker] = []
+
+    def factory(name, device="AUTO"):
+        model = _FakeSpeaker(name, device)
+        made.append(model)
+        return model
+
+    ctl = Controller(model_factory=factory, capture_factory=lambda _i: _FakeCamera())
+    ctl.made = made
+    ctl.select("speak")
+    yield ctl
+    ctl.close()
+
+
+def test_a_text_capability_is_marked_as_one():
+    """The window swaps its webcam and file buttons on this flag alone."""
+    by_name = {c.name: c for c in choices()}
+    assert by_name["speak"].takes_text
+    assert not by_name["detect"].takes_text
+
+
+def test_speaking_publishes_a_waveform_and_an_answer(speaker):
+    speaker.speak("안녕하세요", voice="M3")
+    assert _wait(lambda: speaker.view().frame is not None)
+    # The sound and the frame arrive together: Save must never be offered a
+    # .wav for a result that is not on screen yet.
+    assert speaker.has_audio()
+    view = speaker.view()
+    assert view.answer == "안녕하세요"
+    assert "0.1초" in view.status and "M3" in view.status
+    assert speaker.made[-1].said == [("안녕하세요", "M3")]
+
+
+def test_empty_text_asks_for_some_instead_of_running(speaker):
+    speaker.speak("   ")
+    assert _wait(lambda: "먼저" in speaker.view().status)
+    assert speaker.made[-1].said == []
+
+
+def test_saving_a_spoken_result_writes_the_sound(speaker, tmp_path):
+    import wave
+
+    speaker.speak("안녕하세요")
+    assert _wait(lambda: speaker.view().frame is not None)
+    out = tmp_path / "hello.wav"
+    assert speaker.save(out) is not None
+    with wave.open(str(out)) as fh:
+        assert fh.getframerate() == 44_100
+        assert fh.getnframes() == 4410
+
+
+def test_saving_a_spoken_result_as_a_picture_writes_the_waveform(speaker, tmp_path):
+    """`.wav` gets the sound; anything else gets the picture of it."""
+    speaker.speak("안녕하세요")
+    assert _wait(lambda: speaker.view().frame is not None)
+    out = tmp_path / "wave.png"
+    assert speaker.save(out) is not None
+    assert out.is_file() and out.stat().st_size > 0
+
+
+def test_opening_a_picture_clears_the_sound(controller, tmp_path):
+    """Otherwise Save would still be offering the last sentence's audio."""
+    from ovkit.image.ops import imwrite
+
+    path = tmp_path / "x.png"
+    imwrite(path, FRAME)
+    controller.select("detect")
+    controller.open_image(path)
+    assert _wait(lambda: controller.view().frame is not None)
+    assert not controller.has_audio()

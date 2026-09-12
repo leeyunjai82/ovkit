@@ -26,6 +26,10 @@ class Choice:
     label: str  #: what the button says, in the display language
     hint: str  #: one line under the picture
     korean_name: str = ""  #: the Korean name Model() also accepts, if there is one
+    #: ``True`` when this one reads a sentence rather than looking at a picture.
+    #: The window swaps the webcam and file buttons for a text box; everything
+    #: else about it — the frame, the answer, Save — works the same way.
+    takes_text: bool = False
 
 
 #: ``name -> (한국어 버튼, 한국어 설명, English button, English hint)``.
@@ -35,14 +39,14 @@ class Choice:
 #: ``Model("얼굴분석")``. Someone who opens the window first met "Describe /
 #: Faces / Objects" — the one place where the Korean was missing was the place
 #: a beginner starts.
-_CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
-    # Capabilities first: they answer a question rather than emit a tensor.
+_CHOICES: tuple[tuple[str, str, str, str, str, bool], ...] = (
     (
         "scene",
         "장면 설명",
         "사진 한 장을 한 문장으로",
         "Describe",
         "One sentence about the whole picture",
+        False,
     ),
     (
         "face_analyze",
@@ -50,6 +54,7 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "얼굴마다 나이·성별·표정",
         "Faces",
         "Age, gender and emotion for every face",
+        False,
     ),
     (
         "detect",
@@ -57,15 +62,31 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "사진 속 물건 찾기 (COCO 80종)",
         "Objects",
         "Find the objects in the picture (COCO-80)",
+        False,
     ),
-    ("count", "개수 세기", "무엇이 몇 개인지 세기", "Count", "How many of each kind"),
-    ("read_text", "글자 읽기", "글자를 찾아서 읽기", "Read text", "Find text and read it"),
+    (
+        "count",
+        "개수 세기",
+        "무엇이 몇 개인지 세기",
+        "Count",
+        "How many of each kind",
+        False,
+    ),
+    (
+        "read_text",
+        "글자 읽기",
+        "글자를 찾아서 읽기",
+        "Read text",
+        "Find text and read it",
+        False,
+    ),
     (
         "read_plate",
         "번호판 읽기",
         "번호판을 읽고 차를 설명",
         "Plates",
         "Read number plates, describe the car",
+        False,
     ),
     (
         "track",
@@ -73,6 +94,7 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "프레임이 바뀌어도 같은 번호",
         "Track",
         "Objects keep an id from frame to frame",
+        False,
     ),
     (
         "drowsiness",
@@ -80,6 +102,7 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "눈이 감긴 채로 있으면 알림 (웹캠)",
         "Drowsy?",
         "Warn when the eyes stay shut (webcam)",
+        False,
     ),
     (
         "posture",
@@ -87,6 +110,7 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "목 각도를 보고 알림 (웹캠)",
         "Posture",
         "Watch the neck angle (webcam)",
+        False,
     ),
     (
         "exercise",
@@ -94,6 +118,7 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "스쿼트·팔굽혀펴기 세기 (웹캠)",
         "Exercise",
         "Count squats and push-ups (webcam)",
+        False,
     ),
     (
         "gesture",
@@ -101,6 +126,7 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "움직임으로 손동작 알아보기 (웹캠)",
         "Gesture",
         "Hand gestures from motion (webcam)",
+        False,
     ),
     (
         "attention",
@@ -108,14 +134,23 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "사람이 무엇을 보고 있는지",
         "Attention",
         "Which object the person is looking at",
+        False,
     ),
-    ("gaze", "시선", "얼굴이 어디를 보는지", "Gaze", "Where a face is looking"),
+    (
+        "gaze",
+        "시선",
+        "얼굴이 어디를 보는지",
+        "Gaze",
+        "Where a face is looking",
+        False,
+    ),
     (
         "anonymize",
         "모자이크",
         "얼굴을 가려서 공유할 수 있게",
         "Blur faces",
         "Redact faces so the picture can be shared",
+        False,
     ),
     (
         "remove_background",
@@ -123,20 +158,64 @@ _CHOICES: tuple[tuple[str, str, str, str, str], ...] = (
         "피사체만 남기기",
         "Cut out",
         "Keep the subject, drop the background",
+        False,
     ),
-    ("depth", "거리 재기", "무엇이 얼마나 가까운지", "Distance", "How far away everything is"),
+    (
+        "depth",
+        "거리 재기",
+        "무엇이 얼마나 가까운지",
+        "Distance",
+        "How far away everything is",
+        False,
+    ),
     (
         "person_analyze",
         "사람 분석",
         "무엇을 입고 들었는지",
         "People",
         "What each person wears or carries",
+        False,
     ),
-    ("vehicle_analyze", "차량 분석", "차 종류와 색", "Vehicles", "Type and colour of each vehicle"),
-    # A few single models, for when you want exactly one.
-    ("pose", "자세", "사람마다 관절 위치", "Pose", "Body keypoints for every person"),
-    ("segment", "영역 나누기", "픽셀마다 이름 붙이기", "Segment", "Label every pixel"),
-    ("classify", "이건 뭐야", "이 사진은 무엇인가", "Classify", "What is this a picture of?"),
+    (
+        "vehicle_analyze",
+        "차량 분석",
+        "차 종류와 색",
+        "Vehicles",
+        "Type and colour of each vehicle",
+        False,
+    ),
+    (
+        "pose",
+        "자세",
+        "사람마다 관절 위치",
+        "Pose",
+        "Body keypoints for every person",
+        False,
+    ),
+    (
+        "segment",
+        "영역 나누기",
+        "픽셀마다 이름 붙이기",
+        "Segment",
+        "Label every pixel",
+        False,
+    ),
+    (
+        "classify",
+        "이건 뭐야",
+        "이 사진은 무엇인가",
+        "Classify",
+        "What is this a picture of?",
+        False,
+    ),
+    (
+        "speak",
+        "읽어주기",
+        "글을 사람 목소리로 (31개 언어)",
+        "Speak",
+        "Read text aloud (31 languages)",
+        True,
+    ),
 )
 
 
@@ -157,8 +236,9 @@ def choices() -> list[Choice]:
             label=ko_label if in_korean else en_label,
             hint=ko_hint if in_korean else en_hint,
             korean_name=korean.get(name, ""),
+            takes_text=takes_text,
         )
-        for name, ko_label, ko_hint, en_label, en_hint in _CHOICES
+        for name, ko_label, ko_hint, en_label, en_hint, takes_text in _CHOICES
     ]
 
 
@@ -207,6 +287,9 @@ class Controller:
         self._closing = threading.Event()
         self._current: str = ""
         self._image: np.ndarray | None = None
+        #: ``(samples, sample_rate)`` of the last spoken result, so Save can
+        #: write the sound rather than a picture of it.
+        self._audio: tuple[np.ndarray, int] | None = None
         self._conf = 0.25
         self._worker = threading.Thread(target=self._run, name="ovkit-gui", daemon=True)
         self._worker.start()
@@ -225,6 +308,10 @@ class Controller:
     def open_image(self, path: str | Path) -> None:
         """Load a picture and run the current capability on it."""
         self._jobs.put(_Job("image", str(path)))
+
+    def speak(self, text: str, voice: str = "F1") -> None:
+        """Read ``text`` aloud with the current capability."""
+        self._jobs.put(_Job("speak", str(text), {"voice": voice}))
 
     def start_webcam(self, index: int = 0) -> None:
         """Run continuously on the camera until :meth:`stop`."""
@@ -257,15 +344,25 @@ class Controller:
         self._closing.set()
         self._jobs.put(_Job("quit"))
 
+    def has_audio(self) -> bool:
+        """True when the last result was a sound, so Save can offer ``.wav``."""
+        return self._audio is not None
+
     def save(self, path: str | Path) -> Path | None:
-        """Write the frame currently on screen."""
+        """Write what is on screen — the sound for a spoken result, else the frame."""
+        target = Path(path)
+        if self._audio is not None and target.suffix.lower() == ".wav":
+            from ..audio import write_wav
+
+            samples, rate = self._audio
+            return write_wav(target, samples, rate)
         frame = self.view().frame
         if frame is None:
             return None
         from ..image.ops import imwrite
 
-        imwrite(path, frame)
-        return Path(path)
+        imwrite(target, frame)
+        return target
 
     # -- worker -------------------------------------------------------------
 
@@ -301,6 +398,8 @@ class Controller:
             self._rerun()
         elif job.kind == "webcam":
             self._webcam(int(job.payload))
+        elif job.kind == "speak":
+            self._speak(job.payload, job.extra.get("voice", "F1"))
 
     def _model(self, name: str) -> Any:
         if name not in self._models:
@@ -326,6 +425,7 @@ class Controller:
         from ..image.ops import imread
 
         self._stop_live.set()
+        self._audio = None
         self._image = imread(path)
         self._publish(status=f"Loaded {Path(path).name}")
         self._rerun()
@@ -336,6 +436,37 @@ class Controller:
         self._publish(busy=True, error="")
         frame, answer = self._infer(self._image)
         self._publish(busy=False, live=False, frame=frame, answer=answer, status="Done.")
+
+    def _speak(self, text: str, voice: str) -> None:
+        """Say a sentence: the waveform becomes the frame, the sound is kept."""
+        text = text.strip()
+        if not text:
+            self._publish(busy=False, status="읽을 글을 먼저 써 주세요.")
+            return
+        if not self._current:
+            self._publish(status="Pick something on the left first.")
+            return
+        self._stop_live.set()
+        self._publish(busy=True, error="")
+        results = self._model(self._current)(text, voice=voice)
+        result = results[0] if isinstance(results, list) else results
+        # Draw first, then flip the state, then publish. Setting `_audio`
+        # before the frame existed left a window where `has_audio()` said yes
+        # and `view().frame` was still None — Save would have offered a .wav
+        # for a result not yet on screen.
+        frame = result.plot()
+        seconds = len(result.audio[0]) / result.audio[1] if result.audio else 0.0
+        self._audio = result.audio
+        # A still picture and a sentence are different inputs; leaving the old
+        # photo loaded would make the conf slider silently re-run it.
+        self._image = None
+        self._publish(
+            busy=False,
+            live=False,
+            frame=frame,
+            answer=result.text or text,
+            status=f"{seconds:.1f}초 · {voice} — Save로 .wav을 쓸 수 있습니다.",
+        )
 
     def _webcam(self, index: int) -> None:
         if not self._current:

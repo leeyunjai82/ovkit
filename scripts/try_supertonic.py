@@ -216,7 +216,7 @@ def main() -> int:
     REPO, PREFIX = args.repo, args.prefix
 
     def at(path: str) -> str:
-        return f"{PREFIX.strip('/')}/{path}" if PREFIX.strip('/') else path
+        return f"{PREFIX.strip('/')}/{path}" if PREFIX.strip("/") else path
 
     from huggingface_hub import hf_hub_download
 

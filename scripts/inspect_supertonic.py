@@ -107,7 +107,9 @@ def _can_it_say_hangul() -> None:
     print("--- 이 모델이 읽을 수 있는 글자 (unicode_indexer.json)")
     try:
         table = json.loads(
-            Path(hf_hub_download(REPO, _at("onnx/unicode_indexer.json"))).read_text(encoding="utf-8")
+            Path(hf_hub_download(REPO, _at("onnx/unicode_indexer.json"))).read_text(
+                encoding="utf-8"
+            )
         )
     except Exception as exc:  # noqa: BLE001
         print(f"    !! {type(exc).__name__}: {str(exc)[:200]}")
