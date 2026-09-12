@@ -69,6 +69,7 @@ class App:
         right = tk.Frame(body, bg=_BG)
         right.pack(side="left", fill="both", expand=True)
         self._build_toolbar(right, device)
+        self._build_text_row(right)
         self._build_canvas(right)
         self._build_answer(right)
 
@@ -120,8 +121,14 @@ class App:
             command=self._toggle_webcam,
         )
         self.webcam_button.pack(side="left")
-        for text, command in (("Open image", self._open), ("Save", self._save)):
-            tk.Button(
+        #: Hidden while a text capability is selected — see :meth:`_show_text_row`.
+        #: Save is not among them: a spoken result is just as saveable.
+        self.image_buttons = []
+        for text, command, hides in (
+            ("Open image", self._open, True),
+            ("Save", self._save, False),
+        ):
+            button = tk.Button(
                 bar,
                 text=text,
                 relief="flat",
@@ -131,7 +138,10 @@ class App:
                 padx=12,
                 pady=6,
                 command=command,
-            ).pack(side="left", padx=(8, 0))
+            )
+            button.pack(side="left", padx=(8, 0))
+            if hides:
+                self.image_buttons.append(button)
 
         tk.Label(bar, text="device", bg=_BG, fg=_MUTED).pack(side="left", padx=(18, 4))
         self.device_var = tk.StringVar(value=device)
@@ -163,6 +173,52 @@ class App:
         )
         self.conf.set(0.25)
         self.conf.pack(side="left")
+
+    def _build_text_row(self, parent: Any) -> None:
+        """The row 읽어주기 needs: a sentence to say, and a voice to say it in.
+
+        Built once and kept hidden. Everything else in this window takes a
+        picture; hiding the webcam and file buttons while this is up is what
+        stops someone pointing a camera at a text-to-speech model and getting
+        an error they did not earn.
+        """
+        tk, ttk = self.tk, self.ttk
+        self.text_row = tk.Frame(parent, bg=_BG)
+
+        self.text_var = tk.StringVar(value="안녕하세요. 오늘은 기계 학습을 배웁니다.")
+        entry = tk.Entry(
+            self.text_row,
+            textvariable=self.text_var,
+            bg=_PANEL,
+            fg=_FG,
+            insertbackground=_FG,
+            relief="flat",
+            font=("Segoe UI", 11),
+        )
+        entry.pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 8))
+        entry.bind("<Return>", lambda _e: self._speak())
+
+        tk.Label(self.text_row, text="목소리", bg=_BG, fg=_MUTED).pack(side="left", padx=(0, 4))
+        self.voice_var = tk.StringVar(value="F1")
+        ttk.Combobox(
+            self.text_row,
+            textvariable=self.voice_var,
+            values=[f"{s}{n}" for s in "FM" for n in range(1, 6)],
+            width=4,
+            state="readonly",
+        ).pack(side="left", padx=(0, 8))
+
+        tk.Button(
+            self.text_row,
+            text="읽기",
+            relief="flat",
+            bg=_BRAND,
+            fg="#04222a",
+            font=("Segoe UI", 10, "bold"),
+            padx=16,
+            pady=6,
+            command=self._speak,
+        ).pack(side="left")
 
     def _build_canvas(self, parent: Any) -> None:
         tk = self.tk
@@ -202,11 +258,28 @@ class App:
     def _pick(self, choice: Any) -> None:
         for name, button in self.buttons.items():
             button.configure(bg=_LINE if name == choice.name else _PANEL)
+        self._show_text_row(choice.takes_text)
         # The window is a way in, not a destination: show the line that does
         # the same thing, so clicking teaches typing.
         typed = choice.korean_name or choice.name
-        self.status.configure(text=f'{choice.hint}     ·     Model("{typed}", "사진.jpg")')
+        example = '"안녕하세요"' if choice.takes_text else '"사진.jpg"'
+        self.status.configure(text=f'{choice.hint}     ·     Model("{typed}", {example})')
         self.controller.select(choice.name)
+
+    def _show_text_row(self, shown: bool) -> None:
+        if shown:
+            self.text_row.pack(fill="x", padx=14, pady=(0, 10), before=self.canvas.master)
+            self.webcam_button.pack_forget()
+            for button in self.image_buttons:
+                button.pack_forget()
+        else:
+            self.text_row.pack_forget()
+            self.webcam_button.pack(side="left")
+            for button in self.image_buttons:
+                button.pack(side="left", padx=(8, 0))
+
+    def _speak(self) -> None:
+        self.controller.speak(self.text_var.get(), self.voice_var.get())
 
     def _toggle_webcam(self) -> None:
         if self.controller.view().live:
@@ -226,7 +299,15 @@ class App:
         if self.controller.view().frame is None:
             self.status.configure(text="Nothing to save yet.")
             return
-        path = self.filedialog.asksaveasfilename(defaultextension=".jpg")
+        spoken = self.controller.has_audio()
+        path = self.filedialog.asksaveasfilename(
+            defaultextension=".wav" if spoken else ".jpg",
+            filetypes=(
+                [("Sound", "*.wav"), ("Image", "*.png *.jpg")]
+                if spoken
+                else [("Image", "*.jpg *.png"), ("All files", "*.*")]
+            ),
+        )
         if path and self.controller.save(path):
             self.status.configure(text=f"Saved {path}")
 

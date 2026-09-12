@@ -137,6 +137,9 @@ result into a waveform (`vocoder`). Under a second per sentence on a laptop CPU.
 The same sentence sounds the same twice (`seed=0` by default); pass `seed=None`
 for a fresh sample each call.
 
+The `ovkit gui` window has **읽어주기 / Speak** in its list too: type a
+sentence, pick a voice, press 읽기, and `Save` writes the `.wav`.
+
 > **Licence**: the model is **OpenRAIL-M**, © Supertone Inc. Commercial use and
 > redistribution are allowed, and the same use-based restrictions must travel
 > with every copy you pass on. `LICENSE` sits beside the weights on the mirror.
