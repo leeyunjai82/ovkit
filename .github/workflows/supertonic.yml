@@ -26,6 +26,11 @@ on:
         description: "목소리 (F1..F5, M1..M5)"
         required: false
         default: "M1"
+      mirror:
+        description: "IR로 변환해 ovkit 미러에 올릴지 (끄면 변환만 하고 확인)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write        # to leave the report as a commit comment
@@ -58,6 +63,16 @@ jobs:
             --steps "${{ github.event.inputs.steps || 8 }}" \
             --voice "${{ github.event.inputs.voice || 'M1' }}" \
             --out tts_out 2>&1 | tee -a report.txt
+
+      - name: Convert to IR and mirror it
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -o pipefail
+          python scripts/mirror_supertonic.py \
+            --source "${{ github.event.inputs.repo || 'Supertone/supertonic-3' }}" \
+            ${{ inputs.mirror && '--upload' || '' }} \
+            2>&1 | tee -a report.txt
 
       - name: Keep the audio
         if: always()
