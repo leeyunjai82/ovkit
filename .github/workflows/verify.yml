@@ -20,6 +20,9 @@ on:
   schedule:
     - cron: "17 3 * * 1"   # Mondays, early
 
+permissions:
+  contents: write        # to leave the report as a commit comment
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -43,4 +46,14 @@ jobs:
           restore-keys: ovkit-models-
 
       - name: Run every capability
-        run: python scripts/verify_capabilities.py ${{ inputs.only }}
+        id: run
+        run: |
+          set -o pipefail
+          python scripts/verify_capabilities.py ${{ inputs.only }} 2>&1 | tee report.txt
+
+      - name: Leave the report on the commit
+        # Always: a failing table is the one worth reading.
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/post_report.py report.txt "Verify capabilities"
