@@ -24,4 +24,14 @@ jobs:
         run: python -m pip install --upgrade pip openvino
 
       - name: Try it
-        run: python scripts/try_korean_tts.py
+        # `unidic download` is what the checkpoint load asked for: MeloTTS
+        # imports MeCab with a Japanese dictionary even for the Korean model.
+        # It is ~250 MB and needs a C++ extension — part of the answer, not a
+        # detail to hide, so the step is named for what it costs.
+        run: |
+          python scripts/try_korean_tts.py || true
+          echo "::group::unidic 사전 내려받기 (약 250 MB)"
+          python -m pip install --quiet unidic || true
+          python -m unidic download || true
+          echo "::endgroup::"
+          python scripts/try_korean_tts.py
