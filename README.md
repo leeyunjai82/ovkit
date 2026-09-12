@@ -22,6 +22,8 @@ Apache-2.0.** No AGPL, no API key, no `pip install torch`.
 [Model catalog](https://leeyunjai82.github.io/ovkit/models.html) ·
 [Examples](https://github.com/leeyunjai82/ovkit/tree/main/examples)
 
+<img src="https://raw.githubusercontent.com/leeyunjai82/ovkit/main/docs/_static/demo.gif" width="720" alt="ovkit: pip install, three devices found, a sentence read aloud"/>
+
 </div>
 
 ```bash
