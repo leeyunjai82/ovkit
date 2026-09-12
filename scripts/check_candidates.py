@@ -30,8 +30,6 @@ import sys
 import urllib.error
 import urllib.request
 
-sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "src"))
-
 API = "https://huggingface.co/api/models/"
 
 #: What ovkit is shopping for, and why. Nothing here is chosen yet.
@@ -100,8 +98,26 @@ def size_of(info: dict) -> str:
     return f"{total} B"
 
 
+def _is_permissive():
+    """ovkit's licence policy, loaded without importing ovkit.
+
+    ``import ovkit.core.constants`` pulls the package in, and the package
+    pulls in numpy and OpenVINO — a licence lookup should not need either.
+    The module itself is pure stdlib, so it is loaded straight from the file.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "src" / "ovkit" / "core" / "constants.py"
+    spec = importlib.util.spec_from_file_location("ovkit_constants", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["ovkit_constants"] = module
+    spec.loader.exec_module(module)
+    return module.is_permissive
+
+
 def report(groups: dict[str, list[str]]) -> int:
-    from ovkit.core.constants import is_permissive
+    is_permissive = _is_permissive()
 
     blocked = 0
     for heading, ids in groups.items():
