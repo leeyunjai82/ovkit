@@ -33,8 +33,16 @@ RAW = "https://huggingface.co/{model}/resolve/main/{path}"
 
 DEFAULT = ["myshell-ai/MeloTTS-Korean"]
 
-#: Files worth reading in full — they say what the model expects.
-SMALL_TEXT = ("config.json", "config.yml", "config.yaml", "tokenizer_config.json")
+#: Files worth reading in full — they say what the model expects, and under
+#: what terms. LICENSE is first because a licence decides whether the rest
+#: matters at all.
+SMALL_TEXT = (
+    "LICENSE",
+    "config.json",
+    "config.yml",
+    "config.yaml",
+    "tokenizer_config.json",
+)
 
 
 def _get_json(url: str) -> dict | None:

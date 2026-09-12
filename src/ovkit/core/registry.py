@@ -15,7 +15,7 @@ from typing import Any
 
 import yaml
 
-from .constants import is_permissive
+from .constants import is_permissive, is_restricted
 from .errors import LicenseError
 
 #: Directory holding the bundled manifest files.
@@ -195,10 +195,22 @@ def resolve(name: str, _seen: set[str] | None = None) -> ModelEntry | None:
         _seen.add(name)
         return resolve(target, _seen)
     entry = ModelEntry.from_dict(name, raw)
-    if not is_permissive(entry.license):
-        raise LicenseError(
-            f"Model '{name}' declares license '{entry.license}', which is not on "
-            f"ovkit's permissive allow-list. Only permissive (Apache-2.0/MIT/BSD/...) "
-            f"models may be registered. Refusing to load."
-        )
-    return entry
+    if is_permissive(entry.license):
+        return entry
+    if is_restricted(entry.license):
+        # Serving one of these is allowed only if the obligation travels with
+        # it: OpenRAIL-M requires every downstream copy to carry the same
+        # use-based restrictions. An entry that cannot point at the licence
+        # cannot pass them on, so it does not load.
+        if not entry.license_url:
+            raise LicenseError(
+                f"Model '{name}' declares '{entry.license}', which ovkit serves only "
+                f"with its licence attached — that licence requires every copy to pass "
+                f"on the same use restrictions. Add 'license_url' to the manifest entry."
+            )
+        return entry
+    raise LicenseError(
+        f"Model '{name}' declares license '{entry.license}', which is not on "
+        f"ovkit's permissive allow-list. Only permissive (Apache-2.0/MIT/BSD/...) "
+        f"models may be registered. Refusing to load."
+    )
