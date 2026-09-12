@@ -143,11 +143,13 @@ def main() -> int:
         for port in ir.outputs:
             print(f"  output {port.any_name:12s} {port.partial_shape}")
         findings.append("OpenVINO 변환 OK")
-    except Exception:
+    except Exception as exc:
         traceback.print_exc()
-        findings.append(
-            "ONNX export 실패 — VITS의 동적 길이/확률적 길이예측 때문일 가능성이 큽니다."
-        )
+        # Not a guess. The first version of this line blamed VITS's dynamic
+        # lengths; the real failure was a missing pip package, and the guess
+        # would have sent the next person to rewrite the export instead of
+        # typing `pip install onnxscript`.
+        findings.append(f"ONNX export 실패 — {type(exc).__name__}: {str(exc)[:200]}")
 
     print("\n\n=== 정리 " + "=" * 50)
     for line in findings:
