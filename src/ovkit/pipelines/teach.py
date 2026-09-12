@@ -38,7 +38,7 @@ from ..core.errors import OVKitError
 from ..core.i18n import lang
 from ..core.maths import unit
 from ..core.results import Probs, Results
-from .base import Pipeline
+from .base import DEFAULT_CONF, Pipeline
 
 #: mode -> canonical english key (Korean values accepted, arguments stay english)
 MODES = {
@@ -298,7 +298,7 @@ class Teach(Pipeline):
         return np.asarray(next(iter(tensors.values())), np.float32).reshape(-1)
 
     def _embed_face(self, image: np.ndarray) -> np.ndarray:
-        found = self.model("face_detection")(image, conf=0.5)
+        found = self.model("face_detection")(image, conf=DEFAULT_CONF)
         boxes = found[0].boxes if found else None
         if boxes is None or not len(boxes):
             raise OVKitError(_msg("사진에서 얼굴을 못 찾았어요.", "no face in this image."))

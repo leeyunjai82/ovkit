@@ -62,6 +62,15 @@ IMAGES: dict[str, list[str]] = {
     "people": [f"{NOTEBOOK_DATA}/intel_rnb.jpg", f"{NOTEBOOK_DATA}/coco.jpg"],
     "face": [f"{NOTEBOOK_DATA}/coco_hollywood.jpg", f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
     "text": [f"{NOTEBOOK_DATA}/intel_rnb.jpg"],
+    # There is no car in the office photo, so the vehicle finders were being
+    # asked to find one anyway. Several candidates: the report names whichever
+    # URL answered, and skips the cases if none does.
+    "vehicle": [
+        f"{NOTEBOOK_DATA}/car.bmp",
+        f"{NOTEBOOK_DATA}/car.jpg",
+        "https://storage.openvinotoolkit.org/data/test_data/images/car_1.bmp",
+        "https://storage.openvinotoolkit.org/data/test_data/images/car.png",
+    ],
 }
 
 
@@ -118,7 +127,7 @@ CASES: list[Case] = [
     Case("scene", "street"),
     Case("face_analyze", "face"),
     Case("person_analyze", "people"),
-    Case("vehicle_analyze", "street"),
+    Case("vehicle_analyze", "vehicle"),
     Case("read_text", "text", note="표시 언어에 맞는 인식기"),
     Case(
         "read_text",
@@ -127,7 +136,7 @@ CASES: list[Case] = [
         label="read_text(latin)",
         kwargs={"recognizer": "text_recognition"},
     ),
-    Case("read_plate", "street"),
+    Case("read_plate", "vehicle"),
     Case("count", "street"),
     Case("anonymize", "face"),
     Case("gaze", "face"),

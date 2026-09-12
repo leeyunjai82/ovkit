@@ -50,7 +50,7 @@ class AttentionAnalyzer(Pipeline):
         self.gaze = GazeEstimator(device=device)
 
     def run(self, image: np.ndarray, *, conf: float = DEFAULT_CONF, **_: Any) -> Results:
-        looking = self.gaze.run(image, conf=0.5)
+        looking = self.gaze.run(image, conf=conf)
         objects = detections(self.model(self.detector), image, conf)
         boxes = objects.boxes if objects.boxes is not None else Boxes(np.zeros((0, 6), np.float32))
 
