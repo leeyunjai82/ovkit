@@ -261,6 +261,36 @@ def audit() -> tuple[int, list[tuple[str, int]], set[str]]:
     return 0, orphans, files
 
 
+def show(prefixes: list[str]) -> int:
+    """Print what the mirror actually holds under each prefix.
+
+    Before registering a model that is sitting in the mirror unreferenced, you
+    have to know what its folder is called inside — ``model.xml`` or the name
+    Open Model Zoo gave it — because that is what the manifest has to say.
+    """
+    from huggingface_hub import HfApi
+
+    try:
+        tree = list(HfApi().list_repo_tree(TARGET_REPO, recursive=True))
+    except Exception as exc:
+        print(f"could not list {TARGET_REPO}: {exc}", file=sys.stderr)
+        return 2
+
+    for prefix in prefixes:
+        stem = prefix.strip("/")
+        rows = [
+            item
+            for item in tree
+            if getattr(item, "size", None) is not None
+            and (item.path == stem or item.path.startswith(stem + "/"))
+        ]
+        print(f"{stem}/" + ("" if rows else "   (nothing here)"))
+        for item in sorted(rows, key=lambda i: i.path):
+            print(f"  {_human(int(item.size or 0)):>10}  {item.path[len(stem) + 1:]}")
+        print()
+    return 0
+
+
 def prune(orphans: list[tuple[str, int]]) -> int:
     import os
 
@@ -296,7 +326,15 @@ def main() -> int:
         "the unused files beside models ovkit still serves — the safe half; "
         "'models' only the folders no manifest mentions.",
     )
+    parser.add_argument(
+        "--files",
+        nargs="+",
+        metavar="PREFIX",
+        help="list what the mirror holds under these paths, and stop",
+    )
     args = parser.parse_args()
+    if args.files:
+        return show(args.files)
     status, orphans, files = audit()
     if status or not args.prune or not orphans:
         return status

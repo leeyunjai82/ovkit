@@ -20,6 +20,10 @@ on:
         description: "Actually copy (unchecked = report what is missing)"
         type: boolean
         default: false
+      show:
+        description: "List what the mirror holds under these paths (space separated)"
+        type: string
+        default: ""
       prune:
         description: "Delete what nothing references"
         type: choice
@@ -62,6 +66,12 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: python scripts/sync_mirror.py --upload
+
+      - name: What is in these folders
+        if: ${{ inputs.show != '' }}
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/audit_mirror.py --files ${{ inputs.show }}
 
       - name: What nothing references
         env:
