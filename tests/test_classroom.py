@@ -8,6 +8,7 @@ import pytest
 from ovkit import Model
 from ovkit.core.errors import OVKitError
 from ovkit.core.results import Boxes, Keypoints, Results
+from ovkit.image.ops import imwrite
 from ovkit.pipelines.classroom import (
     Attendance,
     Counter,
@@ -264,12 +265,11 @@ def test_attendance_csv_lists_the_whole_roster(roll, tmp_path):
 
 
 def test_roster_folder_layouts(monkeypatch, tmp_path):
-    import cv2
 
     (tmp_path / "철수.png").parent.mkdir(exist_ok=True)
-    cv2.imwrite(str(tmp_path / "철수.png"), _frame(60))
+    imwrite(tmp_path / "철수.png", _frame(60))
     (tmp_path / "영희").mkdir()
-    cv2.imwrite(str(tmp_path / "영희" / "a.png"), _frame(120))
+    imwrite(tmp_path / "영희" / "a.png", _frame(120))
 
     att = Attendance()
     # Roster photos are now read through the face detector, so the gallery
@@ -289,9 +289,8 @@ def test_the_roster_is_embedded_from_the_face_not_the_whole_photo(monkeypatch, t
     in the roster came back "출석 0/1" — the student was in the gallery and in
     the frame, and the two embeddings were of different pictures.
     """
-    import cv2
 
-    cv2.imwrite(str(tmp_path / "철수.png"), _frame(200))
+    imwrite(tmp_path / "철수.png", _frame(200))
 
     att = Attendance()
     att._models["face_detection"] = _face_detector([[20, 20, 60, 60, 0.9, 0]])

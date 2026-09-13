@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from ovkit.core.registry import resolve, tier_of
+from ovkit.image.ops import imread
 from ovkit.recognize import get_adapter
 from ovkit.recognize.depth import BackgroundAdapter, DepthAdapter, _normalize01, _single_map
 
@@ -109,16 +110,15 @@ def test_saving_a_png_keeps_the_transparency(tmp_path):
 
     r = BackgroundAdapter().run(_Backend(_subject_mask(0.5)), IMG)
     out = r.save(tmp_path / "cut.png")
-    saved = cv2.imread(str(out), cv2.IMREAD_UNCHANGED)
+    saved = cv2.imdecode(np.fromfile(out, np.uint8), cv2.IMREAD_UNCHANGED)
     assert saved.shape[2] == 4, "a cut-out must carry an alpha channel"
     assert saved[0, 0, 3] == 255 and saved[-1, -1, 3] == 0
 
 
 def test_saving_a_jpg_falls_back_to_the_flattened_picture(tmp_path):
-    import cv2
 
     r = BackgroundAdapter().run(_Backend(_subject_mask(0.5)), IMG)
-    saved = cv2.imread(str(r.save(tmp_path / "cut.jpg")))
+    saved = imread(r.save(tmp_path / "cut.jpg"))
     assert saved.shape[2] == 3
 
 

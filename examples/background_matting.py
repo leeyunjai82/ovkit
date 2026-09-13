@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 
 from ovkit import Model
+from ovkit.image.ops import imread, imwrite
 
 
 def main() -> None:
@@ -26,8 +27,8 @@ def main() -> None:
     frame_path, bg_path = sys.argv[1], sys.argv[2]
     out_path = sys.argv[3] if len(sys.argv) > 3 else "cutout.png"
 
-    frame = cv2.imread(frame_path)
-    bg = cv2.imread(bg_path)
+    frame = imread(frame_path)
+    bg = imread(bg_path)
     if frame is None or bg is None:
         raise SystemExit(f"could not read {frame_path} or {bg_path}")
     if frame.shape != bg.shape:
@@ -50,7 +51,7 @@ def main() -> None:
     alpha = cv2.resize(alpha, (frame.shape[1], frame.shape[0]))
 
     rgba = np.dstack([frame, (alpha * 255).astype(np.uint8)])
-    cv2.imwrite(out_path, rgba)
+    imwrite(out_path, rgba)
     covered = float((alpha > 0.5).mean()) * 100
     print(f"subject covers {covered:.1f}% of the frame -> {out_path}")
 

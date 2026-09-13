@@ -8,6 +8,7 @@ import pytest
 from ovkit import Model
 from ovkit.core.errors import OVKitError
 from ovkit.core.results import Results
+from ovkit.image.ops import imwrite
 from ovkit.pipelines.teach import MODES, Score, Teach, _normalize_points, _pose_feature
 
 IMG = np.zeros((100, 100, 3), np.uint8)
@@ -116,12 +117,11 @@ def test_forget_removes_a_label(taught):
 
 
 def test_score_reports_accuracy_and_confusion(taught, tmp_path, monkeypatch):
-    import cv2
 
     for label, value in (("can", 15), ("bottle", 25), ("bottle", 21)):
         sub = tmp_path / label
         sub.mkdir(exist_ok=True)
-        cv2.imwrite(str(sub / f"{value}.png"), _img(value))
+        imwrite(sub / f"{value}.png", _img(value))
     monkeypatch.setenv("OVKIT_LANG", "ko")
     score = taught.score(tmp_path)
     assert isinstance(score, Score)

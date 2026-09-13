@@ -165,6 +165,20 @@ CASES: list[Case] = [
 ]
 
 
+def _readable(path: Path):
+    """Decode an image file, or ``None`` — through ovkit, not ``cv2.imread``.
+
+    The path can be anything the user passed with ``--images``, including a
+    folder named in Korean, and ``cv2.imread`` cannot see those on Windows.
+    """
+    try:
+        from ovkit.image.ops import imread
+
+        return imread(path)
+    except Exception:  # noqa: BLE001 - "not an image" is the answer here
+        return None
+
+
 def fetch_images(dest: Path, source: Path | None) -> dict[str, Path]:
     """Local photos if given, otherwise the sample set. Missing ones are skipped."""
     if source:
@@ -172,8 +186,6 @@ def fetch_images(dest: Path, source: Path | None) -> dict[str, Path]:
         if not files:
             raise SystemExit(f"no images in {source}")
         return {key: files[i % len(files)] for i, key in enumerate(IMAGES)}
-
-    import cv2
 
     dest.mkdir(parents=True, exist_ok=True)
     out: dict[str, Path] = {}
@@ -189,7 +201,7 @@ def fetch_images(dest: Path, source: Path | None) -> dict[str, Path]:
             # A 200 is not a photo: one candidate answered with something
             # OpenCV could not decode, and the cases that used it failed with
             # "Could not read image" as though ovkit were at fault.
-            if cv2.imread(str(path)) is None:
+            if _readable(path) is None:
                 print(f"  {key:8s} !! {url} (내려받았지만 이미지가 아님)")
                 path.unlink(missing_ok=True)
                 continue
@@ -203,7 +215,7 @@ def make_clip(image: Path, dest: Path, frames: int = 12) -> Path:
     """A short video of one still — enough to drive the over-time capabilities."""
     import cv2
 
-    frame = cv2.imread(str(image))
+    frame = _readable(image)
     h, w = frame.shape[:2]
     writer = cv2.VideoWriter(str(dest), cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (w, h))
     for _ in range(frames):
@@ -299,7 +311,6 @@ def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
     been wrong twice, so this asks the three questions that separate the
     possible causes, in one process, and prints the answers.
     """
-    import cv2
 
     from ovkit import Model
     from ovkit.pipelines.base import DEFAULT_CONF
@@ -307,8 +318,8 @@ def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
     started = time.perf_counter()
     lines: list[str] = []
     try:
-        face = cv2.imread(str(images["face"]))
-        text = cv2.imread(str(images["text"]))
+        face = _readable(images["face"])
+        text = _readable(images["text"])
 
         # 1. the detector, called directly, on the array the pipeline would use
         direct = Model("face_detection")(face, conf=DEFAULT_CONF)

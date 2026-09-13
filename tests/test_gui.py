@@ -10,6 +10,7 @@ import pytest
 
 from ovkit.core.results import Boxes, Results
 from ovkit.gui.controller import Controller, choices
+from ovkit.image.ops import imwrite
 
 FRAME = np.zeros((60, 80, 3), np.uint8)
 
@@ -135,10 +136,9 @@ def test_a_model_that_fails_to_load_shows_a_message_instead_of_crashing():
 
 
 def test_opening_an_image_runs_the_model_and_publishes_a_frame(controller, tmp_path):
-    import cv2
 
     path = tmp_path / "in.png"
-    cv2.imwrite(str(path), FRAME)
+    imwrite(path, FRAME)
 
     controller.select("detect")
     assert _wait(lambda: controller.view().choice == "detect")
@@ -150,10 +150,9 @@ def test_opening_an_image_runs_the_model_and_publishes_a_frame(controller, tmp_p
 
 
 def test_changing_the_threshold_reruns_a_still_image(controller, tmp_path):
-    import cv2
 
     path = tmp_path / "in.png"
-    cv2.imwrite(str(path), FRAME)
+    imwrite(path, FRAME)
     controller.select("detect")
     controller.open_image(path)
     assert _wait(lambda: controller.view().frame is not None)
@@ -200,10 +199,9 @@ def test_the_webcam_needs_a_capability_chosen_first(controller):
 
 
 def test_saving_writes_the_frame_on_screen(controller, tmp_path):
-    import cv2
 
     source = tmp_path / "in.png"
-    cv2.imwrite(str(source), FRAME)
+    imwrite(source, FRAME)
     controller.select("detect")
     controller.open_image(source)
     assert _wait(lambda: controller.view().frame is not None)
@@ -316,8 +314,6 @@ def test_saving_a_spoken_result_as_a_picture_writes_the_waveform(speaker, tmp_pa
 
 def test_opening_a_picture_clears_the_sound(controller, tmp_path):
     """Otherwise Save would still be offering the last sentence's audio."""
-    from ovkit.image.ops import imwrite
-
     path = tmp_path / "x.png"
     imwrite(path, FRAME)
     controller.select("detect")

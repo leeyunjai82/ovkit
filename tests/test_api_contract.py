@@ -15,6 +15,7 @@ from ovkit import Model
 from ovkit.core.errors import ModelNotFoundError
 from ovkit.core.i18n import canonical, display_name, name_key, position
 from ovkit.core.results import Boxes, Probs, Results
+from ovkit.image.ops import imwrite
 from ovkit.pipelines import PIPELINES, is_pipeline
 from ovkit.pipelines.base import Pipeline
 
@@ -93,10 +94,9 @@ def test_a_photo_answers_with_one_result_not_a_list(echo):
 
 
 def test_a_folder_answers_with_a_list(echo, tmp_path):
-    import cv2
 
     for i in range(2):
-        cv2.imwrite(str(tmp_path / f"{i}.png"), IMG)
+        imwrite(tmp_path / f"{i}.png", IMG)
     out = Model("_echo", str(tmp_path))
     assert isinstance(out, list) and len(out) == 2
 

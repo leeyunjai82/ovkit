@@ -92,3 +92,36 @@ def test_a_file_that_is_not_an_image_says_so(tmp_path):
 def test_writing_creates_the_folder(tmp_path):
     imwrite(tmp_path / "새폴더" / "깊이" / "철수.png", imread(SAMPLE))
     assert (tmp_path / "새폴더" / "깊이" / "철수.png").is_file()
+
+
+def test_nothing_calls_cv2_imread_or_imwrite_directly():
+    """Fixing ``ops.py`` is not enough while call sites go around it.
+
+    That is what happened: ``imread``/``imwrite`` were taught to handle a
+    Korean filename, and the roster test still failed — because it called
+    ``cv2.imwrite`` itself and wrote ``泥좎닔.png``. The same bypass sat in
+    ``teach.py``, where ``collect("가위", 30)`` names the folder.
+
+    ``cv2.imdecode`` and ``cv2.imencode`` are fine: those take bytes, and bytes
+    have no encoding problem. It is only the calls that take a *path*.
+    """
+    import re
+
+    root = Path(__file__).resolve().parent.parent
+    here = Path(__file__).resolve()
+    allowed = {root / "src" / "ovkit" / "image" / "ops.py", here}
+
+    call = re.compile(r"\bcv2\.(imread|imwrite)\s*\(")
+    offenders = []
+    for folder in ("src", "tests", "scripts", "examples"):
+        for path in (root / folder).rglob("*.py"):
+            if path.resolve() in allowed:
+                continue
+            for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                if call.search(line):
+                    offenders.append(f"{path.relative_to(root)}:{n}")
+
+    assert not offenders, (
+        "use ovkit.image.ops.imread/imwrite — cv2's take a path and cannot see "
+        f"a non-ASCII one on Windows: {offenders}"
+    )

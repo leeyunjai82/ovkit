@@ -415,6 +415,8 @@ def collect(
     """
     import cv2
 
+    from ..image.ops import imwrite
+
     folder = Path(out) if out is not None else Teach._store_dir() / "examples" / str(label)
     folder.mkdir(parents=True, exist_ok=True)
     capture = cv2.VideoCapture(camera)
@@ -435,7 +437,11 @@ def collect(
                 break
             now = time.monotonic()
             if now - last >= every:
-                cv2.imwrite(str(folder / f"{saved + 1:04d}.jpg"), frame)
+                # ovkit's imwrite, not cv2's: `collect("가위", 30)` names the
+                # folder, and cv2 hands the path to a runtime that reads it in
+                # the system code page — on Korean Windows the frames landed
+                # somewhere nobody could find again.
+                imwrite(folder / f"{saved + 1:04d}.jpg", frame)
                 saved += 1
                 last = now
             if preview:
