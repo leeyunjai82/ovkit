@@ -635,7 +635,9 @@ def test_no_pipeline_asks_for_a_sub_model_that_is_a_capability():
     package = Path(__import__("ovkit").__file__).parent / "pipelines"
     offenders = []
     for source in package.glob("*.py"):
-        for name in re.findall(r'self\.model\(\s*"([^"]+)"\s*\)', source.read_text()):
+        for name in re.findall(
+            r'self\.model\(\s*"([^"]+)"\s*\)', source.read_text(encoding="utf-8")
+        ):
             if is_pipeline(name):
                 offenders.append(f"{source.name}: self.model({name!r})")
     assert not offenders, "a pipeline cannot be built out of itself: " + "; ".join(offenders)

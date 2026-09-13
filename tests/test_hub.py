@@ -79,7 +79,7 @@ def _fake_pulled(cache, model_id: str, *, labels=("cat", "dog"), processor=None)
     """Stand in for a completed conversion."""
     out = hub.local_dir(model_id)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "openvino_model.xml").write_text("<net/>")
+    (out / "openvino_model.xml").write_text("<net/>", encoding="utf-8")
     (out / "openvino_model.bin").write_bytes(b"\0")
     if labels:
         (out / "labels.txt").write_text("\n".join(labels) + "\n")
@@ -95,7 +95,7 @@ def test_labels_come_from_the_models_own_id2label(cache):
         id2label = {0: "tench", 1: "goldfish"}
 
     hub._write_labels(out, _Config())
-    assert (out / "labels.txt").read_text().splitlines() == ["tench", "goldfish"]
+    assert (out / "labels.txt").read_text(encoding="utf-8").splitlines() == ["tench", "goldfish"]
 
 
 def test_a_model_without_labels_writes_no_sidecar(cache):
@@ -120,7 +120,7 @@ def test_the_sidecar_records_the_processors_normalisation(cache):
         )
     )
     hub._write_sidecar(out, model_id="x/y", task="classify", precision="fp16")
-    meta = yaml.safe_load((out / "ovkit.yaml").read_text())
+    meta = yaml.safe_load((out / "ovkit.yaml").read_text(encoding="utf-8"))
     assert meta["preprocess"] == {
         "rgb": True,
         "scale": 255.0,
@@ -137,7 +137,7 @@ def test_a_processor_that_does_not_rescale_keeps_raw_pixels(cache):
         json.dumps({"do_rescale": False, "do_normalize": False})
     )
     hub._write_sidecar(out, model_id="x/y", task="classify", precision="fp16")
-    meta = yaml.safe_load((out / "ovkit.yaml").read_text())
+    meta = yaml.safe_load((out / "ovkit.yaml").read_text(encoding="utf-8"))
     assert meta["preprocess"]["scale"] == 1.0
     assert "mean" not in meta["preprocess"]
 

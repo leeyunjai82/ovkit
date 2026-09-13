@@ -26,12 +26,21 @@ jobs:
         run: black --check src tests docs/conf.py
 
   test:
-    name: Test (py${{ matrix.python-version }})
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }}, py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.11", "3.12"]
+        # ovkit's first users are on Korean Windows laptops, and this matrix was
+        # Ubuntu-only. Two bugs shipped because of it: `Path.read_text()` picks
+        # the locale encoding, so cp949 choked on the em dashes in our own
+        # source, and `cv2.imread` hands the path to the C++ runtime, which
+        # turned 철수.png into 泥좎닔.png. Neither can reproduce on Linux.
+        include:
+          - os: windows-latest
+            python-version: "3.12"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

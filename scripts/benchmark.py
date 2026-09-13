@@ -49,7 +49,7 @@ def _cpu_name() -> str:
         except OSError:
             return platform.processor() or "unknown CPU"
     try:
-        for line in Path("/proc/cpuinfo").read_text().splitlines():
+        for line in Path("/proc/cpuinfo").read_text(encoding="utf-8").splitlines():
             if line.startswith("model name"):
                 return line.split(":", 1)[1].strip()
     except OSError:

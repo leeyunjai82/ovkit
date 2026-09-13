@@ -61,7 +61,7 @@ def _models_each_capability_uses() -> dict[str, set[str]]:
     from pathlib import Path
 
     sources = {
-        path.stem: path.read_text()
+        path.stem: path.read_text(encoding="utf-8")
         for path in (Path(__import__("ovkit").__file__).parent / "pipelines").glob("*.py")
     }
     used: dict[str, set[str]] = {}

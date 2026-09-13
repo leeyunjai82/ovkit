@@ -12,22 +12,44 @@ import numpy as np
 
 
 def imread(path: str | Path) -> np.ndarray:
-    """Read an image file into an HWC BGR ``uint8`` array."""
+    """Read an image file into an HWC BGR ``uint8`` array.
+
+    Reads the bytes with Python and decodes them with OpenCV, rather than
+    handing OpenCV the path. ``cv2.imread`` passes the name to the C++ runtime,
+    which on Windows uses the system code page — so ``철수.png`` arrived as
+    ``泥좎닔.png`` and the read failed. A roster folder full of Korean names is
+    exactly what ``Model("출석체크")`` is for, so the path never reaches OpenCV.
+    """
     import cv2
 
-    img = cv2.imread(str(path), cv2.IMREAD_COLOR)
+    target = Path(path)
+    try:
+        data = np.fromfile(target, dtype=np.uint8)
+    except OSError as exc:
+        raise FileNotFoundError(f"Could not read image: {path}") from exc
+    img = cv2.imdecode(data, cv2.IMREAD_COLOR) if data.size else None
     if img is None:
         raise FileNotFoundError(f"Could not read image: {path}")
     return img
 
 
 def imwrite(path: str | Path, img: np.ndarray) -> None:
-    """Write an HWC BGR array to ``path``."""
+    """Write an HWC BGR array to ``path``.
+
+    Encoded by OpenCV, written by Python — the same reason as :func:`imread`.
+    """
     import cv2
 
-    Path(path).parent.mkdir(parents=True, exist_ok=True)
-    if not cv2.imwrite(str(path), img):
+    target = Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    suffix = target.suffix or ".png"
+    ok, buffer = cv2.imencode(suffix, img)
+    if not ok:
         raise OSError(f"Could not write image: {path}")
+    try:
+        buffer.tofile(target)
+    except OSError as exc:
+        raise OSError(f"Could not write image: {path}") from exc
 
 
 def bgr_to_rgb(img: np.ndarray) -> np.ndarray:
