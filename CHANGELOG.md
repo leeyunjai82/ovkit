@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.4.1 (2026-09-13)
+
+**A Korean filename broke two capabilities on Windows.** Both shipped in 0.4.0.
+Found by running the test suite on the machine ovkit is actually for — a Korean
+Windows laptop — which is also why CI now has a Windows job.
+
+### Fixed
+- **`Model("출석체크")` could not read its own roster.** A folder of students'
+  names is a folder of Korean filenames, and `cv2.imread` hands the path to the
+  C++ runtime, which reads it in the system code page: `철수.png` arrived as
+  `泥좎닔.png` and "did not exist". `imread`/`imwrite` now read and write the
+  bytes in Python and let OpenCV do only the decoding.
+- **`collect("가위", 30)` lost the photos it took.** Same cause, in
+  `pipelines/teach.py` — the caller names the folder, and the docs' own example
+  names it in Korean. The frames were written somewhere nobody could find again.
+- **Three tests could not even run on a Korean Windows machine.**
+  `Path.read_text()` with no `encoding` opens in the locale encoding, which is
+  cp949 there, and ovkit's own sources are full of em dashes. Every
+  `read_text`/`write_text` in the repository is now explicit.
+
+### Changed
+- **CI runs on Windows too** (`windows-latest`, 3.12, alongside Ubuntu
+  3.10–3.12). Neither bug above can reproduce on Linux, so an Ubuntu-only
+  matrix was never going to catch them.
+- A test now fails if anything outside `image/ops.py` calls `cv2.imread` or
+  `cv2.imwrite`. Fixing `ops.py` had not been enough: nineteen call sites went
+  around it, one of them in `src`.
+- `tests/assets/sample.png` — the image the file-I/O tests read, so they decode
+  bytes this repository actually ships. Four flat quadrants in known BGR values,
+  which catches a swapped-channel or half-read decode that a shape check misses.
+
 ## v0.4.0 (2026-09-12)
 
 **ovkit learned to speak, and learned to read Hangul.** Both go through the

@@ -55,7 +55,7 @@ HOLD_AT_END = 40
 #: README's own examples.
 SCRIPT: tuple[tuple[str, str], ...] = (
     ("cmd", "pip install ovkit"),
-    ("out", "Successfully installed ovkit-0.4.0"),
+    ("out", "Successfully installed ovkit-0.4.1"),
     ("gap", ""),
     ("cmd", "ovkit devices"),
     ("out", "CPU"),
