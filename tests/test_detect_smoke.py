@@ -17,9 +17,8 @@ def test_detect_end_to_end(synthetic_detr_ir, synthetic_image, imgsz):
     results = model(synthetic_image, imgsz=imgsz, conf=0.25)
 
     assert model.task == "detect"
-    assert isinstance(results, list) and len(results) == 1
-    r = results[0]
-    assert isinstance(r, Results)
+    r = results
+    assert isinstance(r, Results), "one image answers with one Results, not a list"
 
     # Two queries are above threshold (class 2 car @0.95, class 15 cat @0.88).
     assert len(r.boxes) == 2
@@ -42,7 +41,7 @@ def test_detect_end_to_end(synthetic_detr_ir, synthetic_image, imgsz):
 
 def test_plot_and_save(synthetic_detr_ir, synthetic_image, imgsz, tmp_path):
     model = Model(str(synthetic_detr_ir), device="CPU")
-    r = model(synthetic_image, imgsz=imgsz)[0]
+    r = model(synthetic_image, imgsz=imgsz)
 
     canvas = r.plot()
     assert canvas.shape == synthetic_image.shape
@@ -64,7 +63,7 @@ def test_stream_returns_generator(synthetic_detr_ir, synthetic_image, imgsz):
 def test_conf_threshold_filters(synthetic_detr_ir, synthetic_image, imgsz):
     model = Model(str(synthetic_detr_ir), device="CPU")
     # Raise threshold above the cat (0.88) but below... both are high; use 0.9
-    r = model(synthetic_image, imgsz=imgsz, conf=0.9)[0]
+    r = model(synthetic_image, imgsz=imgsz, conf=0.9)
     # Only the car (sigmoid(3)=~0.95) survives.
     assert len(r.boxes) == 1
     assert int(r.boxes.cls[0]) == 2

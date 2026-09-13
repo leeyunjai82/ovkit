@@ -26,7 +26,7 @@ class _Fake:
     def __init__(self, build):
         self.build = build
 
-    def __call__(self, image, **_kw):
+    def predict(self, image, **_kw):
         return [self.build(image)]
 
 

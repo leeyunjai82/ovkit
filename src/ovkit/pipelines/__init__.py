@@ -7,9 +7,9 @@ what a pipeline is:
 
     from ovkit import Model
 
-    for r in Model("face_analyze")("group.jpg"):
-        print(r.summary())     # 2 faces: age 31 · male 98% · happy 92%, ...
-        r.save("faces.jpg")
+    r = Model("face_analyze")("group.jpg")
+    print(r.summary())     # 2 faces: age 31 · male 98% · happy 92%, ...
+    r.save("faces.jpg")
 
 Every pipeline takes the same sources as :class:`~ovkit.Model` (path, ndarray,
 folder, video, camera index) and returns the same :class:`~ovkit.Results`, so
@@ -118,8 +118,8 @@ def build_pipeline(name: str, device: str = "AUTO", **kwargs: Any) -> Pipeline:
     """Build a composed pipeline by name — normally reached via ``Model(name)``.
 
     >>> from ovkit import Model
-    >>> Model("face_analyze")("group.jpg")[0].summary()
-    >>> Model("read_text")("sign.jpg")[0].text
+    >>> Model("face_analyze")("group.jpg").summary()
+    >>> Model("read_text")("sign.jpg").text
     >>> Model("track")(0)                   # webcam, ids kept across frames
     """
     key = resolve_name(name)

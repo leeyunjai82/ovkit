@@ -64,7 +64,7 @@ class ReID(Pipeline):
         arr = np.asarray(arr)
         if arr.size == 0:
             raise OVKitError("Cannot embed an empty image.")
-        out = self.model(self.embedder)(arr)
+        out = self.model(self.embedder).predict(arr)
         if not out or not out[0].tensors:
             raise OVKitError(
                 f"'{self.embedder}' returned no descriptor. Use an embedding model "

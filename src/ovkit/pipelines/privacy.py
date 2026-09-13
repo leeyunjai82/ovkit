@@ -1,6 +1,6 @@
 """Anonymise a picture: faces and number plates removed before it leaves.
 
-    Model("anonymize")("street.jpg")[0].save("safe.jpg")
+    Model("anonymize")("street.jpg").save("safe.jpg")
 
 Publishing camera footage, sharing a dataset or filing a support screenshot all
 need the people taken out of it first, and "run a face detector and then work

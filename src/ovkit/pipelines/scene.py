@@ -1,6 +1,6 @@
 """One sentence about a whole picture, from several models at once.
 
-    Model("scene")("room.jpg")[0].summary()
+    Model("scene")("room.jpg").summary()
     # 2 people (1 happy), a laptop and a cup · floor 47% · wall 31%
 
 Detection lists objects, segmentation says what the space is made of, and the
@@ -115,7 +115,7 @@ class SceneReport(Pipeline):
     def _surfaces(self, image: np.ndarray) -> str:
         """What the frame is mostly made of, from the segmentation class map."""
         try:
-            out = self.model("segment")(image)
+            out = self.model("segment").predict(image)
         except Exception:
             return ""
         if not out or out[0].masks is None or not len(out[0].masks):

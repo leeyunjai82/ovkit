@@ -24,7 +24,7 @@ class _Fake:
         self.result_for = result_for
         self.calls = 0
 
-    def __call__(self, image, **_kwargs):
+    def predict(self, image, **_kwargs):
         self.calls += 1
         return [self.result_for(image)]
 
@@ -117,7 +117,7 @@ def test_face_analyze_says_so_when_there_is_no_face():
 
 def test_one_broken_attribute_does_not_lose_the_face():
     class _Broken:
-        def __call__(self, image, **_kwargs):
+        def predict(self, image, **_kwargs):
             raise RuntimeError("model exploded")
 
     pipe = FaceAnalyzer(attributes=("age_gender", "emotion"))
@@ -197,7 +197,7 @@ def test_read_text_reads_boxes_in_reading_order():
 
 def test_read_text_survives_an_unreadable_crop():
     class _Broken:
-        def __call__(self, image, **_kwargs):
+        def predict(self, image, **_kwargs):
             raise RuntimeError("nope")
 
     pipe = TextReader(recognizer="text_recognition")

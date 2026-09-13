@@ -321,14 +321,16 @@ def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
         face = _readable(images["face"])
         text = _readable(images["text"])
 
-        # 1. the detector, called directly, on the array the pipeline would use
-        direct = Model("face_detection")(face, conf=DEFAULT_CONF)
+        # 1. the detector, called directly, on the array the pipeline would use.
+        #    `predict` on both sides, because that is what `detections()` calls —
+        #    the comparison is only worth anything if both go the same way in.
+        direct = Model("face_detection").predict(face, conf=DEFAULT_CONF)
         n_direct = len(direct[0].boxes or []) if direct else 0
         lines.append(f"face_detection(ndarray)={n_direct}")
 
         # 2. the same detector, obtained the way the pipeline obtains it
         pipe = Model("face_analyze")
-        via_pipe = pipe.model("face_detection")(face, conf=DEFAULT_CONF)
+        via_pipe = pipe.model("face_detection").predict(face, conf=DEFAULT_CONF)
         n_pipe = len(via_pipe[0].boxes or []) if via_pipe else 0
         lines.append(f"pipeline's detector={n_pipe}")
 
@@ -337,7 +339,7 @@ def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
         lines.append(f"face_analyze(ndarray)={n_analyze}")
 
         # text: the boxes and the crops they produce
-        found = Model("text_detection")(text, conf=DEFAULT_CONF)
+        found = Model("text_detection").predict(text, conf=DEFAULT_CONF)
         if found:
             boxes = found[0].boxes
             lines.append(f"text boxes={len(boxes or [])} of {text.shape[1]}x{text.shape[0]}")
@@ -348,7 +350,7 @@ def run_probe(images: dict[str, Path], work: Path) -> tuple[str, str, float]:
             reader = Model("text_recognition")
             first = found[0].crop(0)
             if first.size:
-                out = reader(first)
+                out = reader.predict(first)
                 lines.append(f"  recognised={(out[0].text if out else None)!r}")
         return "OK", " · ".join(lines), (time.perf_counter() - started) * 1000
     except Exception as exc:  # noqa: BLE001

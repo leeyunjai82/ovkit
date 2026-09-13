@@ -31,7 +31,7 @@ class _FakeModel:
         self.device = device
         self.calls = 0
 
-    def __call__(self, image, conf=0.25):
+    def predict(self, image, conf=0.25):
         self.calls += 1
         r = Results(
             image,
@@ -241,7 +241,7 @@ class _FakeSpeaker:
         self.device = device
         self.said: list[tuple[str, str]] = []
 
-    def __call__(self, text, voice="F1", **kwargs):
+    def predict(self, text, voice="F1", **kwargs):
         self.said.append((text, voice))
         samples = np.full(4410, 0.1, np.float32)
         r = Results(np.zeros((40, 200, 3), np.uint8), task="speak")

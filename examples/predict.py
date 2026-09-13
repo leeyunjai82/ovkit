@@ -26,7 +26,7 @@ def main() -> None:
     args = ap.parse_args()
 
     model = Model(args.model, device=args.device)
-    res = model(args.source, conf=args.conf)
+    res = model.predict(args.source, conf=args.conf)
 
     if isinstance(res, dict):  # non-image model -> raw outputs
         print("raw outputs:")

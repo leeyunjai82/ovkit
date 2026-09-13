@@ -11,9 +11,8 @@ def test_ssd_detect_end_to_end(synthetic_ssd_ir, synthetic_image):
     results = model(synthetic_image, conf=0.25)
 
     assert model.task == "detect"
-    assert isinstance(results, list) and len(results) == 1
-    r = results[0]
-    assert isinstance(r, Results)
+    r = results
+    assert isinstance(r, Results), "one image answers with one Results, not a list"
 
     # Two detections clear the threshold (labels 1 and 2); the 0.10 one is cut.
     assert len(r.boxes) == 2
@@ -33,7 +32,7 @@ def test_ssd_detect_end_to_end(synthetic_ssd_ir, synthetic_image):
 
 def test_ssd_conf_threshold(synthetic_ssd_ir, synthetic_image):
     model = Model(str(synthetic_ssd_ir), device="CPU")
-    r = model(synthetic_image, conf=0.85)[0]
+    r = model(synthetic_image, conf=0.85)
     # Only the 0.90 detection (label 1) survives.
     assert len(r.boxes) == 1
     assert int(r.boxes.cls[0]) == 1
@@ -41,7 +40,7 @@ def test_ssd_conf_threshold(synthetic_ssd_ir, synthetic_image):
 
 def test_boxes_labels_end_to_end(synthetic_boxes_labels_ir, synthetic_image, imgsz):
     model = Model(str(synthetic_boxes_labels_ir), device="CPU")
-    r = model(synthetic_image, conf=0.25)[0]
+    r = model(synthetic_image, conf=0.25)
 
     assert model.task == "detect"
     assert len(r.boxes) == 2

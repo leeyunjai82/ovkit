@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.5.0 (2026-09-13)
+
+**Keeping a model to reuse it no longer changes the answer.** `Model(이름, 입력)`
+shaped its answer to the input; `m(입력)` did not, because it was a plain alias
+for `predict` and always returned a list. So the reusable form — the one a
+lesson or a loop actually uses — was the awkward one.
+
+```python
+m = Model("장면설명")
+m("교실.jpg")          # 0.4.1: list of one, needed [0].  Now: one Results.
+m("우리반/")           # a list, as before
+for r in m(0): ...     # 0.4.1: tried to collect a webcam. Now: a stream.
+```
+
+### Changed
+- **`model(x)` and `pipeline(x)` now shape the answer to the input**, by the
+  same rule `Model(name, x)` has always used: one image, sound file or sentence
+  gives one `Results`; a folder or a list gives a list; a camera index, a video
+  or `"mic"` gives a lazy stream. **This is a breaking change** — code that
+  wrote `m("photo.jpg")[0]` should drop the `[0]`.
+- **`m(0)` no longer hangs.** It used to ask `predict` for a list and try to
+  read a webcam to its end.
+- **`predict()` is unchanged** and is now the documented uniform form: always a
+  list, or a generator with `stream=True`. Passing `stream=` to `m(x)` hands
+  the call straight to it. Library code should call `predict`.
+- **ovkit's own pipelines call `predict`.** Twenty sub-model calls inside `src`
+  used the short form and expected a list; all of them say `.predict(...)` now,
+  and a test fails if a new one does not. Same lesson as `imread`: a rule only
+  holds while the call sites follow it.
+
+How many things were *found* is untouched — it was never this layer. Ten people
+in one photo is one `Results` with ten entries in `r.found`, both before and
+after.
+
 ## v0.4.1 (2026-09-13)
 
 **A Korean filename broke two capabilities on Windows.** Both shipped in 0.4.0.

@@ -116,7 +116,7 @@ class DrowsinessMonitor(Pipeline):
             crop = _square_crop(face, point, size)
             if crop.size == 0:
                 return False, 0.0
-            out = self.model("open_closed_eye_0001")(crop)
+            out = self.model("open_closed_eye_0001").predict(crop)
             if not out or out[0].probs is None:
                 return False, 0.0
             scores = np.asarray(out[0].probs.data, np.float32)
@@ -125,7 +125,7 @@ class DrowsinessMonitor(Pipeline):
         return closed, min(score for _, score in states)
 
     def _eye_points(self, face: np.ndarray) -> np.ndarray | None:
-        out = self.model("face_landmarks")(face)
+        out = self.model("face_landmarks").predict(face)
         if not out or out[0].keypoints is None or len(out[0].keypoints.data) == 0:
             return None
         points = out[0].keypoints.data[0]
@@ -134,7 +134,7 @@ class DrowsinessMonitor(Pipeline):
     def _pitch(self, face: np.ndarray) -> float | None:
         """Head pitch in degrees (negative = chin down), or ``None``."""
         try:
-            out = self.model("head_pose")(face)
+            out = self.model("head_pose").predict(face)
         except Exception:
             return None
         tensors = out[0].tensors if out else None

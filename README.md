@@ -99,6 +99,16 @@ A photo answers with **one** `Results`. A folder answers with a list. A webcam
 index, a video or `"mic"` answers with a lazy stream. You never index into a
 list you did not ask for.
 
+Keeping the model to reuse it changes nothing — the shape follows the input,
+not the form:
+
+```python
+m = Model("장면설명")        # build once
+m("교실.jpg")               # -> one Results
+m("우리반/")                # -> a list
+for r in m(0): ...          # -> a stream
+```
+
 Or skip Python entirely:
 
 ```bash
@@ -181,7 +191,7 @@ camera index).
 from ovkit import Model, list_pipelines
 
 list_pipelines()                                    # every capability, described
-Model("read_text")("sign.jpg")[0].text              # 'STOP AHEAD'
+Model("read_text")("sign.jpg").text              # 'STOP AHEAD'
 Model("track")(0)                                   # webcam, ids kept across frames
 Model("face_analyze", attributes=("age_gender",))   # configure what runs
 ```
@@ -351,11 +361,14 @@ NPU, median of 30 runs, 1280x720 input, OpenVINO 2026.3.*
 from ovkit import Model
 
 model = Model("face_detection")              # alias, name, .xml, or .onnx
-results = model("photo.jpg", conf=0.25)      # image / ndarray / folder / video
-for r in model.predict(0, stream=True):      # webcam (lazy generator)
+r = model("photo.jpg", conf=0.25)            # one photo -> one Results
+out = model("photos/")                       # a folder  -> a list
+for r in model(0):                           # a webcam  -> a lazy stream
     annotated = r.plot()
 
-print(Model("age_gender")("face.jpg")[0].text)   # "age 31 · male 98%"
+model.predict("photo.jpg")                   # the uniform form: always a list
+
+print(Model("age_gender")("face.jpg").text)   # "age 31 · male 98%"
 ```
 
 Inputs are **auto-detected**: image path / `ndarray` / folder / video / camera

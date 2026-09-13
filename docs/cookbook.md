@@ -26,36 +26,36 @@ annotated `ndarray` and `r.save("out.jpg")` to write it.
 import cv2
 
 # Detection -> boxes
-r = Model("rtdetr_r50")("street.jpg", conf=0.25)[0]
+r = Model("rtdetr_r50")("street.jpg", conf=0.25)
 for x1, y1, x2, y2, conf, cls in r.boxes.data:
     print(r.name_for(int(cls)), float(conf), [int(x1), int(y1), int(x2), int(y2)])
 print(r.boxes.xyxy, r.boxes.xywh, r.boxes.conf, r.boxes.cls)
 r.save("det.jpg")
 
 # Classification -> probs
-r = Model("classify")("cat.jpg")[0]
+r = Model("classify")("cat.jpg")
 print("top1:", r.name_for(r.probs.top1))
 print("top5:", [r.name_for(int(i)) for i in r.probs.top5])
 
 # Semantic segmentation -> masks (1, H, W) class map
-r = Model("road_segmentation_adas_0001")("road.jpg")[0]
+r = Model("road_segmentation_adas_0001")("road.jpg")
 print(r.masks.data.shape)
 cv2.imwrite("seg.jpg", r.plot())          # colorized overlay
 
 # Instance segmentation -> boxes + per-instance masks (N, H, W)
-r = Model("instance_segmentation_person_0007")("people.jpg")[0]
+r = Model("instance_segmentation_person_0007")("people.jpg")
 print(len(r.boxes), r.masks.data.shape)
 
 # Pose -> keypoints (N, K, 3) = [x, y, conf]
-r = Model("human_pose_estimation_0007")("person.jpg")[0]
+r = Model("human_pose_estimation_0007")("person.jpg")
 print(r.keypoints.xy, r.keypoints.conf)
 
 # OCR -> decoded text
-r = Model("text_recognition_0014")("word.png")[0]
+r = Model("text_recognition_0014")("word.png")
 print(r.text)
 
 # Generic (super-res, embeddings, action, ...) -> raw output tensors
-r = Model("single_image_super_resolution_1033")("small.png")[0]
+r = Model("single_image_super_resolution_1033")("small.png")
 for name, arr in r.tensors.items():
     print(name, arr.shape, arr.dtype)
 ```

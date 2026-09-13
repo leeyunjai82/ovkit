@@ -155,7 +155,7 @@ Aliases: `ocr` `anpr` `blur` `driver` `describe` `faces` `people` `vehicle`
 from ovkit import Model, list_pipelines
 
 list_pipelines()                                    # every capability, described
-Model("read_text")("sign.jpg")[0].text              # 'STOP AHEAD'
+Model("read_text")("sign.jpg").text              # 'STOP AHEAD'
 Model("face_analyze", attributes=("age_gender",))   # configure what runs
 ```
 

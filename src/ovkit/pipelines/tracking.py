@@ -2,7 +2,7 @@
 
     tracker = Model("track")
     for frame in video:
-        r = tracker(frame)[0]
+        r = tracker(frame)
         print(r.summary())    # 2x person (#1, #4)
 
 Detection alone answers "what is in this frame"; tracking answers "is that the

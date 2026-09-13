@@ -26,7 +26,7 @@ def _nhwc_classify(tmp_path):
 
 def test_nhwc_model_runs_via_predict(tmp_path):
     img = np.random.randint(0, 255, (120, 160, 3), np.uint8)
-    r = Model(_nhwc_classify(tmp_path), task="classify")(img)[0]
+    r = Model(_nhwc_classify(tmp_path), task="classify")(img)
     assert r.probs is not None and r.probs.data.shape == (7,)
 
 

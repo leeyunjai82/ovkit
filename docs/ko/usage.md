@@ -61,21 +61,26 @@ model = Model("some_model.xml", task="detect")   # detect | classify | segment |
 
 ## 추론
 
-모델 호출(`model(x)`)은 `model.predict(x)`와 같습니다. **입력 종류가 자동 감지**돼요:
+모델 호출(`model(x)`)은 **입력에 맞춰 답의 모양을 정합니다.** `Model(이름, x)`와
+같은 규칙이라, 모델을 들고 다니며 반복해 써도 한 줄짜리와 똑같이 답합니다:
 
 ```python
-results = model("img.jpg", device="NPU", conf=0.25)   # 이미지 파일
-results = model.predict("frames/", imgsz=640)         # 이미지 폴더
-results = model.predict("clip.mp4")                   # 비디오 파일
-for r in model.predict(0, stream=True):               # 웹캠 (카메라 인덱스)
+r = model("img.jpg", device="NPU", conf=0.25)   # 이미지 하나 -> Results 하나
+out = model("frames/", imgsz=640)               # 폴더        -> 리스트
+for r in model("clip.mp4"):                     # 비디오      -> 지연 흐름
+    annotated = r.plot()
+for r in model(0):                              # 웹캠        -> 지연 흐름
     annotated = r.plot()
 ```
+
+`model.predict(x)`는 그 아래의 균일한 형태입니다 — **언제나** `list`,
+`stream=True`면 제너레이터. 입력이 무엇이든 한 가지 모양이 필요한 코드에서 쓰세요.
 
 - `source`는 이미지 경로, `numpy` 배열(HWC BGR), 폴더, 비디오 파일, 카메라 인덱스(`int`)일 수
   있어요.
 - `conf`는 검출/인스턴스 태스크의 신뢰도 임계값.
-- `stream=True`는 지연 **제너레이터**를 반환(비디오·대용량 폴더에서 프레임을 하나씩 처리);
-  아니면 {class}`~ovkit.Results`의 `list`를 받습니다.
+- `stream=True`는 지연 **제너레이터**를 반환(비디오·대용량 폴더에서 프레임을 하나씩 처리).
+  `model(x)`에 줘도 되고, 그러면 곧장 `predict`로 넘어갑니다.
 
 비이미지 입력은 자동으로 원시 추론으로 라우팅됩니다 — `.npy` 텐서, `.wav` 파일, 비이미지
 `ndarray`는 모델에 바로 들어가고 원시 `{이름: ndarray}` 출력이 반환돼요

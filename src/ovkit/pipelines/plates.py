@@ -2,7 +2,7 @@
 
 Three models that are useless apart::
 
-    Model("read_plate")(frame)[0].summary()
+    Model("read_plate")(frame).summary()
     # 2 vehicles: black car — 12GA3456, white van — 34NA5678
 
 `vehicle_license_plate_detection_barrier_0106` finds vehicles *and* plates but
@@ -29,7 +29,7 @@ class PlateReader(Pipeline):
     """Detect vehicles and plates, read the plates, describe the vehicles.
 
     >>> from ovkit import Model
-    >>> r = Model("read_plate")("gate.jpg")[0]
+    >>> r = Model("read_plate")("gate.jpg")
     >>> r.text                    # 'black car — 12GA3456'
     >>> r.to_dict()["boxes"]      # each box with its own text
     """
@@ -79,7 +79,7 @@ class PlateReader(Pipeline):
         if crop.size == 0:
             return ""
         try:
-            out = self.model(self.recognizer)(crop)
+            out = self.model(self.recognizer).predict(crop)
         except Exception:
             return ""
         return (out[0].text or "").strip().upper() if out else ""
@@ -89,7 +89,7 @@ class PlateReader(Pipeline):
         if not self.attributes or crop.size == 0:
             return "vehicle"
         try:
-            out = self.model("vehicle_attributes")(crop)
+            out = self.model("vehicle_attributes").predict(crop)
         except Exception:
             return "vehicle"
         if not out or not out[0].text:

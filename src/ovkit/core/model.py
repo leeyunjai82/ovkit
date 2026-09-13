@@ -6,7 +6,7 @@ adapter, and run prediction — behind a simple callable object::
 
     from ovkit import Model
     model = Model("rtdetr_r50")
-    results = model("img.jpg", conf=0.25)
+    r = model("img.jpg", conf=0.25)
 """
 
 from __future__ import annotations
@@ -45,12 +45,26 @@ class Model:
         r = Model("얼굴분석", "group.jpg")     # Korean names work too
         for r in Model("track", 0):           # webcam/video -> a stream
             ...
-        ai = Model("face_match")              # no input -> a reusable object
 
-    A photo, a sound file, or a piece of text answers with **one** result; a
-    webcam index, a video file, or "mic" answers with a stream to iterate; a
-    folder answers with a list. ``Model("face_analyze")("group.jpg")`` (build
-    first, call later) keeps working — the object form is the same thing.
+    Or keep the model and ask it again and again, which is the same thing::
+
+        ai = Model("얼굴분석")                 # no input -> a reusable object
+        ai("group.jpg")                       # -> one Results, as above
+        ai("우리반/")                          # a folder  -> a list
+        for r in ai(0):                       # a webcam  -> a stream
+            ...
+
+    The shape follows the **input**, not which of the two forms you used. A
+    photo, a sound file or a sentence answers with one :class:`~ovkit.Results`;
+    a folder or a list answers with a list; a webcam index, a video file or
+    ``"mic"`` answers with a stream that opens when you start iterating.
+
+    How many things were *found* is a different question, and it lives inside
+    the result: ten people in one photo is still one ``Results``, with ten
+    entries in ``r.found``.
+
+    :meth:`predict` is the uniform form underneath — always a list, or a
+    generator with ``stream=True``. Library code should call that.
 
     Capability names (``face_analyze``, ``read_text``, ``track``, ``gaze``, ...)
     build a :class:`~ovkit.pipelines.base.Pipeline` that chains the models the
@@ -377,9 +391,33 @@ class Model:
                 audio = np.pad(audio, ((0, 0), (0, target - audio.shape[1])))
         return audio
 
-    def __call__(self, source: Any, **kwargs: Any) -> list[Results] | Iterator[Results]:
-        """Alias for :meth:`predict` (the model object is callable)."""
-        return self.predict(source, **kwargs)
+    def __call__(self, source: Any, **kwargs: Any) -> Any:
+        """Run on ``source``, shaping the answer exactly as ``Model(name, source)`` does.
+
+        These two now mean the same thing::
+
+            Model("장면설명", "교실.jpg")           # ask once
+
+            m = Model("장면설명")                   # keep it, ask many times
+            m("교실.jpg")
+
+        Keeping the model around is the ordinary way to use it — a loop over a
+        class's photos, a lesson that runs the same capability twenty times —
+        and it should not change the shape of the answer. One photo gives one
+        :class:`Results`, a folder gives a list, a webcam gives a stream, by
+        the same rule both ways.
+
+        It used to be an alias for :meth:`predict`, which always returns a
+        list. That made ``m("교실.jpg")[0]`` necessary where ``Model(...)``
+        needed no index, and made ``m(0)`` try to collect a webcam into a list
+        — a call that never returns.
+
+        :meth:`predict` keeps the uniform shape, and passing ``stream=`` here
+        goes straight to it: asking for a stream is asking for that form.
+        """
+        if "stream" in kwargs:
+            return self.predict(source, **kwargs)
+        return _immediate(self, source, **kwargs)
 
     def _predict_stream(
         self, adapter, backend: Backend, source: Any, *, conf: float, **kwargs: Any
@@ -469,13 +507,20 @@ def _unknown_name_message(name: str) -> str:
 
 
 def _immediate(runner: Any, source: Any, **run_opts: Any) -> Any:
-    """Run ``Model(name, input)`` and shape the answer to the input.
+    """Run ``runner`` on ``source`` and shape the answer to the input.
 
-    A photo, a sound file, or an array answers with **one** ``Results`` — a
-    student three weeks into Python has not met list indexing yet. A folder
-    answers with a list (it visibly holds many). A webcam index, a video file
-    or ``"mic"`` answers with the lazy stream ``predict(stream=True)`` builds,
-    so nothing opens until iteration starts.
+    The one rule behind both friendly forms — ``Model(name, input)`` and
+    ``m(input)`` on a model you kept — so the two cannot drift apart.
+
+    A photo, a sentence, a sound file or an array answers with **one**
+    ``Results``: a student three weeks into Python has not met list indexing
+    yet. A folder or a list answers with a list, because it visibly holds many.
+    A webcam index, a video file or ``"mic"`` answers with the lazy stream
+    ``predict(stream=True)`` builds, so nothing opens until iteration starts.
+
+    Note what this is *not* about: how many things the model found. Ten people
+    in one photo is still one ``Results`` — with ten entries in ``r.found``.
+    This shapes the outer layer only, and only by how many **inputs** arrived.
     """
     if isinstance(source, int):
         return runner.predict(source, stream=True, **run_opts)

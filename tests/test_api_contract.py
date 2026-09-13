@@ -123,10 +123,58 @@ def test_constructor_options_still_reach_the_pipeline(echo):
     assert pipe.opts == {"detector": "face_detection"}
 
 
-def test_building_first_and_calling_later_still_works(echo):
-    pipe = Model("_echo")
-    out = pipe(IMG)
-    assert isinstance(out, list)  # the object form keeps its list contract
+# -- keeping the model must not change the answer ---------------------------
+#
+# The two forms used to disagree. ``Model(name, input)`` shaped the answer to
+# the input; ``m(input)`` was a plain alias for ``predict`` and always returned
+# a list. So ``m("교실.jpg")[0]`` needed an index that ``Model(..., "교실.jpg")``
+# did not, and ``m(0)`` tried to collect a webcam into a list — a call that
+# never returns. Keeping a model to use it twenty times is the ordinary way to
+# use it, and the ordinary way must not be the awkward one.
+
+
+def test_keeping_the_model_answers_a_photo_the_same_way(echo):
+    m = Model("_echo")
+    assert isinstance(m(IMG), Results), "one photo, one Results — no index"
+    assert isinstance(Model("_echo", IMG), Results), "and the one-liner agrees"
+
+
+def test_keeping_the_model_answers_a_folder_the_same_way(echo, tmp_path):
+    for i in range(2):
+        imwrite(tmp_path / f"{i}.png", IMG)
+    m = Model("_echo")
+    assert len(m(str(tmp_path))) == 2
+    assert len(Model("_echo", str(tmp_path))) == 2
+
+
+def test_keeping_the_model_answers_a_webcam_with_a_lazy_stream(echo):
+    m = Model("_echo")
+    assert isinstance(m(0), Iterator), "m(0) must not try to collect a webcam"
+
+
+def test_a_plain_model_follows_the_same_rule(synthetic_detr_ir, synthetic_image):
+    """Not just capabilities: one network answers in the same shapes."""
+    m = Model(str(synthetic_detr_ir), device="CPU")
+    assert isinstance(m(synthetic_image), Results)
+    assert isinstance(m(0), Iterator)
+
+
+def test_predict_keeps_the_uniform_list(echo):
+    """What library code calls: a list every time, whatever went in.
+
+    ovkit's own pipelines use this — a detector inside ``face_analyze`` wants
+    the same shape back on every call, not one that depends on its input.
+    """
+    m = Model("_echo")
+    out = m.predict(IMG)
+    assert isinstance(out, list) and len(out) == 1
+
+
+def test_asking_for_a_stream_gets_one_either_way(echo):
+    """``stream=`` is a request for the uniform form, so it goes straight to it."""
+    m = Model("_echo")
+    assert isinstance(m(IMG, stream=True), Iterator)
+    assert isinstance(m.predict(IMG, stream=True), Iterator)
 
 
 # -- Results: found / name_en / pos / timing --------------------------------
@@ -212,7 +260,37 @@ def test_a_pipeline_sub_model_decodes_detections(synthetic_detr_ir, synthetic_im
     pipe = Pipeline(device="CPU")
     pipe._models["det"] = Model.network(synthetic_detr_ir, device="CPU")
 
-    out = pipe.model("det")(synthetic_image, conf=0.25)
+    out = pipe.model("det").predict(synthetic_image, conf=0.25)
     assert (
         out and out[0].boxes is not None and len(out[0].boxes) >= 1
     ), "a pipeline's detector came back with no boxes — the generic adapter again"
+
+
+def test_pipelines_drive_their_sub_models_through_predict():
+    """Inside ovkit, a sub-model is called with ``.predict()``, never ``()``.
+
+    ``__call__`` shapes its answer to the input, which is what a person wants
+    and exactly what library code must not have: a detector inside
+    ``face_analyze`` is handed one frame and needs the same shape back every
+    time. ``predict`` is that shape.
+
+    This is the same lesson as ``imread``/``imwrite`` — a rule only holds while
+    the call sites follow it. Twenty of them used the sugar; ``out[0]`` on a
+    ``Results`` would have been a ``TypeError`` in a student's classroom.
+    """
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent / "src" / "ovkit"
+    sugar = re.compile(r"\bself\._?model\([^()]*\)\(")
+
+    offenders = []
+    for path in root.rglob("*.py"):
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if sugar.search(line):
+                offenders.append(f"{path.relative_to(root.parent.parent)}:{n}")
+
+    assert not offenders, (
+        "call sub-models with .predict() — plain () shapes the answer to the "
+        f"input and a pipeline needs one shape: {offenders}"
+    )

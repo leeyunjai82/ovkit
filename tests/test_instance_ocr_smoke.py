@@ -7,7 +7,7 @@ from ovkit import Model
 
 def test_instance_segmentation(synthetic_instance_seg_ir, synthetic_image, imgsz):
     model = Model(str(synthetic_instance_seg_ir), task="segment", device="CPU")
-    r = model(synthetic_image, conf=0.25)[0]
+    r = model(synthetic_image, conf=0.25)
 
     assert model.task == "segment"
     # Instance results carry both boxes and per-instance masks.
@@ -19,13 +19,13 @@ def test_instance_segmentation(synthetic_instance_seg_ir, synthetic_image, imgsz
     assert r.masks.data[0].sum() > 0
 
     # Threshold filters the 0.7 instance.
-    r2 = model(synthetic_image, conf=0.8)[0]
+    r2 = model(synthetic_image, conf=0.8)
     assert len(r2.boxes) == 1
 
 
 def test_ocr_ctc_decode(synthetic_ocr_ir, synthetic_image):
     model = Model(str(synthetic_ocr_ir), task="ocr", device="CPU")
-    r = model(synthetic_image)[0]
+    r = model(synthetic_image)
 
     assert r.text == "ab1"  # repeats collapsed, blanks dropped
     assert r.tensors is not None  # raw logits still available
@@ -35,7 +35,7 @@ def test_pose_multi_instance(synthetic_pose_ir, synthetic_image):
     # The synthetic pose IR has one peak per channel -> one instance, but the
     # multi-peak decoder must still return well-formed (N, K, 3).
     model = Model(str(synthetic_pose_ir), task="pose", device="CPU")
-    r = model(synthetic_image)[0]
+    r = model(synthetic_image)
     assert r.keypoints is not None
     n, k, three = r.keypoints.data.shape
     assert n >= 1 and k == 2 and three == 3

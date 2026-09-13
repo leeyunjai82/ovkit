@@ -139,7 +139,7 @@ class PostureCoach(Pipeline):
         self._bad_since: float | None = None
 
     def run(self, image: np.ndarray, **_: Any) -> Results:
-        out = self.model("pose")(image)
+        out = self.model("pose").predict(image)
         keypoints = out[0].keypoints if out else None
         result = Results(image, task=self.name)
         if keypoints is None or len(keypoints.data) == 0:
@@ -231,7 +231,7 @@ class RepCounter(Pipeline):
         self._down = False
 
     def run(self, image: np.ndarray, **_: Any) -> Results:
-        out = self.model("pose")(image)
+        out = self.model("pose").predict(image)
         keypoints = out[0].keypoints if out else None
         result = Results(image, task=self.name)
         if keypoints is None or len(keypoints.data) == 0:

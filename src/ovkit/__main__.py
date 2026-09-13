@@ -139,7 +139,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from .core.model import Model
 
     model = Model(args.model, device=args.device)
-    results = model(args.source, conf=args.conf)
+    results = model.predict(args.source, conf=args.conf)
     if not isinstance(results, list):  # raw (.npy/.wav) input -> tensor dict
         for name, arr in results.items():
             print(f"{name}: shape={tuple(arr.shape)} dtype={arr.dtype}")

@@ -65,7 +65,7 @@ class _DetectAndDescribe(Pipeline):
         parts: list[str] = []
         for attribute in self.attributes:
             try:
-                out = self.model(attribute)(crop)
+                out = self.model(attribute).predict(crop)
             except Exception as exc:  # one bad attribute must not lose the object
                 parts.append(f"{attribute}: unavailable ({type(exc).__name__})")
                 continue
@@ -86,9 +86,9 @@ class FaceAnalyzer(_DetectAndDescribe):
     """Faces plus age, gender and emotion — the usual "who is in frame" answer.
 
         >>> from ovkit import Model
-        >>> for r in Model("face_analyze")("group.jpg"):
-        ...     print(r.summary())     # 2 faces: age 31 · male 98% · happy 92%, ...
-        ...     r.save("faces.jpg")
+        >>> r = Model("face_analyze")("group.jpg")
+        >>> print(r.summary())     # 2 faces: age 31 · male 98% · happy 92%, ...
+        >>> r.save("faces.jpg")
 
     ``attributes`` picks what to run; ``head_pose`` and ``face_landmarks`` are
     off by default because each is another model to download.
@@ -117,7 +117,7 @@ class FaceAnalyzer(_DetectAndDescribe):
             crop = result.crop(i, self.pad)
             if crop.size == 0:
                 continue
-            out = self.model("face_landmarks")(crop)
+            out = self.model("face_landmarks").predict(crop)
             if not out or out[0].keypoints is None:
                 continue
             x1, y1, x2, y2 = result.boxes.xyxy[i]
@@ -133,7 +133,7 @@ class PersonAnalyzer(_DetectAndDescribe):
     """People plus what they are wearing or carrying.
 
     >>> from ovkit import Model
-    >>> Model("person_analyze")("street.jpg")[0].summary()
+    >>> Model("person_analyze")("street.jpg").summary()
     '3 persons: male 0.98 · long pants 0.95 · bag 0.71, ...'
     """
 
@@ -153,7 +153,7 @@ class VehicleAnalyzer(_DetectAndDescribe):
     """Vehicles plus their type and colour.
 
     >>> from ovkit import Model
-    >>> Model("vehicle_analyze")("parking.jpg")[0].summary()
+    >>> Model("vehicle_analyze")("parking.jpg").summary()
     '2 vehicles: type: car (0.98) · color: black (0.83), ...'
     """
 

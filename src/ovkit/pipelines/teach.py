@@ -292,21 +292,21 @@ class Teach(Pipeline):
         return self._image_vector(image)
 
     def _image_vector(self, image: np.ndarray) -> np.ndarray:
-        out = self.model("image_retrieval")(image)
+        out = self.model("image_retrieval").predict(image)
         tensors = out[0].tensors if out else None
         if not tensors:
             raise OVKitError("embedding model returned nothing")
         return np.asarray(next(iter(tensors.values())), np.float32).reshape(-1)
 
     def _embed_face(self, image: np.ndarray) -> np.ndarray:
-        found = self.model("face_detection")(image, conf=DEFAULT_CONF)
+        found = self.model("face_detection").predict(image, conf=DEFAULT_CONF)
         boxes = found[0].boxes if found else None
         if boxes is None or not len(boxes):
             raise OVKitError(_msg("사진에서 얼굴을 못 찾았어요.", "no face in this image."))
         largest = int(np.argmax([(b[2] - b[0]) * (b[3] - b[1]) for b in boxes.xyxy]))
         crop = found[0].crop(largest, pad=0.15)
         vector = unit(self._image_vector(crop))
-        emotion = self.model("emotion")(crop)
+        emotion = self.model("emotion").predict(crop)
         probs = (
             np.asarray(emotion[0].probs.data, np.float32)
             if emotion and emotion[0].probs is not None
@@ -337,7 +337,7 @@ class Teach(Pipeline):
         return _normalize_points(points)
 
     def _embed_pose(self, image: np.ndarray, upper: bool) -> np.ndarray:
-        out = self.model("pose")(image)
+        out = self.model("pose").predict(image)
         keypoints = out[0].keypoints if out else None
         if keypoints is None or len(keypoints.data) == 0:
             raise OVKitError(_msg("사진에서 사람을 못 찾았어요.", "no person in this image."))

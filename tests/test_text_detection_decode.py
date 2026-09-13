@@ -48,5 +48,5 @@ def test_pixel_link_style_model_end_to_end(tmp_path):
     ov.save_model(m, str(p), compress_to_fp16=False)
 
     img = np.random.randint(0, 255, (120, 160, 3), np.uint8)
-    r = Model(str(p), task="detect")(img)[0]  # must not raise; boxes may be 0..N
+    r = Model(str(p), task="detect")(img)  # must not raise; boxes may be 0..N
     assert r.boxes is not None

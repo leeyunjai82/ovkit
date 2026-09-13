@@ -10,7 +10,7 @@ def test_pose_end_to_end(synthetic_pose_ir, synthetic_image):
     # [1, K, H, W] is ambiguous with segmentation, so request the task explicitly
     # (real OMZ pose models carry task=pose in the manifest).
     model = Model(str(synthetic_pose_ir), task="pose", device="CPU")
-    r = model(synthetic_image)[0]
+    r = model(synthetic_image)
 
     assert model.task == "pose"
     assert isinstance(r, Results)

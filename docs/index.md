@@ -24,9 +24,9 @@ throughput, and INT8 quantization.
 from ovkit import Model
 
 model = Model("rtdetr_r50")            # name -> auto download / convert / cache
-for r in model("img.jpg", conf=0.25):  # __call__ == predict
-    print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
-    r.save("out.jpg")
+r = model("img.jpg", conf=0.25)        # one photo -> one Results
+print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
+r.save("out.jpg")
 ```
 
 ::::{grid} 1 2 2 3
@@ -60,8 +60,8 @@ call chains a detector with the models that describe what it found.
 from ovkit import Model, list_pipelines
 
 list_pipelines()                                   # every capability, described
-Model("face_analyze")("group.jpg")[0].summary()    # '2 faces: age 31 · male 98% · happy 92%, ...'
-Model("read_text")("sign.jpg")[0].text             # 'STOP AHEAD'
+Model("face_analyze")("group.jpg").summary()    # '2 faces: age 31 · male 98% · happy 92%, ...'
+Model("read_text")("sign.jpg").text             # 'STOP AHEAD'
 Model("track")(0)                                  # webcam, ids stable across frames
 ```
 

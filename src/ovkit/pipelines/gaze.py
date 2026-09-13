@@ -1,6 +1,6 @@
 """Gaze estimation — where the person is looking.
 
-    Model("gaze")(frame)[0].summary()      # 'looking left and slightly up'
+    Model("gaze")(frame).summary()      # 'looking left and slightly up'
 
 The gaze model alone cannot be run on a picture: it takes two eye crops and the
 head pose angles, not an image. Producing those means a face detector, a
@@ -33,7 +33,7 @@ class GazeEstimator(Pipeline):
     """Face detection + landmarks + head pose + gaze, in one call.
 
         >>> from ovkit import Model
-        >>> r = Model("gaze")("portrait.jpg")[0]
+        >>> r = Model("gaze")("portrait.jpg")
         >>> r.summary()          # '1 face: looking left and slightly up'
         >>> r.tensors["gaze"]    # (N, 3) unit vectors, one per face
         >>> r.save("gaze.jpg")   # an arrow drawn from each eye
@@ -101,7 +101,7 @@ class GazeEstimator(Pipeline):
 
     def _eye_points(self, face: np.ndarray) -> np.ndarray | None:
         """The two eye landmarks, in face-crop pixel coordinates."""
-        out = self.model("face_landmarks")(face)
+        out = self.model("face_landmarks").predict(face)
         if not out or out[0].keypoints is None or len(out[0].keypoints.data) == 0:
             return None
         points = out[0].keypoints.data[0]
@@ -109,7 +109,7 @@ class GazeEstimator(Pipeline):
 
     def _head_pose(self, face: np.ndarray) -> np.ndarray:
         """``(yaw, pitch, roll)`` in degrees, or zeros if the model has nothing."""
-        out = self.model("head_pose")(face)
+        out = self.model("head_pose").predict(face)
         tensors = out[0].tensors if out else None
         if not tensors:
             return np.zeros(3, np.float32)

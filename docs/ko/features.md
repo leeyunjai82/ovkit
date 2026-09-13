@@ -156,7 +156,7 @@ Model("읽어주기", "원고.txt")                     # 파일도 읽어 줍�
 from ovkit import Model, list_pipelines
 
 list_pipelines()                                    # 전부, 설명과 함께
-Model("read_text")("sign.jpg")[0].text              # 'STOP AHEAD'
+Model("read_text")("sign.jpg").text              # 'STOP AHEAD'
 Model("face_analyze", attributes=("age_gender",))   # 무엇까지 돌릴지 고르기
 ```
 

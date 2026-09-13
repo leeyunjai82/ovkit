@@ -2,7 +2,7 @@
 
 Two models, one call::
 
-    Model("read_text")("sign.jpg")[0].text     # 'STOP AHEAD'
+    Model("read_text")("sign.jpg").text     # 'STOP AHEAD'
 
 A text detector returns boxes but no words; a text recogniser reads one cropped
 word but cannot find it. This joins them and puts each word on its own box.
@@ -29,7 +29,7 @@ class TextReader(Pipeline):
     """Text detection + text recognition.
 
     >>> from ovkit import Model
-    >>> r = Model("read_text")("receipt.jpg")[0]
+    >>> r = Model("read_text")("receipt.jpg")
     >>> r.text                     # every word, reading order (top to bottom)
     >>> r.labels                   # the word on each box
     >>> r.save("read.jpg")         # boxes labelled with what they say
@@ -100,7 +100,7 @@ class TextReader(Pipeline):
             self.recognizer = _FALLBACK
             reader = self.model(self.recognizer)
         try:
-            out = reader(crop)
+            out = reader.predict(crop)
         except Exception as exc:  # noqa: BLE001 - one bad crop must not stop the page
             # Every crop failing the same way used to be indistinguishable from
             # a picture with no readable words: eight empty strings and the

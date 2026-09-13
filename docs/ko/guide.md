@@ -38,9 +38,9 @@ pip install -e ".[dev]"
 from ovkit import Model
 
 model = Model("rtdetr_r50")              # 이름 -> 자동 다운로드 / 변환 / 캐시
-for r in model("street.jpg", conf=0.25): # __call__ == predict
-    print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
-    r.save("out.jpg")
+r = model("street.jpg", conf=0.25)       # 사진 한 장 -> Results 하나
+print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
+r.save("out.jpg")
 ```
 
 ## 4. 모델 고르기
@@ -62,27 +62,33 @@ ovkit info face_detection  # 소스·태스크·라이선스·정밀도 (별칭�
 
 ## 5. 추론 실행
 
-모델 호출(`model(x)`)은 `model.predict(x)`와 같고, **입력 종류가 자동 감지**됩니다:
+모델 호출(`model(x)`)은 **입력에 맞춰 답의 모양을 정합니다.** `Model(이름, x)`와
+같은 규칙이라, 모델을 들고 다니며 반복해 써도 결과 모양이 달라지지 않습니다:
 
 ```python
-model("img.jpg")                       # 이미지 파일
-model(cv2.imread("img.jpg"))           # HWC BGR ndarray
-model("frames/")                       # 이미지 폴더
-model("clip.mp4")                      # 비디오 파일
-for r in model.predict(0, stream=True):# 웹캠(카메라 인덱스) — 지연 제너레이터
+model("img.jpg")                 # 사진 한 장  -> Results 하나
+model(cv2.imread("img.jpg"))     # ndarray 하나 -> Results 하나
+model("frames/")                 # 폴더        -> Results 리스트
+for r in model("clip.mp4"):      # 비디오      -> 지연 흐름
+    annotated = r.plot()
+for r in model(0):               # 웹캠        -> 지연 흐름
     annotated = r.plot()
 ```
 
+`model.predict(x)`는 그 아래의 균일한 형태입니다 — **언제나** `list`,
+`stream=True`면 제너레이터. 입력이 무엇이든 한 가지 모양을 원하는 코드에서
+쓰세요. ovkit의 파이프라인들이 이걸 씁니다.
+
 - `conf` — 검출/인스턴스 태스크의 신뢰도 임계값.
-- `stream=True` — 지연 **제너레이터** 반환(프레임 하나씩 처리); 아니면
-  {class}`~ovkit.Results`의 `list`.
+- `stream=True` — 지연 **제너레이터** 반환(프레임 하나씩 처리). `model(x)`에
+  줘도 되고, 그러면 곧장 `predict`로 넘어갑니다.
 - 비이미지 입력(`.npy`, `.wav`, 비이미지 ndarray)은 자동으로 원시 추론으로 가서
   `{이름: ndarray}`를 반환 — [§7](#가이드-저수준) 참고.
 
 ### Results
 
 ```python
-r = model("img.jpg")[0]
+r = model("img.jpg")
 r.boxes.xyxy      # (N,4) 픽셀 박스; .xywh .conf .cls 도
 r.name_for(2)     # "car"  (클래스 id -> 이름)
 annotated = r.plot()   # -> 주석 ndarray (박스/마스크/키포인트/텍스트)

@@ -170,7 +170,9 @@ def frames(name: str, conf: float, sid: int):
             break
         try:
             res = model(frame, conf=conf)
-            annotated = res[0].plot() if isinstance(res, list) and res else frame
+            # One frame -> one Results. A raw-tensor model answers with a dict
+            # instead, and there is nothing to draw for those.
+            annotated = res.plot() if hasattr(res, "plot") else frame
         except Exception as exc:
             # Wrap it: a one-line 80-char slice smeared off the right edge of
             # the frame told nobody anything.
@@ -203,7 +205,7 @@ async def run_image(model: str = Form(...), conf: float = Form(0.25), file: Uplo
         res = get_model(model)(img, conf=conf)
     except Exception as exc:
         return JSONResponse({"error": str(exc)}, status_code=500)
-    r = res[0] if isinstance(res, list) and res else None
+    r = res if hasattr(res, "plot") else None
     if r is None:
         return JSONResponse({"summary": f"raw outputs: {list(res)}", "image": ""})
     ok, buf = cv2.imencode(".jpg", r.plot())
@@ -224,7 +226,7 @@ async def run_audio(model: str = Form(...), file: UploadFile = File(...)):
 
             return JSONResponse({"summary": transcribe(audio, model=model)})
         # OMZ audio models: ovkit frames, runs and decodes the clip.
-        r = get_model(model)((audio, sr))[0]
+        r = get_model(model)((audio, sr))
         payload = {"summary": r.summary()}
         ok, buf = cv2.imencode(".jpg", r.plot())
         if ok:
@@ -345,7 +347,7 @@ def selfcheck_stream(load_only: int = 1) -> StreamingResponse:
                 if load_only or n_inputs > 1 or model_kind(name) != "image":
                     detail = "loaded" + (" (multi-input)" if n_inputs > 1 else "") + device_note
                 else:
-                    r = model(img)[0]
+                    r = model(img)
                     # The sweep reports the answer a person would read, and
                     # flags models that still reply with plumbing.
                     detail = r.summary() + device_note

@@ -4,7 +4,7 @@ Gaze estimation returns a direction; object detection returns boxes. Neither
 answers the question a shop, a museum or a UX study is asking — *which thing*
 held their attention. Casting the gaze ray into the detected objects does::
 
-    Model("attention")("shelf.jpg")[0].summary()
+    Model("attention")("shelf.jpg").summary()
     # 1 person looking at: bottle (0.68 of the way across the frame)
 
 The ray is 2-D: a gaze vector's depth cannot be recovered from one camera, so
@@ -27,7 +27,7 @@ class AttentionAnalyzer(Pipeline):
     """Gaze plus object detection: name the object on the line of sight.
 
     >>> from ovkit import Model
-    >>> r = Model("attention")("desk.jpg")[0]
+    >>> r = Model("attention")("desk.jpg")
     >>> r.text            # '1 person looking at: laptop'
     >>> r.arrows          # the ray drawn from each eye
     """

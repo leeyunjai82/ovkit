@@ -21,7 +21,7 @@ def main() -> None:
     ap.add_argument("--device", default="AUTO")
     args = ap.parse_args()
 
-    r = Model(args.model, device=args.device)(args.in_wav)[0]
+    r = Model(args.model, device=args.device)(args.in_wav)
     print(r.summary())  # 'denoised 4.2s of audio (16000 Hz)'
     r.save(args.out_wav)  # .wav saves the audio; .jpg would save the waveform
     print(f"saved -> {args.out_wav}")

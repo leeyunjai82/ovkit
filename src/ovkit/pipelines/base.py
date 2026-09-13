@@ -6,8 +6,9 @@ is one call instead of a detector, three crops, three more models and the code
 to stitch them together.
 
 Pipelines take the same sources as ``Model`` (path, ndarray, folder, video,
-camera index) and return the same ``list[Results]``, so anything that already
-works with a model works with a pipeline.
+camera index) and answer in the same shapes — one :class:`~ovkit.Results` for
+one image, a list for a folder, a stream for a camera — so anything that
+already works with a model works with a pipeline.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import Any
 
 import numpy as np
 
-from ..core.model import Model, _iter_sources
+from ..core.model import Model, _immediate, _iter_sources
 from ..core.results import Results
 
 
@@ -78,9 +79,16 @@ class Pipeline:
             result.path = path
             yield result
 
-    def __call__(self, source: Any, **kwargs: Any) -> list[Results] | Iterator[Results]:
-        """Alias for :meth:`predict` (a pipeline is callable, like a model)."""
-        return self.predict(source, **kwargs)
+    def __call__(self, source: Any, **kwargs: Any) -> Any:
+        """Run on ``source``, shaping the answer as :meth:`ovkit.Model.__call__` does.
+
+        A pipeline is a drop-in for a model, so it answers in the same shape:
+        one photo gives one :class:`~ovkit.Results`, a folder gives a list, a
+        webcam gives a stream. :meth:`predict` keeps the uniform list.
+        """
+        if "stream" in kwargs:
+            return self.predict(source, **kwargs)
+        return _immediate(self, source, **kwargs)
 
     def __repr__(self) -> str:
         return f"{type(self).__name__}(name={self.name!r}, device={self.device!r})"
@@ -101,5 +109,5 @@ DEFAULT_CONF = 0.25
 
 def detections(model: Model, image: np.ndarray, conf: float) -> Results:
     """Run a detector and return its ``Results`` (empty boxes are fine)."""
-    out = model(image, conf=conf)
+    out = model.predict(image, conf=conf)
     return out[0] if out else Results(image, task="detect")

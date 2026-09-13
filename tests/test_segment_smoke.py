@@ -13,8 +13,8 @@ def test_segment_end_to_end(synthetic_seg_ir, synthetic_image):
     results = model(synthetic_image)
 
     assert model.task == "segment"
-    r = results[0]
-    assert isinstance(r, Results)
+    r = results
+    assert isinstance(r, Results), "one image answers with one Results, not a list"
 
     assert r.masks is not None
     h, w = synthetic_image.shape[:2]

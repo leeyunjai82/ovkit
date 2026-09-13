@@ -40,7 +40,7 @@ def test_age_gender_decodes_to_text(tmp_path, img):
     age = op.multiply(_head(x, 1), op.constant(np.float32(0.003)))
     prob = op.softmax(_head(x, 2), 1)
     m = ov.Model([_named(age, "age_conv3"), _named(prob, "prob")], [x], "ag")
-    r = Model(_save(m, tmp_path, "ag"), task="face")(img)[0]
+    r = Model(_save(m, tmp_path, "ag"), task="face")(img)
     assert r.text is not None and "age" in r.text
     assert r.probs is not None and r.name_for(r.probs.top1) in ("female", "male")
 
@@ -50,7 +50,7 @@ def test_emotions_decode(tmp_path, img):
 
     x = op.parameter([1, 3, 64, 64], np.float32, name="data")
     m = ov.Model([_named(op.softmax(_head(x, 5), 1), "prob_emotion")], [x], "emo")
-    r = Model(_save(m, tmp_path, "emo"), task="face")(img)[0]
+    r = Model(_save(m, tmp_path, "emo"), task="face")(img)
     assert r.name_for(r.probs.top1) in ("neutral", "happy", "sad", "surprise", "anger")
     assert r.text
 
@@ -60,7 +60,7 @@ def test_face_landmarks_become_keypoints(tmp_path, img):
 
     x = op.parameter([1, 3, 48, 48], np.float32, name="data")
     m = ov.Model([_named(op.sigmoid(_head(x, 10)), "align_fc3")], [x], "lm")
-    r = Model(_save(m, tmp_path, "lm"), task="face")(img)[0]
+    r = Model(_save(m, tmp_path, "lm"), task="face")(img)
     assert r.keypoints is not None and r.keypoints.data.shape == (1, 5, 3)
 
 
@@ -69,7 +69,7 @@ def test_classify_landmark_regressor_yields_keypoints_not_top1(tmp_path, img):
 
     x = op.parameter([1, 3, 60, 60], np.float32, name="data")
     m = ov.Model([_named(op.sigmoid(_head(x, 70)), "fc70")], [x], "lm70")
-    r = Model(_save(m, tmp_path, "lm70"), task="classify")(img)[0]
+    r = Model(_save(m, tmp_path, "lm70"), task="classify")(img)
     assert r.keypoints is not None and r.keypoints.data.shape == (1, 35, 3)
     assert r.probs is None
 
@@ -81,7 +81,7 @@ def test_classify_multi_head_summary(tmp_path, img):
     t = op.softmax(_head(x, 4), 1)
     c = op.softmax(_head(x, 7), 1)
     m = ov.Model([_named(t, "type"), _named(c, "color")], [x], "veh")
-    r = Model(_save(m, tmp_path, "veh"), task="classify")(img)[0]
+    r = Model(_save(m, tmp_path, "veh"), task="classify")(img)
     assert r.text is not None and "type:" in r.text and "color:" in r.text
 
 
@@ -99,6 +99,6 @@ def test_multi_image_input_super_resolution_plots_output_image(tmp_path, img):
     )
     out = op.multiply(op.add(up, x2), op.constant(np.float32(0.002)))
     m = ov.Model([_named(out, "sr_out")], [x1, x2], "sr")
-    r = Model(_save(m, tmp_path, "sr"), task="image_processing")(img)[0]
+    r = Model(_save(m, tmp_path, "sr"), task="image_processing")(img)
     plot = r.plot()
     assert plot.shape == (96, 96, 3)  # the model's output image, not the input

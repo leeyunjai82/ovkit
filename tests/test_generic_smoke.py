@@ -10,7 +10,7 @@ from ovkit import Model
 def test_yolo_end_to_end(synthetic_yolo_ir, synthetic_image):
     # Single 4-D output is ambiguous with segmentation, so request detect.
     model = Model(str(synthetic_yolo_ir), task="detect", device="CPU")
-    r = model(synthetic_image, conf=0.25)[0]
+    r = model(synthetic_image, conf=0.25)
 
     assert model.task == "detect"
     assert len(r.boxes) == 1  # one confident anchor/cell after NMS
@@ -25,7 +25,7 @@ def test_yolo_end_to_end(synthetic_yolo_ir, synthetic_image):
 def test_generic_raw_outputs(synthetic_seg_ir, synthetic_image):
     # An unsupported task falls back to the generic adapter (raw tensors).
     model = Model(str(synthetic_seg_ir), task="image_processing", device="CPU")
-    r = model(synthetic_image)[0]
+    r = model(synthetic_image)
 
     assert model.task == "image_processing"
     assert r.boxes is None and r.masks is None

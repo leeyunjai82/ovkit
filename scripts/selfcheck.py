@@ -167,7 +167,7 @@ def check_download_infer(
             res["ok"].append(name)
             continue
         try:
-            r = model(img)[0]
+            r = model(img)  # one array in, one Results out
             answer = r.summary()
             # The real test is not "did a tensor come back" but "can a person
             # read the answer": a model replying "class_37" has not answered.

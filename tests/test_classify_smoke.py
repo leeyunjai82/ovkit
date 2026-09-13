@@ -13,9 +13,8 @@ def test_classify_end_to_end(synthetic_classify_ir, synthetic_image, imgsz):
     results = model(synthetic_image, imgsz=imgsz)
 
     assert model.task == "classify"
-    assert isinstance(results, list) and len(results) == 1
-    r = results[0]
-    assert isinstance(r, Results)
+    r = results
+    assert isinstance(r, Results), "one image answers with one Results, not a list"
 
     assert r.probs is not None
     assert r.probs.top1 == 3

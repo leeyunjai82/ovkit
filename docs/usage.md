@@ -67,23 +67,29 @@ to a generic adapter that returns the raw output tensors.
 
 ## Predicting
 
-Calling the model (`model(x)`) is the same as `model.predict(x)`. The **input
-type is auto-detected**:
+Calling the model (`model(x)`) **shapes the answer to the input**, the same
+way `Model(name, x)` does — so a model you keep and reuse answers exactly like
+the one-liner:
 
 ```python
-results = model("img.jpg", device="NPU", conf=0.25)   # an image file
-results = model.predict("frames/", imgsz=640)         # a folder of images
-results = model.predict("clip.mp4")                   # a video file
-for r in model.predict(0, stream=True):               # webcam (camera index)
+r = model("img.jpg", device="NPU", conf=0.25)   # one image -> one Results
+out = model("frames/", imgsz=640)               # a folder  -> a list
+for r in model("clip.mp4"):                     # a video   -> a lazy stream
+    annotated = r.plot()
+for r in model(0):                              # a webcam  -> a lazy stream
     annotated = r.plot()
 ```
+
+`model.predict(x)` is the uniform form underneath: **always** a `list`, or a
+generator with `stream=True`. Use it when your code wants one shape no matter
+what went in.
 
 - `source` can be an image path, a `numpy` array (HWC BGR), a folder, a video
   file, or a camera index (`int`).
 - `conf` is the confidence threshold for detection/instance tasks.
 - `stream=True` returns a lazy **generator** (use it for video or large folders
-  so frames are processed one at a time); otherwise you get a `list` of
-  {class}`~ovkit.Results`.
+  so frames are processed one at a time). Passing it to `model(x)` hands the
+  call straight to `predict`.
 
 Non-image inputs are routed to raw inference automatically: a `.npy` tensor, a
 `.wav` file, or a non-image `ndarray` is fed straight to the model and the raw

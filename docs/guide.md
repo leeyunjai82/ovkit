@@ -41,9 +41,9 @@ Python 3.10+.
 from ovkit import Model
 
 model = Model("rtdetr_r50")              # name -> auto download / convert / cache
-for r in model("street.jpg", conf=0.25): # __call__ == predict
-    print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
-    r.save("out.jpg")
+r = model("street.jpg", conf=0.25)       # one photo -> one Results
+print(r.boxes.xyxy, r.boxes.conf, r.boxes.cls)
+r.save("out.jpg")
 ```
 
 ## 4. Choosing a model
@@ -68,28 +68,34 @@ ovkit info face_detection  # source, task, license, precision (follows aliases)
 
 ## 5. Running inference
 
-Calling the model (`model(x)`) equals `model.predict(x)`. **The input type is
-auto-detected:**
+Calling the model (`model(x)`) **shapes the answer to the input** — the same
+rule `Model(name, x)` follows, so keeping a model to reuse never changes what
+comes back:
 
 ```python
-model("img.jpg")                       # image file
-model(cv2.imread("img.jpg"))           # HWC BGR ndarray
-model("frames/")                       # a folder of images
-model("clip.mp4")                      # a video file
-for r in model.predict(0, stream=True):# webcam (camera index) — lazy generator
+model("img.jpg")                 # one image   -> one Results
+model(cv2.imread("img.jpg"))     # one ndarray -> one Results
+model("frames/")                 # a folder    -> a list of Results
+for r in model("clip.mp4"):      # a video     -> a lazy stream
+    annotated = r.plot()
+for r in model(0):               # a webcam    -> a lazy stream
     annotated = r.plot()
 ```
 
+`model.predict(x)` is the uniform form underneath: **always** a `list`, or a
+generator with `stream=True`. Reach for it when your code wants one shape
+whatever came in — ovkit's own pipelines do.
+
 - `conf` — confidence threshold for detection/instance tasks.
-- `stream=True` — returns a lazy **generator** (process frames one at a time);
-  otherwise you get a `list` of {class}`~ovkit.Results`.
+- `stream=True` — returns a lazy **generator** (process frames one at a time).
+  It works on `model(x)` too, which then hands straight to `predict`.
 - Non-image inputs (`.npy`, `.wav`, non-image ndarray) auto-route to raw
   inference and return `{name: ndarray}` — see [§7](#guide-low-level).
 
 ### Results
 
 ```python
-r = model("img.jpg")[0]
+r = model("img.jpg")
 r.boxes.xyxy      # (N,4) pixel boxes; also .xywh .conf .cls
 r.name_for(2)     # "car"  (class id -> name)
 annotated = r.plot()   # -> annotated ndarray (boxes/masks/keypoints/text)

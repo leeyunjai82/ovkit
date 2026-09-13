@@ -19,7 +19,7 @@ def main() -> None:
     ap.add_argument("--method", default="pixelate", choices=["pixelate", "blur"])
     args = ap.parse_args()
 
-    r = Model("anonymize", plates=args.plates, method=args.method)(args.image)[0]
+    r = Model("anonymize", plates=args.plates, method=args.method)(args.image)
     print(r.summary())  # 'pixelated 3 faces and 1 plate'
     r.save(args.out)  # the redacted picture, never the original
     print(f"-> {args.out}")

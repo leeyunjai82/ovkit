@@ -104,7 +104,7 @@ def test_a_missing_korean_model_falls_back_out_loud(monkeypatch):
     calls: list[str] = []
 
     class _Reader:
-        def __call__(self, _crop):
+        def predict(self, _crop):
             return []
 
     def fake_model(name):
@@ -145,7 +145,7 @@ def test_a_recogniser_that_cannot_read_says_so_once(monkeypatch):
     reader = TextReader()
 
     class _Broken:
-        def __call__(self, _crop):
+        def predict(self, _crop):
             raise RuntimeError("input shape mismatch")
 
     monkeypatch.setattr(reader, "model", lambda name: _Broken())
@@ -169,17 +169,17 @@ def test_finding_text_and_reading_none_is_not_nothing_found(monkeypatch):
     rows = np.array([[0, 0, 10, 10, 0.9, 0], [20, 20, 30, 30, 0.8, 0]], np.float32)
 
     class _Silent:
-        def __call__(self, _crop):
+        def predict(self, _crop):
             out = Results(np.zeros((4, 4, 3), np.uint8), task="ocr")
             out.text = ""
             return [out]
 
+    class _Detector:
+        def predict(self, img, **_kw):
+            return [Results(img, task="detect", names={0: "text"}, boxes=Boxes(rows))]
+
     def fake_model(name):
-        if name == "text_detection":
-            return lambda img, **kw: [
-                Results(img, task="detect", names={0: "text"}, boxes=Boxes(rows))
-            ]
-        return _Silent()
+        return _Detector() if name == "text_detection" else _Silent()
 
     monkeypatch.setattr(reader, "model", fake_model)
     with pytest.warns(RuntimeWarning, match="read none of them"):

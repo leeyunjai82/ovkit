@@ -448,7 +448,7 @@ class Controller:
             return
         self._stop_live.set()
         self._publish(busy=True, error="")
-        results = self._model(self._current)(text, voice=voice)
+        results = self._model(self._current).predict(text, voice=voice)
         result = results[0] if isinstance(results, list) else results
         # Draw first, then flip the state, then publish. Setting `_audio`
         # before the frame existed left a window where `has_audio()` said yes
@@ -497,9 +497,9 @@ class Controller:
     def _infer(self, image: np.ndarray) -> tuple[np.ndarray, str]:
         """Run the current model and return ``(annotated frame, one-line answer)``."""
         try:
-            results = self._model(self._current)(image, conf=self._conf)
+            results = self._model(self._current).predict(image, conf=self._conf)
         except TypeError:  # a model that takes no conf argument
-            results = self._model(self._current)(image)
+            results = self._model(self._current).predict(image)
         if not results:
             return image, "no result"
         result = results[0]
