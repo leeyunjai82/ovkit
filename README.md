@@ -492,3 +492,17 @@ with no licence, or the wrong one, raises instead of downloading.
 That is why there is no YOLO in this repository and an Apache-2.0 RT-DETR
 instead: a school or a product should not need a licence conversation to run
 object detection.
+
+## Contributing
+
+Adding a model is a one-line YAML edit; adding a capability is one class. The
+tests never touch the network and `python scripts/check.py` runs exactly what CI
+runs — see **[CONTRIBUTING.md](CONTRIBUTING.md)**.
+
+Something answering "nothing found" on a picture that plainly contains the
+thing is the bug report this project most wants: that class of failure once hid
+ten broken capabilities behind a plausible answer.
+
+[Open an issue](https://github.com/leeyunjai82/ovkit/issues) ·
+[Docs](https://leeyunjai82.github.io/ovkit/) ·
+[한국어 문서](https://leeyunjai82.github.io/ovkit/ko/)
