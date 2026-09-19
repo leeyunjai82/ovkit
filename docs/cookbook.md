@@ -19,8 +19,9 @@ m = Model("rtdetr_r50", precision="int8")        # target IR precision
 
 ## Vision tasks (image in → `Results`)
 
-`model(x)` returns a `list[Results]` (one per image). Use `r.plot()` for an
-annotated `ndarray` and `r.save("out.jpg")` to write it.
+One image in, one `Results` out — no index to take. Use `r.plot()` for an
+annotated `ndarray` and `r.save("out.jpg")` to write it. (`model.predict(x)`
+is the uniform form: always a list, one `Results` per image.)
 
 ```python
 import cv2
@@ -40,7 +41,7 @@ print("top5:", [r.name_for(int(i)) for i in r.probs.top5])
 # Semantic segmentation -> masks (1, H, W) class map
 r = Model("road_segmentation_adas_0001")("road.jpg")
 print(r.masks.data.shape)
-cv2.imwrite("seg.jpg", r.plot())          # colorized overlay
+r.save("seg.jpg")                         # colorized overlay
 
 # Instance segmentation -> boxes + per-instance masks (N, H, W)
 r = Model("instance_segmentation_person_0007")("people.jpg")
@@ -64,11 +65,12 @@ for name, arr in r.tensors.items():
 
 ```python
 m = Model("rtdetr_r50")
-m("img.jpg")                 # file path
-m(cv2.imread("img.jpg"))     # HWC BGR ndarray
-m("folder/")                 # every image in a folder
-m("clip.mp4")                # a video file
-for r in m.predict(0, stream=True):   # webcam (camera index), lazy generator
+m("img.jpg")                 # file path            -> one Results
+m(cv2.imread("img.jpg"))     # HWC BGR ndarray      -> one Results
+m("folder/")                 # every image in it    -> a list
+for r in m("clip.mp4"):      # a video file         -> a lazy stream
+    annotated = r.plot()
+for r in m(0):               # webcam (camera index) -> a lazy stream
     annotated = r.plot()
 
 # Non-image inputs are auto-routed to raw inference (returns a dict):

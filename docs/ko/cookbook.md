@@ -18,8 +18,9 @@ m = Model("rtdetr_r50", precision="int8")        # IR 정밀도 지정
 
 ## 비전 태스크 (이미지 입력 → `Results`)
 
-`model(x)`는 `list[Results]`(이미지당 하나)를 반환합니다. `r.plot()`은 주석이 그려진
-`ndarray`, `r.save("out.jpg")`는 파일 저장.
+이미지 하나를 주면 `Results` 하나가 옵니다 — 인덱스를 뗄 필요가 없습니다.
+`r.plot()`은 주석이 그려진 `ndarray`, `r.save("out.jpg")`는 파일 저장.
+(`model.predict(x)`는 균일한 형태 — 언제나 리스트, 이미지당 `Results` 하나.)
 
 ```python
 import cv2
@@ -39,7 +40,7 @@ print("top5:", [r.name_for(int(i)) for i in r.probs.top5])
 # 시맨틱 분할 -> masks (1, H, W) 클래스맵
 r = Model("road_segmentation_adas_0001")("road.jpg")
 print(r.masks.data.shape)
-cv2.imwrite("seg.jpg", r.plot())          # 컬러 오버레이
+r.save("seg.jpg")                         # 컬러 오버레이
 
 # 인스턴스 분할 -> boxes + 인스턴스별 마스크 (N, H, W)
 r = Model("instance_segmentation_person_0007")("people.jpg")
@@ -63,11 +64,12 @@ for name, arr in r.tensors.items():
 
 ```python
 m = Model("rtdetr_r50")
-m("img.jpg")                 # 파일 경로
-m(cv2.imread("img.jpg"))     # HWC BGR ndarray
-m("folder/")                 # 폴더 안 모든 이미지
-m("clip.mp4")                # 비디오 파일
-for r in m.predict(0, stream=True):   # 웹캠(카메라 인덱스), 지연 제너레이터
+m("img.jpg")                 # 파일 경로            -> Results 하나
+m(cv2.imread("img.jpg"))     # HWC BGR ndarray      -> Results 하나
+m("folder/")                 # 폴더 안 모든 이미지    -> 리스트
+for r in m("clip.mp4"):      # 비디오 파일           -> 지연 흐름
+    annotated = r.plot()
+for r in m(0):               # 웹캠(카메라 인덱스)    -> 지연 흐름
     annotated = r.plot()
 
 # 비이미지 입력은 자동으로 원시 추론(dict 반환):

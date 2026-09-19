@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+- **`ovkit run` streams video and opens a camera.** It used to go through
+  `predict` and read a whole clip into a list before printing a single line,
+  and `ovkit run detect 0` looked for a file called `0`. Now it follows the
+  same rule as `Model(name, source)`: a photo prints once and saves
+  `<name>_out.jpg`; a folder prints one line per file; a video or a camera
+  index prints every frame as it arrives, in a window when there is one,
+  `q` or Ctrl-C to stop, `--save` for the last frame.
+- The cookbook (EN/KO) still said `model(x)` returns a `list[Results]` — it has
+  not since 0.5.0. It also taught `cv2.imwrite(...)` for saving an overlay,
+  which is the exact call that lost a Korean filename on Windows in 0.4.0;
+  `r.save(...)` now.
+- `CONTRIBUTING.md` states the `.predict()` rule for pipeline authors that the
+  0.5.0 guard test enforces.
+
 ## v0.5.0 (2026-09-13)
 
 **Keeping a model to reuse it no longer changes the answer.** `Model(이름, 입력)`

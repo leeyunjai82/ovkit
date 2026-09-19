@@ -28,7 +28,9 @@ r.save("out.jpg")                  # the boxes drawn on the photo
 ### What it takes
 
 The call is the same whatever you point it at. A photo gives one result, a
-folder a list, a video or camera or microphone a stream.
+folder a list, a video or camera or microphone a stream. The table holds for
+a model you keep, too — `m = Model("detect")` and then `m("a.jpg")` answers
+exactly as `Model("detect", "a.jpg")` does.
 
 | Source | Example | You get |
 | ------ | ------- | ------- |

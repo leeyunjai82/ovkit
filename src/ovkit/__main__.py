@@ -11,6 +11,7 @@ from .core.convert import to_ir
 from .core.download import fetch
 from .core.errors import OVKitError
 from .core.registry import list_models, resolve
+from .core.results import Results
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -132,33 +133,84 @@ def _cmd_devices(_: argparse.Namespace) -> int:
     return 0
 
 
+def _shell_source(text: str) -> str | int:
+    """What the shell handed over: ``"0"`` is a camera index, everything else a path.
+
+    argparse only ever gives strings, so without this ``ovkit run detect 0``
+    looked for a file called ``0`` and reported it missing.
+    """
+    return int(text) if text.isdigit() else text
+
+
+def _print_result(r: Results) -> None:
+    print(r.summary())
+    if r.boxes is not None:
+        for x1, y1, x2, y2, c, cl in r.boxes.data[:20]:
+            print(f"  {r.name_for(int(cl)):16s} {c:.2f} [{int(x1)},{int(y1)},{int(x2)},{int(y2)}]")
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
-    """One-shot inference from the shell: ``ovkit run detect img.jpg``."""
+    """One-shot inference from the shell: ``ovkit run detect img.jpg``.
+
+    Answers in the shape the input asks for, the same rule as
+    ``Model(name, source)``: a photo prints once and saves once; a folder
+    prints each file; a video or a camera index **streams** — every frame
+    printed as it arrives, in a window when there is one, ``q`` to stop.
+
+    It used to call ``predict`` and read a whole video into a list before
+    printing a single line, and could not open a camera at all.
+    """
     from pathlib import Path
 
     from .core.model import Model
+    from .core.progress import has_display
 
+    source = _shell_source(args.source)
     model = Model(args.model, device=args.device)
-    results = model.predict(args.source, conf=args.conf)
-    if not isinstance(results, list):  # raw (.npy/.wav) input -> tensor dict
-        for name, arr in results.items():
+    out = model(source, conf=args.conf)
+
+    if isinstance(out, dict):  # raw (.npy/.wav) input -> tensor dict
+        for name, arr in out.items():
             print(f"{name}: shape={tuple(arr.shape)} dtype={arr.dtype}")
         return 0
 
-    for r in results:
-        print(r.summary())
-        if r.boxes is not None:
-            for x1, y1, x2, y2, c, cl in r.boxes.data[:20]:
-                print(
-                    f"  {r.name_for(int(cl)):16s} {c:.2f} [{int(x1)},{int(y1)},{int(x2)},{int(y2)}]"
-                )
+    if isinstance(out, Results):  # one photo
+        _print_result(out)
+        save = args.save
+        if save is None and Path(str(source)).is_file():
+            save = f"{Path(str(source)).stem}_out.jpg"
+        if save:
+            out.save(save)
+            print(f"saved -> {save}")
+        return 0
 
-    save = args.save
-    if save is None and results and Path(str(args.source)).is_file():
-        save = f"{Path(str(args.source)).stem}_out.jpg"
-    if save and results:
-        results[0].save(save)
-        print(f"saved -> {save}")
+    if isinstance(out, list):  # a folder: one line per file, saved only on request
+        for r in out:
+            print(f"{r.path}: ", end="")
+            _print_result(r)
+        if args.save and out:
+            out[0].save(args.save)
+            print(f"saved -> {args.save}")
+        return 0
+
+    # A video or a camera: a stream. Nothing is collected, so a long clip
+    # starts printing at frame one and a camera runs until q (or Ctrl-C).
+    # Without a display `show()` would write every frame to a file, which is
+    # not what a shell user asked for, so the window is only tried when
+    # there can be one.
+    last: Results | None = None
+    window = has_display()
+    try:
+        for r in out:
+            _print_result(r)
+            last = r
+            if window and not r.show("ovkit run"):
+                break
+    except KeyboardInterrupt:
+        pass
+    if args.save and last is not None:
+        last.save(args.save)
+        print(f"saved -> {args.save}")
     return 0
 
 
@@ -269,12 +321,16 @@ def main(argv: list[str] | None = None) -> int:
     p_dev = sub.add_parser("devices", help="list OpenVINO devices")
     p_dev.set_defaults(func=_cmd_devices)
 
-    p_run = sub.add_parser("run", help="run a model on an image/folder/video from the shell")
+    p_run = sub.add_parser("run", help="run a model on a photo/folder/video/camera from the shell")
     p_run.add_argument("model", help="alias, registered name, or model path")
-    p_run.add_argument("source", help="image / folder / video path (or .npy/.wav)")
+    p_run.add_argument("source", help="image / folder / video path, camera index, or .npy/.wav")
     p_run.add_argument("--conf", type=float, default=0.25, help="confidence threshold")
     p_run.add_argument("--device", default="AUTO", help="AUTO | CPU | GPU | NPU")
-    p_run.add_argument("--save", metavar="PATH", help="annotated output (default: <src>_out.jpg)")
+    p_run.add_argument(
+        "--save",
+        metavar="PATH",
+        help="annotated output (a photo defaults to <src>_out.jpg; a stream saves its last frame)",
+    )
     p_run.set_defaults(func=_cmd_run)
 
     args = parser.parse_args(argv)

@@ -77,7 +77,7 @@ def frames(model_name: str, conf: float, stream_id: int):
         if not ok:
             break
         try:
-            result = model(frame, conf=conf)          # one frame -> one Results
+            result = model(frame, conf=conf)  # one frame -> one Results
             annotated = result.plot() if hasattr(result, "plot") else frame
         except Exception as exc:  # show the error on the frame, keep streaming
             annotated = frame.copy()

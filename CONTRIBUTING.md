@@ -55,6 +55,16 @@ tensor — `print(r)` has to read like a sentence.
 Give it a Korean name in `core/i18n.py` too. Someone who types `Model("얼굴분석")`
 should not have to learn `face_analyze` first.
 
+Inside a pipeline, call sub-models with **`.predict(...)`**, never `()`:
+
+```python
+out = self.model("face_detection").predict(image, conf=conf)   # always a list
+```
+
+`model(x)` shapes its answer to the input — one `Results` for a photo, a
+stream for a camera — which is right for a person and wrong for plumbing that
+wants the same shape every time. A test fails on the short form in `src/`.
+
 ## Reporting a bug
 
 The useful bug report has the command you ran and the output you got, verbatim.
