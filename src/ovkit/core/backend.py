@@ -65,6 +65,19 @@ def _friendlier_compile_error(exc: Exception, model: str | Path | Any) -> Except
     )
 
 
+def _shape_of(port: Any) -> tuple[int, ...]:
+    """A port's partial shape as a tuple, ``-1`` for each dynamic dimension."""
+    return tuple(int(d.get_length()) if d.is_static else -1 for d in port.get_partial_shape())
+
+
+def _name_of(port: Any, idx: int) -> str:
+    """A port's name, or ``""`` when OpenVINO has none for it."""
+    try:
+        return port.get_any_name()
+    except RuntimeError:
+        return ""
+
+
 class Backend:
     """A compiled model bound to a device, with sync and async inference.
 
@@ -86,17 +99,28 @@ class Backend:
             raise _friendlier_compile_error(exc, model) from exc
         self.inputs = self.compiled.inputs
         self.outputs = self.compiled.outputs
+        # A compiled model's shapes and names never change, but they were being
+        # re-read from the runtime on every frame: `_adapt_image_channels` asks
+        # for `input_shape` each infer, and the detect adapter asks for
+        # `output_signatures()` twice per frame to pick a decode format. Read
+        # them once, here.
+        self._input_shape = _shape_of(self.compiled.inputs[0]) if self.compiled.inputs else ()
+        self._output_signatures = [
+            (_name_of(out, idx), _shape_of(out)) for idx, out in enumerate(self.compiled.outputs)
+        ]
+        # `_named` keys a dict by these, so an output OpenVINO has no name for
+        # gets a distinct placeholder — two empty strings would collide and the
+        # second output would overwrite the first.
+        self._output_names = [
+            name or f"output_{idx}" for idx, (name, _shape) in enumerate(self._output_signatures)
+        ]
 
     # -- introspection ------------------------------------------------------
 
     @property
     def input_shape(self) -> tuple[int, ...]:
         """Partial shape of the first input as a tuple (``-1`` for dynamic)."""
-        ps = self.compiled.inputs[0].get_partial_shape()
-        dims: list[int] = []
-        for d in ps:
-            dims.append(int(d.get_length()) if d.is_static else -1)
-        return tuple(dims)
+        return self._input_shape
 
     def _adapt_image_channels(self, arr: np.ndarray) -> np.ndarray:
         """Match a single 4-D image tensor to the model's layout and channels.
@@ -144,16 +168,7 @@ class Backend:
 
     def output_signatures(self) -> list[tuple[str, tuple[int, ...]]]:
         """Return ``(name, shape)`` for each output (``-1`` for dynamic dims)."""
-        sigs: list[tuple[str, tuple[int, ...]]] = []
-        for out in self.compiled.outputs:
-            ps = out.get_partial_shape()
-            shape = tuple(int(d.get_length()) if d.is_static else -1 for d in ps)
-            try:
-                name = out.get_any_name()
-            except RuntimeError:
-                name = ""
-            sigs.append((name, shape))
-        return sigs
+        return self._output_signatures
 
     def rt_info(self, *keys: str) -> str | None:
         """Read a runtime-info value from the underlying model, or ``None``."""
@@ -215,10 +230,7 @@ class Backend:
     def _named(self, result: Any) -> dict[str, np.ndarray]:
         named: dict[str, np.ndarray] = {}
         for idx, out in enumerate(self.compiled.outputs):
-            try:
-                name = out.get_any_name()
-            except RuntimeError:
-                name = f"output_{idx}"
+            name = self._output_names[idx]
             try:
                 named[name] = np.asarray(result[out])
             except (KeyError, TypeError):

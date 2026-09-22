@@ -114,12 +114,23 @@ class BaseAdapter:
         img = ops.resize(image, (w, h))
         if rgb:
             img = ops.bgr_to_rgb(img)
-        arr = img.astype(np.float32)
+        if img.ndim == 2:  # a grayscale crop
+            img = img[:, :, None]
+
+        # One pass from uint8 HWC to float32 NCHW. The transpose is a view, so
+        # ``ascontiguousarray`` does the cast and the reorder in a single copy.
+        # Written out as five statements this allocated a full-size float32
+        # array five times a frame (cast, divide, subtract, divide, contiguous)
+        # and preprocessing came to two thirds of the time a frame cost.
+        arr = np.ascontiguousarray(img.transpose(2, 0, 1)[None], dtype=np.float32)
+
         default_scale, mean, std = self._scale_mean_std()
         scale = default_scale if scale is None else float(scale)
         if scale != 1.0:
-            arr = arr / scale
-        if np.any(mean != 0.0) or np.any(std != 1.0):
-            arr = (arr - mean) / std
-        arr = np.transpose(arr, (2, 0, 1))[None]  # HWC -> NCHW
-        return np.ascontiguousarray(arr, dtype=np.float32)
+            arr /= scale
+        # ``arr`` is NCHW now, so the per-channel vectors broadcast on axis 1.
+        if np.any(mean != 0.0):
+            arr -= mean.reshape(1, -1, 1, 1)
+        if np.any(std != 1.0):
+            arr /= std.reshape(1, -1, 1, 1)
+        return arr

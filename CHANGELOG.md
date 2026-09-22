@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+### Performance
+- **A frame costs half what it did** — 4.0 ms -> 2.0 ms on a 1280x720 photo
+  through a 640x640 detector (median of 5x40, measured three times). Nothing
+  about the models changed; the time was being spent on the way in.
+  - **Preprocessing was two thirds of a frame.** Normalising was written as
+    five statements — cast, divide, subtract, divide, make contiguous — and
+    each one allocated another full-size float32 array. At 640x640 that is
+    five 4.9 MB allocations a frame to do arithmetic that fits in one pass.
+    The transpose is a view, so one `ascontiguousarray` now does the cast and
+    the reorder together and the rest is in-place.
+  - **The compiled model was re-describing itself every frame.** `input_shape`
+    was read from the OpenVINO runtime on every infer, and the detect adapter
+    asked `output_signatures()` twice a frame to pick a decode format. Neither
+    can change once a model is compiled; both are read once now.
+  - Measured and *not* taken: `cv2.dnn.blobFromImage` (1288 us vs numpy's
+    1173) and the `AsyncInferQueue` that `infer_batch` has always exposed and
+    nothing has ever called (0.72x — with a latency-hinted compile OpenVINO
+    already has all the cores).
+
 ### Changed
 - **`ovkit run` streams video and opens a camera.** It used to go through
   `predict` and read a whole clip into a list before printing a single line,
