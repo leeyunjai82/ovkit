@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.1 (2026-09-22)
 
 ### Performance
 - **A frame costs half what it did** — 4.0 ms -> 2.0 ms on a 1280x720 photo
