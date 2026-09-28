@@ -11,6 +11,8 @@ from pathlib import Path
 
 import numpy as np
 
+from .progress import has_display
+
 # Deterministic, visually distinct palette for class colors (BGR).
 _PALETTE = np.array(
     [
@@ -196,6 +198,21 @@ class Probs:
 #: Set once when a window cannot be opened, so the advice is given once
 #: rather than per frame.
 _WINDOWS_UNAVAILABLE = False
+
+
+def windows_available() -> bool:
+    """Whether :meth:`Results.show` can still open a real window.
+
+    ``has_display()`` is not enough on its own: ovkit depends on
+    ``opencv-python-headless``, which has no window support at all, so a Linux
+    desktop with ``DISPLAY`` set passes that check and ``cv2.imshow`` raises
+    anyway. Only an attempt can tell, so this reports what the last attempt
+    found — ``False`` for good once one has failed.
+
+    A loop that must not write a file per frame checks this after each
+    :meth:`Results.show`, and stops asking for a window once it says no.
+    """
+    return not _WINDOWS_UNAVAILABLE and has_display()
 
 
 class Results:
@@ -616,7 +633,7 @@ class Results:
         """
         import cv2
 
-        from .progress import has_display, no_window_advice
+        from .progress import no_window_advice
 
         frame = self.plot()
         global _WINDOWS_UNAVAILABLE

@@ -11,7 +11,7 @@ from .core.convert import to_ir
 from .core.download import fetch
 from .core.errors import OVKitError
 from .core.registry import list_models, resolve
-from .core.results import Results
+from .core.results import Results, windows_available
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
@@ -163,7 +163,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from pathlib import Path
 
     from .core.model import Model
-    from .core.progress import has_display
+    from .core.progress import has_display, say
 
     source = _shell_source(args.source)
     model = Model(args.model, device=args.device)
@@ -195,17 +195,28 @@ def _cmd_run(args: argparse.Namespace) -> int:
 
     # A video or a camera: a stream. Nothing is collected, so a long clip
     # starts printing at frame one and a camera runs until q (or Ctrl-C).
-    # Without a display `show()` would write every frame to a file, which is
-    # not what a shell user asked for, so the window is only tried when
-    # there can be one.
+    #
+    # `show()` falls back to writing the frame to a file when it cannot open a
+    # window. That is right for a loop someone wrote themselves and wrong here:
+    # a camera would fill the working directory at thirty files a second. So
+    # the window is dropped the moment it turns out to be impossible — which
+    # `has_display()` alone cannot tell, since ovkit depends on headless
+    # OpenCV and that raises on a desktop with DISPLAY set.
     last: Results | None = None
     window = has_display()
     try:
         for r in out:
             _print_result(r)
             last = r
-            if window and not r.show("ovkit run"):
-                break
+            if window:
+                if not r.show("ovkit run"):
+                    break
+                window = windows_available()
+                if not window:
+                    say(
+                        "창 없이 계속합니다 — 한 줄씩 출력만 합니다. (Ctrl-C로 끝)",
+                        "carrying on without a window — printing only. (Ctrl-C to stop)",
+                    )
     except KeyboardInterrupt:
         pass
     if args.save and last is not None:

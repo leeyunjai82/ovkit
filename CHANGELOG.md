@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.5.2 (2026-09-28)
+
+### Fixed
+- **`ovkit run detect 0` filled the working directory.** `Results.show()` writes
+  the frame to a file when it cannot open a window — right for a loop you wrote
+  yourself, and wrong for a camera at thirty frames a second. The stream loop
+  added in 0.5.1 guarded this with `has_display()`, which does not catch the
+  common case at all: ovkit depends on `opencv-python-headless`, so a Linux
+  desktop with `DISPLAY` set passes that check and `cv2.imshow` raises anyway.
+  Twelve frames wrote twelve files. Now the window is dropped on the first
+  failure, one line says so, and the run keeps printing.
+- New `ovkit.core.results.windows_available()` — what the last attempt to open
+  a window found. A loop that must not write a file per frame can ask.
+
 ## v0.5.1 (2026-09-22)
 
 ### Performance

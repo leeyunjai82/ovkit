@@ -72,3 +72,52 @@ def test_a_folder_prints_one_line_per_file_and_saves_only_on_request(
 
     assert main(["run", "_cli_echo", "우리반", "--save", "first.jpg"]) == 0
     assert (tmp_path / "first.jpg").is_file()
+
+
+def test_a_stream_without_a_window_does_not_write_a_file_per_frame(
+    echo, tmp_path, monkeypatch, capsys
+):
+    """A camera at 30 fps would have filled the working directory.
+
+    `Results.show()` writes the frame to a file when it cannot open a window,
+    which is right for a loop someone wrote themselves and wrong for
+    `ovkit run`. And `has_display()` does not catch the common case: ovkit
+    depends on `opencv-python-headless`, so a Linux desktop with DISPLAY set
+    passes that check and `cv2.imshow` raises anyway. The window has to be
+    dropped on the first failure, not merely never asked for.
+    """
+    import cv2
+
+    import ovkit.core.results as results_mod
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(results_mod, "_WINDOWS_UNAVAILABLE", False)
+    monkeypatch.setattr("ovkit.core.results.has_display", lambda: True)
+
+    def no_windows(*_args, **_kwargs):
+        raise cv2.error("The function is not implemented.")
+
+    monkeypatch.setattr(cv2, "imshow", no_windows)
+
+    frames = [np.zeros((16, 16, 3), np.uint8) for _ in range(12)]
+    monkeypatch.setattr(
+        "ovkit.pipelines.base._iter_sources", lambda src: ((f, "cam") for f in frames)
+    )
+
+    assert main(["run", "_cli_echo", "clip.mp4"]) == 0
+
+    written = sorted(p.name for p in tmp_path.glob("*.jpg"))
+    assert len(written) <= 1, f"one frame per file again: {written}"
+    assert "person" in capsys.readouterr().out, "it must still print every frame"
+
+
+def test_windows_available_goes_false_for_good_once_one_fails(monkeypatch):
+    import ovkit.core.results as results_mod
+    from ovkit.core.results import windows_available
+
+    monkeypatch.setattr("ovkit.core.results.has_display", lambda: True)
+    monkeypatch.setattr(results_mod, "_WINDOWS_UNAVAILABLE", False)
+    assert windows_available() is True
+
+    monkeypatch.setattr(results_mod, "_WINDOWS_UNAVAILABLE", True)
+    assert windows_available() is False
